@@ -20,6 +20,6 @@ pub fn char_literal() -> DynParser {
         '\''.void()
     );
     char_literal
-        .map(|(c,): (char,)| (Token::ConstantCharacter(c),))
+        .map(|(c,): (char,)| (Token::ConstantCharacter(c as u8),))
         .box_chars()
 }

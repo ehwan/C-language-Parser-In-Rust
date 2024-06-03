@@ -33,8 +33,8 @@ pub fn tokenize(source: String) -> Vec<Token> {
             char_literal,
             float_numeric,
             integer_numeric,
-            identifier,
-            trie
+            trie,
+            identifier
         )
     );
 

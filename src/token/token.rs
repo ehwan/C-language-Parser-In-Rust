@@ -1,10 +1,9 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
-    Other(char), // Other single character
     Identifier(String),
     ConstantInteger(u64),
     ConstantFloat(f64),
-    ConstantCharacter(char),
+    ConstantCharacter(u8),
     StringLiteral(String),
     Auto,
     Break,
@@ -60,10 +59,31 @@ pub enum Token {
     GeOp,
     EqOp,
     NeOp,
+    SemiColon,
+    LeftBrace,
+    RightBrace,
+    Comma,
+    Colon,
+    Equal,
+    LeftParen,
+    RightParen,
+    LeftBracket,
+    RightBracket,
+    Dot,
+    Ampersand,
+    Exclamation,
+    Tilde,
+    Minus,
+    Plus,
+    Star,
+    Slash,
+    Percent,
+    LessThan,
+    GreaterThan,
+    Caret,
+    Pipe,
+    Question,
 }
 use rusty_parser as rp;
 
-use rp::IntoParser;
 pub type DynParser = rp::DynBoxChars<(Token,)>;
-
-use std::char;

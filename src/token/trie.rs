@@ -62,30 +62,34 @@ pub fn build_trie() -> rp::DictHashMap<(Token,), char> {
     dict.insert("==".chars(), (Token::EqOp,));
     dict.insert("!=".chars(), (Token::NeOp,));
 
-    dict.insert(";".chars(), (Token::Other(';'),));
-    dict.insert("{".chars(), (Token::Other('{'),));
-    dict.insert("}".chars(), (Token::Other('}'),));
-    dict.insert(",".chars(), (Token::Other(','),));
-    dict.insert(":".chars(), (Token::Other(':'),));
-    dict.insert("=".chars(), (Token::Other('='),));
-    dict.insert("(".chars(), (Token::Other('('),));
-    dict.insert(")".chars(), (Token::Other(')'),));
-    dict.insert("[".chars(), (Token::Other('['),));
-    dict.insert("]".chars(), (Token::Other(']'),));
-    dict.insert(".".chars(), (Token::Other('.'),));
-    dict.insert("&".chars(), (Token::Other('&'),));
-    dict.insert("!".chars(), (Token::Other('!'),));
-    dict.insert("~".chars(), (Token::Other('~'),));
-    dict.insert("-".chars(), (Token::Other('-'),));
-    dict.insert("+".chars(), (Token::Other('+'),));
-    dict.insert("*".chars(), (Token::Other('*'),));
-    dict.insert("/".chars(), (Token::Other('/'),));
-    dict.insert("%".chars(), (Token::Other('%'),));
-    dict.insert("<".chars(), (Token::Other('<'),));
-    dict.insert(">".chars(), (Token::Other('>'),));
-    dict.insert("^".chars(), (Token::Other('^'),));
-    dict.insert("|".chars(), (Token::Other('|'),));
-    dict.insert("?".chars(), (Token::Other('?'),));
+    dict.insert(";".chars(), (Token::SemiColon,));
+    dict.insert("{".chars(), (Token::LeftBrace,));
+    dict.insert("<%".chars(), (Token::LeftBrace,));
+    dict.insert("}".chars(), (Token::RightBrace,));
+    dict.insert("%>".chars(), (Token::RightBrace,));
+    dict.insert(",".chars(), (Token::Comma,));
+    dict.insert(":".chars(), (Token::Colon,));
+    dict.insert("=".chars(), (Token::Equal,));
+    dict.insert("(".chars(), (Token::LeftParen,));
+    dict.insert(")".chars(), (Token::RightParen,));
+    dict.insert("[".chars(), (Token::LeftBracket,));
+    dict.insert("<:".chars(), (Token::LeftBracket,));
+    dict.insert("]".chars(), (Token::RightBracket,));
+    dict.insert(":>".chars(), (Token::RightBracket,));
+    dict.insert(".".chars(), (Token::Dot,));
+    dict.insert("&".chars(), (Token::Ampersand,));
+    dict.insert("!".chars(), (Token::Exclamation,));
+    dict.insert("~".chars(), (Token::Tilde,));
+    dict.insert("-".chars(), (Token::Minus,));
+    dict.insert("+".chars(), (Token::Plus,));
+    dict.insert("*".chars(), (Token::Star,));
+    dict.insert("/".chars(), (Token::Slash,));
+    dict.insert("%".chars(), (Token::Percent,));
+    dict.insert("<".chars(), (Token::LessThan,));
+    dict.insert(">".chars(), (Token::GreaterThan,));
+    dict.insert("^".chars(), (Token::Caret,));
+    dict.insert("|".chars(), (Token::Pipe,));
+    dict.insert("?".chars(), (Token::Question,));
 
     dict
 }
