@@ -35,9 +35,9 @@ pub fn integer_numeric() -> DynParser {
     let integer_numeric = rp::seq!(integer_numeric.string(), suffix.optional().void());
 
     integer_numeric
-        .map(|(s,): (String,)| {
+        .map(|s: String| {
             let parse_res = s.parse::<u64>().expect("Failed to parse String to u64");
-            (Token::ConstantInteger(parse_res),)
+            Token::ConstantInteger(parse_res)
         })
         .box_chars()
 }
@@ -71,9 +71,9 @@ pub fn float_numeric() -> DynParser {
     let float_numeric = rp::seq!(float_numeric.string(), suffix.void());
 
     float_numeric
-        .map(|(s,): (String,)| {
+        .map(|s: String| {
             let parse_res: f64 = s.parse::<f64>().expect("Failed to parse String to f64");
-            (Token::ConstantFloat(parse_res),)
+            Token::ConstantFloat(parse_res)
         })
         .box_chars()
 }

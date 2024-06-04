@@ -1,8 +1,5 @@
-use super::token::DynParser;
 use super::token::Token;
 use rusty_parser as rp;
-
-use rp::IntoParser;
 
 pub fn build_trie() -> rp::DictHashMap<(Token,), char> {
     let mut dict = rp::DictHashMap::new();

@@ -7,11 +7,11 @@ use rp::IntoParser;
 pub fn char_literal() -> DynParser {
     // char literal enclosed with ' '
     let escape = rp::or!(
-        'n'.output(('\n',)),
-        't'.output(('\t',)),
-        '\\'.output(('\\',)),
-        '\''.output(('\'',)),
-        '"'.output(('"',))
+        'n'.output('\n'),
+        't'.output('\t'),
+        '\\'.output('\\'),
+        '\''.output('\''),
+        '"'.output('"')
     );
     let escape = rp::seq!('\\'.void(), escape);
     let char_literal = rp::seq!(
@@ -20,6 +20,6 @@ pub fn char_literal() -> DynParser {
         '\''.void()
     );
     char_literal
-        .map(|(c,): (char,)| (Token::ConstantCharacter(c as u8),))
+        .map(|c: char| Token::ConstantCharacter(c as u8))
         .box_chars()
 }

@@ -1,4 +1,3 @@
-use rusty_parser as rp;
 use std::io::{stdin, Read};
 
 mod ast;
@@ -12,9 +11,17 @@ fn main() {
 
     let source = String::from_utf8(source).expect("Invalid UTF-8");
 
+    println!("Tokenizing...");
     let tokens = token::tokenize::tokenize(source);
 
-    for token in tokens {
-        println!("{:?}", token);
+    for token in tokens.iter() {
+        println!("{:?}", *token);
     }
+
+    println!("-----------------------------------");
+    println!("Parsing...");
+
+    let parser = ast::parser::ASTParser::new();
+    let ast = parser.parse(tokens);
+    println!("{:?}", ast);
 }
