@@ -6,11 +6,17 @@ This is test project for [RustyParser](https://github.com/ehwan/RustyParser)
 ## Sample
 ```c
 /// sample.c
-int main() {
-    int a = 10;
-    int b = 20;
-    int c = a + b;
-    return c;
+struct MyStruct
+{
+  int a;
+  int b;
+};
+int main()
+{
+  int a = 10;
+  int b = 20;
+  int c = a + b;
+  return c;
 }
 ```
 
@@ -23,7 +29,18 @@ cat sample.c | ./target/debug/clang-parser
 ```
 Enter your code:
 Tokenizing...
-Tokens:
+Tokens: 
+Struct
+Identifier("MyStruct")
+LeftBrace
+Int
+Identifier("a")
+SemiColon
+Int
+Identifier("b")
+SemiColon
+RightBrace
+SemiColon
 Int
 Identifier("main")
 LeftParen
@@ -52,8 +69,8 @@ SemiColon
 RightBrace
 -----------------------------------
 Parsing...
-ASTs:
-TranslationUnitAST { declarations: [FunctionDefinitionAST { return_type: Int, funcdecl: DeclaratorFunctionAST { decl: DeclaratorIdentifierAST { name: "main" }, args: [] }, body: CompoundStatementAST { statements: [DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "a" }, initializer: ConstantIntegerAST { value: 10 } }] }, DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "b" }, initializer: ConstantIntegerAST { value: 20 } }] }, DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "c" }, initializer: BinaryExpressionAST { op: Add, lhs: PrimaryIdentifierAST { name: "a" }, rhs: PrimaryIdentifierAST { name: "b" } } }] }, ReturnStatementAST { expr: Some(PrimaryIdentifierAST { name: "c" }) }] } }] }
+ASTs: 
+TranslationUnitAST { declarations: [DeclarationAST { specifier: Struct(StructDeclAndSpecifierAST { name: Some("MyStruct"), declarations: [StructMemberDeclarationAST { type_specifier: Int, declarators: [DeclaratorIdentifierAST { name: "a" }] }, StructMemberDeclarationAST { type_specifier: Int, declarators: [DeclaratorIdentifierAST { name: "b" }] }] }), init_declarators: [] }, FunctionDefinitionAST { return_type: Int, funcdecl: DeclaratorFunctionAST { decl: DeclaratorIdentifierAST { name: "main" }, args: [] }, body: CompoundStatementAST { statements: [DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "a" }, initializer: ConstantIntegerAST { value: 10 } }] }, DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "b" }, initializer: ConstantIntegerAST { value: 20 } }] }, DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "c" }, initializer: BinaryExpressionAST { op: Add, lhs: PrimaryIdentifierAST { name: "a" }, rhs: PrimaryIdentifierAST { name: "b" } } }] }, ReturnStatementAST { expr: Some(PrimaryIdentifierAST { name: "c" }) }] } }] }
 ```
 
 ## Running Structures
