@@ -1,9 +1,13 @@
-use std::io::{stdin, Read};
+use std::io::{stdin, stdout, Read, Write};
 
 mod ast;
+mod program;
 mod token;
 
 fn main() {
+    println!("Enter your code:");
+    stdout().flush().expect("Failed to flush stdout");
+
     let mut source: Vec<u8> = Vec::new();
     stdin()
         .read_to_end(&mut source)
@@ -13,6 +17,7 @@ fn main() {
 
     println!("Tokenizing...");
     let tokens = token::tokenize::tokenize(source);
+    println!("Tokens: ");
 
     for token in tokens.iter() {
         println!("{:?}", *token);
@@ -21,6 +26,7 @@ fn main() {
     println!("-----------------------------------");
     println!("Parsing...");
 
+    println!("ASTs: ");
     let parser = ast::parser::ASTParser::new();
     let ast = parser.parse(tokens);
     println!("{:?}", ast);

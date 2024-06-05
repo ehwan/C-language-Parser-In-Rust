@@ -1,6 +1,8 @@
 use super::ast::*;
 use crate::token::Token;
 
+use std::{any::Any, borrow::Borrow};
+
 use rusty_parser::{self as rp, IntoParser};
 
 pub struct ASTParser {
@@ -56,6 +58,13 @@ impl ASTParser {
             rp::one(Token::Signed).output(TypeSpecifier::Signed),
             rp::one(Token::Unsigned).output(TypeSpecifier::Unsigned)
         );
+        let identifier = rp::check(|t: Token| -> Option<String> {
+            if let Token::Identifier(s) = t {
+                Some(s)
+            } else {
+                None
+            }
+        });
 
         let mut s = Self {
             primary_expression: dummy.clone().box_slice().refcell().rc(),
@@ -97,7 +106,7 @@ impl ASTParser {
         {
             let identifier = rp::check(|t: Token| -> Option<Box<dyn AST>> {
                 if let Token::Identifier(s) = t {
-                    Some(Box::new(IdentifierAST { name: s }))
+                    Some(Box::new(PrimaryIdentifierAST { name: s }))
                 } else {
                     None
                 }
@@ -245,35 +254,26 @@ impl ASTParser {
             | postfix_expression DEC_OP
             ;
             */
-            let postfix_expression = rp::seq!(
-                s.primary_expression.clone(),
-                rp::or!(bracket, paren, paren_with_args, dot, ptr_op, inc_op, dec_op).repeat(0..)
-            )
-            .map(
-                |mut primary: Box<dyn AST>, postfixs: Vec<PostfixType>| -> Box<dyn AST> {
-                    for postfix in postfixs {
-                        primary = match postfix {
-                            PostfixType::Bracket(e) => Box::new(PostBracketAST {
-                                src: primary,
-                                index: e,
-                            }),
-                            PostfixType::Paren(args) => {
-                                let args = Box::new(ArgumentExpressionListAST { args });
-                                Box::new(PostParen { src: primary, args })
-                            }
-                            PostfixType::Dot(s) => Box::new(PostMemberAST {
-                                src: primary,
-                                member: s,
-                            }),
-                            PostfixType::Arrow(s) => Box::new(PostPointerAST {
-                                src: primary,
-                                member: s,
-                            }),
-                            PostfixType::Inc => Box::new(PostIncrementAST { src: primary }),
-                            PostfixType::Dec => Box::new(PostDecrementAST { src: primary }),
-                        };
+            let postfix_expression = s.primary_expression.clone().reduce_left(
+                rp::or!(bracket, paren, paren_with_args, dot, ptr_op, inc_op, dec_op),
+                |lhs: Box<dyn AST>, rhs: PostfixType| -> Box<dyn AST> {
+                    match rhs {
+                        PostfixType::Bracket(e) => Box::new(PostBracketAST { src: lhs, index: e }),
+                        PostfixType::Paren(args) => {
+                            let args = Box::new(ArgumentExpressionListAST { args });
+                            Box::new(PostParen { src: lhs, args })
+                        }
+                        PostfixType::Dot(s) => Box::new(PostMemberAST {
+                            src: lhs,
+                            member: s,
+                        }),
+                        PostfixType::Arrow(s) => Box::new(PostPointerAST {
+                            src: lhs,
+                            member: s,
+                        }),
+                        PostfixType::Inc => Box::new(PostIncrementAST { src: lhs }),
+                        PostfixType::Dec => Box::new(PostDecrementAST { src: lhs }),
                     }
-                    primary
                 },
             );
 
@@ -1330,8 +1330,7 @@ impl ASTParser {
         {
             /*
             function_definition
-            : type_specifier declarator compound_statement
-            | declarator compound_statement
+            : type_specifier? IDENTIFIER '(' PARAM_LIST ')' compound_statement
             ;
             */
 

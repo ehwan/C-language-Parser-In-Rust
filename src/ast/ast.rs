@@ -1,8 +1,11 @@
-use super::instruction::instruction::Instruction;
+use crate::program::program::Program;
 use crate::token::Token;
+use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::vec::Vec;
+
+use crate::program::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum TypeSpecifier {
@@ -16,16 +19,21 @@ pub enum TypeSpecifier {
     Signed,
     Unsigned,
 }
-pub trait AST: core::fmt::Debug {
-    fn emit(&self) -> Vec<Box<dyn Instruction>>;
+pub trait AST: core::fmt::Debug + Any {
+    fn emit(&self, program: &mut Program);
+    fn as_any(&self) -> &dyn Any;
 }
 
 #[derive(Debug, Clone)]
 pub struct NullAST;
 
 impl AST for NullAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {
+        // do nothing
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -35,12 +43,22 @@ use rusty_parser as rp;
 pub type DynASTParser = Rc<RefCell<rp::DynBoxSlice<(Box<dyn AST>,), Token>>>;
 
 #[derive(Debug, Clone)]
-pub struct IdentifierAST {
+pub struct PrimaryIdentifierAST {
     pub name: String,
 }
-impl AST for IdentifierAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+impl AST for PrimaryIdentifierAST {
+    fn emit(&self, program: &mut Program) {
+        if let Some(var_ptr) = program.get_variable(&self.name) {
+            program.stack.push(variable::Variable {
+                data: Box::new(var_ptr),
+            });
+        } else {
+            panic!("Variable {} not found", self.name);
+        }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -49,8 +67,9 @@ pub struct ConstantIntegerAST {
     pub value: u64,
 }
 impl AST for ConstantIntegerAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -59,8 +78,9 @@ pub struct ConstantFloatAST {
     pub value: f64,
 }
 impl AST for ConstantFloatAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -69,8 +89,9 @@ pub struct StringLiteralAST {
     pub value: String,
 }
 impl AST for StringLiteralAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -81,8 +102,9 @@ pub struct PostBracketAST {
     pub index: Box<dyn AST>,
 }
 impl AST for PostBracketAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -92,8 +114,9 @@ pub struct ArgumentExpressionListAST {
     pub args: Vec<Box<dyn AST>>,
 }
 impl AST for ArgumentExpressionListAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -104,8 +127,9 @@ pub struct PostParen {
     pub args: Box<dyn AST>,
 }
 impl AST for PostParen {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -116,8 +140,9 @@ pub struct PostMemberAST {
     pub member: String,
 }
 impl AST for PostMemberAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -127,8 +152,9 @@ pub struct PostPointerAST {
     pub member: String,
 }
 impl AST for PostPointerAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -137,8 +163,9 @@ pub struct PostIncrementAST {
     pub src: Box<dyn AST>,
 }
 impl AST for PostIncrementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -147,8 +174,9 @@ pub struct PostDecrementAST {
     pub src: Box<dyn AST>,
 }
 impl AST for PostDecrementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -158,8 +186,9 @@ pub struct CastExpressionAST {
     pub typename: TypeSpecifier,
 }
 impl AST for CastExpressionAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -169,8 +198,9 @@ pub struct TypenameAST {
     pub declarator: Box<dyn AST>,
 }
 impl AST for TypenameAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -179,8 +209,9 @@ pub struct SizeofTypeAST {
     pub typename: TypeSpecifier,
 }
 impl AST for SizeofTypeAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -189,8 +220,9 @@ pub struct SizeofExprAST {
     pub expr: Box<dyn AST>,
 }
 impl AST for SizeofExprAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -211,8 +243,9 @@ pub struct UnaryExpressionAST {
     pub src: Box<dyn AST>,
 }
 impl AST for UnaryExpressionAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -255,8 +288,9 @@ pub struct BinaryExpressionAST {
     pub rhs: Box<dyn AST>,
 }
 impl AST for BinaryExpressionAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -267,8 +301,9 @@ pub struct ConditionalExpressionAST {
     pub else_expr: Box<dyn AST>,
 }
 impl AST for ConditionalExpressionAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -278,8 +313,9 @@ pub struct CommaExpressionAST {
     pub rhs: Box<dyn AST>,
 }
 impl AST for CommaExpressionAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -288,8 +324,9 @@ pub struct InitializerListAST {
     pub initializers: Vec<Box<dyn AST>>,
 }
 impl AST for InitializerListAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -299,8 +336,9 @@ pub struct LabeledStatementAST {
     pub statement: Box<dyn AST>,
 }
 impl AST for LabeledStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -310,8 +348,9 @@ pub struct CaseStatementAST {
     pub statement: Box<dyn AST>,
 }
 impl AST for CaseStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -320,8 +359,9 @@ pub struct DefaultStatementAST {
     pub statement: Box<dyn AST>,
 }
 impl AST for DefaultStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -330,8 +370,9 @@ pub struct CompoundStatementAST {
     pub statements: Vec<Box<dyn AST>>,
 }
 impl AST for CompoundStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -342,8 +383,9 @@ pub struct IfStatementAST {
     pub else_statement: Option<Box<dyn AST>>,
 }
 impl AST for IfStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -353,8 +395,9 @@ pub struct SwitchStatementAST {
     pub statement: Box<dyn AST>,
 }
 impl AST for SwitchStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -364,8 +407,9 @@ pub struct WhileStatementAST {
     pub statement: Box<dyn AST>,
 }
 impl AST for WhileStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -375,8 +419,9 @@ pub struct DoWhileStatementAST {
     pub statement: Box<dyn AST>,
 }
 impl AST for DoWhileStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -388,8 +433,9 @@ pub struct ForStatementAST {
     pub statement: Box<dyn AST>,
 }
 impl AST for ForStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -398,24 +444,27 @@ pub struct GotoStatementAST {
     pub label: String,
 }
 impl AST for GotoStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
 #[derive(Debug)]
 pub struct ContinueStatementAST;
 impl AST for ContinueStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
 #[derive(Debug)]
 pub struct BreakStatementAST;
 impl AST for BreakStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -424,8 +473,9 @@ pub struct ReturnStatementAST {
     pub expr: Option<Box<dyn AST>>,
 }
 impl AST for ReturnStatementAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -434,8 +484,9 @@ pub struct TranslationUnitAST {
     pub declarations: Vec<Box<dyn AST>>,
 }
 impl AST for TranslationUnitAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -444,8 +495,9 @@ pub struct DeclarationListAST {
     pub declarations: Vec<Box<dyn AST>>,
 }
 impl AST for DeclarationListAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -454,8 +506,9 @@ pub struct DeclaratorIdentifierAST {
     pub name: String,
 }
 impl AST for DeclaratorIdentifierAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -465,8 +518,9 @@ pub struct DeclaratorArrayAST {
     pub size: Option<Box<dyn AST>>,
 }
 impl AST for DeclaratorArrayAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -476,8 +530,9 @@ pub struct DeclaratorFunctionAST {
     pub args: Vec<Box<dyn AST>>,
 }
 impl AST for DeclaratorFunctionAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -487,8 +542,9 @@ pub struct ParameterDeclarationAST {
     pub declarator: Option<Box<dyn AST>>,
 }
 impl AST for ParameterDeclarationAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -498,8 +554,9 @@ pub struct InitDeclaratorAST {
     pub initializer: Box<dyn AST>,
 }
 impl AST for InitDeclaratorAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -509,8 +566,9 @@ pub struct DeclarationAST {
     pub init_declarators: Vec<Box<dyn AST>>,
 }
 impl AST for DeclarationAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -521,7 +579,8 @@ pub struct FunctionDefinitionAST {
     pub body: Box<dyn AST>,
 }
 impl AST for FunctionDefinitionAST {
-    fn emit(&self) -> Vec<Box<dyn Instruction>> {
-        Vec::new()
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
