@@ -37,6 +37,7 @@ pub struct ASTParser {
     jump_statement: DynASTParser,
     translation_unit: DynASTParser,
     function_definition: DynASTParser,
+    struct_specifier: DynASTParser,
 }
 
 impl ASTParser {
@@ -45,25 +46,6 @@ impl ASTParser {
         // dummy parser must be assigned later.
         let dummy = rp::constant(()).map(|| -> Box<dyn AST> {
             panic!("dummy parser!!");
-        });
-
-        let type_specifier = rp::or!(
-            rp::one(Token::Int).output(TypeSpecifier::Int),
-            rp::one(Token::Char).output(TypeSpecifier::Char),
-            rp::one(Token::Float).output(TypeSpecifier::Float),
-            rp::one(Token::Double).output(TypeSpecifier::Double),
-            rp::one(Token::Void).output(TypeSpecifier::Void),
-            rp::one(Token::Short).output(TypeSpecifier::Short),
-            rp::one(Token::Long).output(TypeSpecifier::Long),
-            rp::one(Token::Signed).output(TypeSpecifier::Signed),
-            rp::one(Token::Unsigned).output(TypeSpecifier::Unsigned)
-        );
-        let identifier = rp::check(|t: Token| -> Option<String> {
-            if let Token::Identifier(s) = t {
-                Some(s)
-            } else {
-                None
-            }
         });
 
         let mut s = Self {
@@ -98,7 +80,112 @@ impl ASTParser {
             jump_statement: dummy.clone().box_slice().refcell().rc(),
             translation_unit: dummy.clone().box_slice().refcell().rc(),
             function_definition: dummy.clone().box_slice().refcell().rc(),
+            struct_specifier: dummy.clone().box_slice().refcell().rc(),
         };
+
+        let type_specifier = rp::or!(
+            rp::one(Token::Int).map(|_| TypeSpecifier::Int),
+            rp::one(Token::Char).map(|_| TypeSpecifier::Char),
+            rp::one(Token::Float).map(|_| TypeSpecifier::Float),
+            rp::one(Token::Double).map(|_| TypeSpecifier::Double),
+            rp::one(Token::Void).map(|_| TypeSpecifier::Void),
+            rp::one(Token::Short).map(|_| TypeSpecifier::Short),
+            rp::one(Token::Long).map(|_| TypeSpecifier::Long),
+            rp::one(Token::Signed).map(|_| TypeSpecifier::Signed),
+            rp::one(Token::Unsigned).map(|_| TypeSpecifier::Unsigned),
+            s.struct_specifier.clone().map(|s| TypeSpecifier::Struct(s))
+        );
+
+        {
+            /*
+            struct_declaration
+            : type_specifier declarator+',' ';'
+            ;
+            */
+
+            let declarators = s
+                .declarator
+                .clone()
+                .map(|decl: Box<dyn AST>| -> Vec<Box<dyn AST>> {
+                    let mut v = Vec::new();
+                    v.push(decl);
+                    v
+                })
+                .reduce_left(
+                    rp::seq!(rp::one(Token::Comma).void(), s.declarator.clone()),
+                    |mut v: Vec<Box<dyn AST>>, decl: Box<dyn AST>| -> Vec<Box<dyn AST>> {
+                        v.push(decl);
+                        v
+                    },
+                );
+            let struct_declaration = rp::seq!(
+                type_specifier.clone(),
+                declarators,
+                rp::one(Token::SemiColon).void()
+            )
+            .map(
+                |type_: TypeSpecifier, decls: Vec<Box<dyn AST>>| -> Box<dyn AST> {
+                    Box::new(StructMemberDeclarationAST {
+                        type_specifier: type_,
+                        declarators: decls,
+                    })
+                },
+            );
+
+            /*
+            struct_specifier
+            : STRUCT IDENTIFIER '{' struct_declaration+ '}'
+            | STRUCT '{' struct_declaration+ '}'
+            | STRUCT IDENTIFIER
+            ;
+            */
+
+            let struct_specifier = rp::seq!(
+                rp::one(Token::Struct).void(),
+                rp::or!(
+                    rp::seq!(
+                        rp::check(|t: Token| -> Option<String> {
+                            if let Token::Identifier(s) = t {
+                                Some(s)
+                            } else {
+                                None
+                            }
+                        }),
+                        rp::one(Token::LeftBrace).void(),
+                        struct_declaration.clone().repeat(1..),
+                        rp::one(Token::RightBrace).void()
+                    )
+                    .map(
+                        |name: String, decls: Vec<Box<dyn AST>>| -> Box<dyn AST> {
+                            Box::new(StructDeclAndSpecifierAST {
+                                name: Some(name),
+                                declarations: decls,
+                            })
+                        }
+                    ),
+                    rp::seq!(
+                        rp::one(Token::LeftBrace).void(),
+                        struct_declaration.clone().repeat(1..),
+                        rp::one(Token::RightBrace).void()
+                    )
+                    .map(|decls: Vec<Box<dyn AST>>| -> Box<dyn AST> {
+                        Box::new(StructDeclAndSpecifierAST {
+                            name: None,
+                            declarations: decls,
+                        })
+                    }),
+                    rp::check(|t: Token| -> Option<String> {
+                        if let Token::Identifier(s) = t {
+                            Some(s)
+                        } else {
+                            None
+                        }
+                    })
+                    .map(|name: String| -> Box<dyn AST> { Box::new(StructSpecifierAST { name }) })
+                )
+            );
+            s.struct_specifier.borrow_mut().assign(struct_specifier);
+        }
 
         // =======================
         // Primary expression

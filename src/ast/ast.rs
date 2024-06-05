@@ -7,7 +7,11 @@ use std::vec::Vec;
 
 use crate::program::*;
 
-#[derive(Debug, Clone, Copy)]
+pub trait AST: core::fmt::Debug + Any {
+    fn emit(&self, program: &mut Program);
+    fn as_any(&self) -> &dyn Any;
+}
+#[derive(Debug)]
 pub enum TypeSpecifier {
     Void,
     Char,
@@ -18,10 +22,7 @@ pub enum TypeSpecifier {
     Double,
     Signed,
     Unsigned,
-}
-pub trait AST: core::fmt::Debug + Any {
-    fn emit(&self, program: &mut Program);
-    fn as_any(&self) -> &dyn Any;
+    Struct(Box<dyn AST>),
 }
 
 #[derive(Debug, Clone)]
@@ -506,6 +507,40 @@ pub struct DeclaratorIdentifierAST {
     pub name: String,
 }
 impl AST for DeclaratorIdentifierAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[derive(Debug)]
+pub struct StructMemberDeclarationAST {
+    pub type_specifier: TypeSpecifier,
+    pub declarators: Vec<Box<dyn AST>>,
+}
+impl AST for StructMemberDeclarationAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[derive(Debug)]
+pub struct StructDeclAndSpecifierAST {
+    pub name: Option<String>,
+    pub declarations: Vec<Box<dyn AST>>,
+}
+impl AST for StructDeclAndSpecifierAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+#[derive(Debug)]
+pub struct StructSpecifierAST {
+    pub name: String,
+}
+impl AST for StructSpecifierAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
