@@ -1,9 +1,15 @@
 # C-Parser-In-Rust
 A minimal C language parser written in Rust
 
-This is test project for [RustyParser](https://github.com/ehwan/RustyParser)
+A lot of features are not implemented yet. This is just a toy project for testing [RustyParser](https://github.com/ehwan/RustyParser)
 
-## Sample
+## Running Structures
+ 1) SourceFile -> Tokeninze -> `Token Stream`
+ 2) TokenStream -> Parse -> `Abstract Syntax Tree` <-- Currently Here
+ 3) AST -> Generate Code -> `Sequence of Instructions`
+ 4) Execution
+
+## Example
 ```c
 /// sample.c
 struct MyStruct
@@ -25,6 +31,7 @@ Pass c code to stdin
 cat sample.c | ./target/debug/clang-parser
 ```
 
+The result will be:
 
 ```
 Enter your code:
@@ -73,8 +80,23 @@ ASTs:
 TranslationUnitAST { declarations: [DeclarationAST { specifier: Struct(StructDeclAndSpecifierAST { name: Some("MyStruct"), declarations: [StructMemberDeclarationAST { type_specifier: Int, declarators: [DeclaratorIdentifierAST { name: "a" }] }, StructMemberDeclarationAST { type_specifier: Int, declarators: [DeclaratorIdentifierAST { name: "b" }] }] }), init_declarators: [] }, FunctionDefinitionAST { return_type: Int, funcdecl: DeclaratorFunctionAST { decl: DeclaratorIdentifierAST { name: "main" }, args: [] }, body: CompoundStatementAST { statements: [DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "a" }, initializer: ConstantIntegerAST { value: 10 } }] }, DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "b" }, initializer: ConstantIntegerAST { value: 20 } }] }, DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "c" }, initializer: BinaryExpressionAST { op: Add, lhs: PrimaryIdentifierAST { name: "a" }, rhs: PrimaryIdentifierAST { name: "b" } } }] }, ReturnStatementAST { expr: Some(PrimaryIdentifierAST { name: "c" }) }] } }] }
 ```
 
-## Running Structures
- 1) SourceFile -> Tokeninze -> `Token Stream`
- 2) TokenStream -> Parse -> `Abstract Syntax Tree` <-- Currently Here
- 3) AST -> Generate Code -> `Sequence of Instructions`
- 4) Execution
+The AST will be:
+![AST](tree.png)
+
+```
+TranslationUnitAST
+├── DeclarationStatementAST
+│   └── StructDeclarationTypenameAST
+│       ├── MyStruct
+│       ├── I32 a
+│       └── I32 b
+├── FunctionDefinitionStatementAST
+│   ├── I32 main
+│   └── CompoundStatementAST
+│       ├── I32 a = 10
+│       ├── I32 b = 20
+│       ├── I32 c
+│       │   └── BinaryExpressionAST
+│       │       └── a + b
+│       └── Return c
+```

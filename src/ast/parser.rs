@@ -78,7 +78,7 @@ impl ASTParser {
         s
     }
 
-    pub fn parse(&self, input: Vec<Token>) -> Box<dyn StatementTrait> {
+    pub fn parse(&self, input: Vec<Token>) -> Box<TranslationUnitAST> {
         let res = rp::parse(&self.translation_unit, input.iter().cloned());
         if let Some((out,)) = res.output {
             return out;
