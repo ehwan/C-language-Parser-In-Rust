@@ -32,12 +32,17 @@ pub fn integer_numeric() -> DynParser {
 
     let suffix = rp::or!('u', 'U', 'l', 'L');
 
-    let integer_numeric = rp::seq!(integer_numeric.string(), suffix.optional().void());
+    let integer_numeric = rp::seq!(integer_numeric.string(), suffix.optional());
 
     integer_numeric
-        .map(|s: String| {
+        .map(|s: String, suffix: Option<char>| {
             let parse_res = s.parse::<u64>().expect("Failed to parse String to u64");
-            Token::ConstantInteger(parse_res)
+            let suffix = suffix.or(Some('u')).unwrap();
+            match suffix {
+                'u' | 'U' => Token::ConstantInteger(parse_res as u32),
+                'l' | 'L' => Token::ConstantLong(parse_res),
+                _ => panic!("Invalid suffix for integer"),
+            }
         })
         .box_chars()
 }
@@ -68,12 +73,17 @@ pub fn float_numeric() -> DynParser {
     let case3 = rp::seq!(digit.repeat(1..), '.', digit.repeat(0..), exp.optional());
 
     let float_numeric = rp::or!(case1.void(), case2.void(), case3.void());
-    let float_numeric = rp::seq!(float_numeric.string(), suffix.void());
+    let float_numeric = rp::seq!(float_numeric.string(), suffix);
 
     float_numeric
-        .map(|s: String| {
+        .map(|s: String, suffix: Option<char>| {
             let parse_res: f64 = s.parse::<f64>().expect("Failed to parse String to f64");
-            Token::ConstantFloat(parse_res)
+            let suffix = suffix.or(Some('f')).unwrap();
+            match suffix {
+                'f' | 'F' => Token::ConstantFloat(parse_res as f32),
+                'l' | 'L' => Token::ConstantDouble(parse_res),
+                _ => panic!("Invalid suffix for float"),
+            }
         })
         .box_chars()
 }

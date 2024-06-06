@@ -1,8 +1,10 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     Identifier(String),
-    ConstantInteger(u64),
-    ConstantFloat(f64),
+    ConstantInteger(u32),
+    ConstantLong(u64),
+    ConstantFloat(f32),
+    ConstantDouble(f64),
     ConstantCharacter(u8),
     StringLiteral(String),
     Auto,

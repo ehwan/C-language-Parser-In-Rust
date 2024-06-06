@@ -1,0 +1,45 @@
+struct_or_union
+	: STRUCT
+	| UNION
+	;
+struct_or_union_specifier
+	: struct_or_union IDENTIFIER '{' struct_member_declaration* '}'
+	| struct_or_union '{' struct_member_declaration* '}'
+	| struct_or_union IDENTIFIER
+	;
+
+struct_member_declaration
+	: specifier_list declarator+ ';'
+	;
+
+enum_specifier
+	: ENUM '{' enumerator_list '}'
+	| ENUM IDENTIFIER '{' enumerator_list '}'
+	| ENUM IDENTIFIER
+	;
+
+enumerator_list
+	: enumerator
+	| enumerator_list ',' enumerator
+	;
+
+enumerator
+	: IDENTIFIER
+	| IDENTIFIER '=' constant_expression
+	;
+
+identifier_list
+	: IDENTIFIER
+	| identifier_list ',' IDENTIFIER
+	;
+
+type_name
+	: specifier_list
+	| specifier_list abstract_declarator
+	;
+
+abstract_declarator
+	: pointer
+	| direct_abstract_declarator
+	| pointer direct_abstract_declarator
+	;
