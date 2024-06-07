@@ -15,6 +15,7 @@ pub enum DeclaratorType {
     AbstractArrayFixed,
     AbstractArrayUnbounded,
     AbstractFunction,
+    AbstractPointer,
 }
 
 pub trait DeclaratorTrait: AST {
@@ -117,5 +118,71 @@ impl AST for InitDeclaratorAST {
 impl DeclaratorTrait for InitDeclaratorAST {
     fn get_type(&self) -> DeclaratorType {
         DeclaratorType::Init
+    }
+}
+
+#[derive(Debug)]
+pub struct AbstractArrayFixedDeclaratorAST {
+    pub decl: Box<dyn DeclaratorTrait>,
+    pub size: Box<dyn ExpressionTrait>,
+}
+impl AST for AbstractArrayFixedDeclaratorAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl DeclaratorTrait for AbstractArrayFixedDeclaratorAST {
+    fn get_type(&self) -> DeclaratorType {
+        DeclaratorType::AbstractArrayFixed
+    }
+}
+
+#[derive(Debug)]
+pub struct AbstractArrayUnboundedDeclaratorAST {
+    pub decl: Box<dyn DeclaratorTrait>,
+}
+impl AST for AbstractArrayUnboundedDeclaratorAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl DeclaratorTrait for AbstractArrayUnboundedDeclaratorAST {
+    fn get_type(&self) -> DeclaratorType {
+        DeclaratorType::AbstractArrayUnbounded
+    }
+}
+
+#[derive(Debug)]
+pub struct AbstractFunctionDeclaratorAST {
+    pub decl: Box<dyn DeclaratorTrait>,
+    pub params: Vec<Box<dyn StatementTrait>>,
+}
+impl AST for AbstractFunctionDeclaratorAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl DeclaratorTrait for AbstractFunctionDeclaratorAST {
+    fn get_type(&self) -> DeclaratorType {
+        DeclaratorType::AbstractFunction
+    }
+}
+
+#[derive(Debug)]
+pub struct AbstractPointerDeclaratorAST {
+    pub decl: Box<dyn DeclaratorTrait>,
+}
+impl AST for AbstractPointerDeclaratorAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl DeclaratorTrait for AbstractPointerDeclaratorAST {
+    fn get_type(&self) -> DeclaratorType {
+        DeclaratorType::AbstractPointer
     }
 }

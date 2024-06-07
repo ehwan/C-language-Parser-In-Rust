@@ -30,6 +30,7 @@ pub struct ASTParser {
 
     declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn DeclaratorTrait>,), Token>>>, // OK
     init_declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn DeclaratorTrait>,), Token>>>, // OK
+    abstract_declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn DeclaratorTrait>,), Token>>>,
 
     translation_unit: Rc<RefCell<rp::DynBoxSlice<(Box<TranslationUnitAST>,), Token>>>, // OK
 }
@@ -55,6 +56,7 @@ impl ASTParser {
 
             declarator: Default::default(),
             init_declarator: Default::default(),
+            abstract_declarator: Default::default(),
 
             translation_unit: Default::default(),
         };
@@ -1102,6 +1104,130 @@ impl ASTParser {
             },
         );
         self.init_declarator.borrow_mut().assign(init_declarator_);
+        {
+            /*
+
+            direct_abstract_declarator
+            : '(' abstract_declarator ')'
+            | '[' ']'
+            | '[' constant_expression ']'
+            | direct_abstract_declarator '[' ']'
+            | direct_abstract_declarator '[' constant_expression ']'
+            | '(' ')'
+            | '(' parameter_type_list ')'
+            | direct_abstract_declarator '(' ')'
+            | direct_abstract_declarator '(' parameter_type_list ')'
+            ;
+            */
+
+            enum DirectAbstractDeclaratorLeaf {
+                Array(Option<Box<dyn ExpressionTrait>>),
+                Function(Vec<Box<dyn StatementTrait>>),
+            }
+            let direct_abstract_declarator: Rc<
+                RefCell<rp::DynBoxSlice<(Box<dyn DeclaratorTrait>,), Token>>,
+            > = Default::default();
+            let direct_abstract_declarator_leaf_array = rp::or!(
+                rp::seq!(
+                    rp::one(Token::LeftBracket).void(),
+                    rp::one(Token::RightBracket).void()
+                )
+                .map(|| -> DirectAbstractDeclaratorLeaf {
+                    DirectAbstractDeclaratorLeaf::Array(None)
+                }),
+                rp::seq!(
+                    rp::one(Token::LeftBracket).void(),
+                    self.constant_expression.clone(),
+                    rp::one(Token::RightBracket).void()
+                )
+                .map(
+                    |len: Box<dyn ExpressionTrait>| -> DirectAbstractDeclaratorLeaf {
+                        DirectAbstractDeclaratorLeaf::Array(Some(len))
+                    }
+                )
+            );
+            let parameter_list = self
+                .parameter_declaration
+                .clone()
+                .map(
+                    |param: Box<dyn StatementTrait>| -> Vec<Box<dyn StatementTrait>> {
+                        let mut ret = Vec::new();
+                        ret.push(param);
+                        ret
+                    },
+                )
+                .reduce_left(
+                    rp::seq!(
+                        rp::one(Token::Comma).void(),
+                        self.parameter_declaration.clone()
+                    ),
+                    |mut v: Vec<Box<dyn StatementTrait>>,
+                     e: Box<dyn StatementTrait>|
+                     -> Vec<Box<dyn StatementTrait>> {
+                        v.push(e);
+                        v
+                    },
+                );
+            let direct_abstract_declarator_leaf_function = rp::or!(
+                rp::seq!(
+                    rp::one(Token::LeftParen).void(),
+                    rp::one(Token::RightParen).void()
+                )
+                .map(|| -> DirectAbstractDeclaratorLeaf {
+                    DirectAbstractDeclaratorLeaf::Function(Vec::new())
+                }),
+                rp::seq!(
+                    rp::one(Token::LeftParen).void(),
+                    parameter_list,
+                    rp::one(Token::RightParen).void()
+                )
+                .map(
+                    |params: Vec<Box<dyn StatementTrait>>| -> DirectAbstractDeclaratorLeaf {
+                        DirectAbstractDeclaratorLeaf::Function(params)
+                    }
+                )
+            );
+            let direct_abstract_declarator_leaf_paren = rp::seq!(
+                rp::one(Token::LeftParen).void(),
+                direct_abstract_declarator.clone(),
+                rp::one(Token::RightParen).void()
+            );
+            let direct_abstract_declarator_leaf = rp::or!(
+                direct_abstract_declarator_leaf_paren,
+                direct_abstract_declarator_leaf_array,
+                direct_abstract_declarator_leaf_function
+            );
+
+            let direct_abstract_declarator = direct_abstract_declarator.reduce_left(
+                direct_abstract_declarator_leaf,
+                |lhs: Box<dyn DeclaratorTrait>,
+                 op: DirectAbstractDeclaratorLeaf|
+                 -> Box<dyn DeclaratorTrait> {
+                    match op {
+                        DirectAbstractDeclaratorLeaf::Array(len) => {
+                            if let Some(len) = len {
+                                Box::new(AbstractArrayFixedDeclaratorAST {
+                                    decl: lhs,
+                                    size: len,
+                                })
+                            } else {
+                                Box::new(AbstractArrayUnboundedDeclaratorAST { decl: lhs })
+                            }
+                        }
+                        DirectAbstractDeclaratorLeaf::Function(params) => {
+                            Box::new(AbstractFunctionDeclaratorAST { decl: lhs, params })
+                        }
+                    }
+                },
+            );
+            /*
+            abstract_declarator
+            : pointer
+            | direct_abstract_declarator
+            | pointer direct_abstract_declarator
+            ;
+            */
+        }
     }
 
     fn statement_parser(&mut self) {
