@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rusty_parser = "0.9.5"
+rusty_parser = "1.0.0"

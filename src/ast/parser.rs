@@ -11,16 +11,6 @@ use crate::token::Token;
 
 use rusty_parser::{self as rp, IntoParser};
 
-// This is a dummy parser that always panics.
-// dummy parser must be assigned later.
-fn make_dummy<Output>() -> rp::DynBoxSlice<(Output,), Token> {
-    rp::constant(())
-        .map(|| -> Output {
-            panic!("dummy parser is not assigned");
-        })
-        .box_slice()
-}
-
 pub struct ASTParser {
     type_name: Rc<RefCell<rp::DynBoxSlice<(Box<dyn TypenameTrait>,), Token>>>, // ? Only Single typename, no pointer
     specifier_list: Rc<RefCell<rp::DynBoxSlice<(TypeSpecifier,), Token>>>, // ? Only Single typename
@@ -47,26 +37,26 @@ pub struct ASTParser {
 impl ASTParser {
     pub fn new() -> Self {
         let mut s = Self {
-            type_name: make_dummy::<Box<dyn TypenameTrait>>().refcell().rc(),
-            specifier_list: make_dummy::<TypeSpecifier>().refcell().rc(),
-            struct_specifier: make_dummy::<Box<dyn TypenameTrait>>().refcell().rc(),
-            union_specifier: make_dummy::<Box<dyn TypenameTrait>>().refcell().rc(),
-            enum_specifier: make_dummy::<Box<dyn TypenameTrait>>().refcell().rc(),
+            type_name: Default::default(),
+            specifier_list: Default::default(),
+            struct_specifier: Default::default(),
+            union_specifier: Default::default(),
+            enum_specifier: Default::default(),
 
-            expression: make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc(),
-            constant_expression: make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc(),
-            assignment_expression: make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc(),
-            initializer: make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc(),
+            expression: Default::default(),
+            constant_expression: Default::default(),
+            assignment_expression: Default::default(),
+            initializer: Default::default(),
 
-            statement: make_dummy::<Box<dyn StatementTrait>>().refcell().rc(),
-            compound_statement: make_dummy::<Box<dyn StatementTrait>>().refcell().rc(),
-            declaration: make_dummy::<Box<dyn StatementTrait>>().refcell().rc(),
-            parameter_declaration: make_dummy::<Box<dyn StatementTrait>>().refcell().rc(),
+            statement: Default::default(),
+            compound_statement: Default::default(),
+            declaration: Default::default(),
+            parameter_declaration: Default::default(),
 
-            declarator: make_dummy::<Box<dyn DeclaratorTrait>>().refcell().rc(),
-            init_declarator: make_dummy::<Box<dyn DeclaratorTrait>>().refcell().rc(),
+            declarator: Default::default(),
+            init_declarator: Default::default(),
 
-            translation_unit: make_dummy::<Box<TranslationUnitAST>>().refcell().rc(),
+            translation_unit: Default::default(),
         };
 
         s.expression_parser();
@@ -239,21 +229,43 @@ impl ASTParser {
         ));
     }
     fn expression_parser(&mut self) {
-        let primary_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let postfix_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let unary_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let cast_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let multiplicative_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let additive_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let shift_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let relational_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let equality_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let and_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let exclusive_or_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let inclusive_or_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let logical_and_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let logical_or_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
-        let conditional_expression = make_dummy::<Box<dyn ExpressionTrait>>().refcell().rc();
+        let primary_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>> =
+            Default::default();
+        let postfix_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>> =
+            Default::default();
+        let unary_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>> =
+            Default::default();
+        let cast_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>> =
+            Default::default();
+        let multiplicative_expression: Rc<
+            RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>,
+        > = Default::default();
+        let additive_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>> =
+            Default::default();
+        let shift_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>> =
+            Default::default();
+        let relational_expression: Rc<
+            RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>,
+        > = Default::default();
+        let equality_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>> =
+            Default::default();
+        let and_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>> =
+            Default::default();
+        let exclusive_or_expression: Rc<
+            RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>,
+        > = Default::default();
+        let inclusive_or_expression: Rc<
+            RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>,
+        > = Default::default();
+        let logical_and_expression: Rc<
+            RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>,
+        > = Default::default();
+        let logical_or_expression: Rc<
+            RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>,
+        > = Default::default();
+        let conditional_expression: Rc<
+            RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>,
+        > = Default::default();
 
         // =======================
         // Primary expression
@@ -1100,11 +1112,16 @@ impl ASTParser {
                 None
             }
         });
-        let labeled_statement = make_dummy::<Box<dyn StatementTrait>>().refcell().rc();
-        let expression_statement = make_dummy::<Box<dyn StatementTrait>>().refcell().rc();
-        let selection_statement = make_dummy::<Box<dyn StatementTrait>>().refcell().rc();
-        let iteration_statement = make_dummy::<Box<dyn StatementTrait>>().refcell().rc();
-        let jump_statement = make_dummy::<Box<dyn StatementTrait>>().refcell().rc();
+        let labeled_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn StatementTrait>,), Token>>> =
+            Default::default();
+        let expression_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn StatementTrait>,), Token>>> =
+            Default::default();
+        let selection_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn StatementTrait>,), Token>>> =
+            Default::default();
+        let iteration_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn StatementTrait>,), Token>>> =
+            Default::default();
+        let jump_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn StatementTrait>,), Token>>> =
+            Default::default();
 
         {
             let parameter_declaration =
@@ -1480,7 +1497,8 @@ impl ASTParser {
     }
 
     fn translation_unit_parser(&mut self) {
-        let function_definition = make_dummy::<Box<dyn StatementTrait>>().refcell().rc();
+        let function_definition: Rc<RefCell<rp::DynBoxSlice<(Box<dyn StatementTrait>,), Token>>> =
+            Default::default();
         {
             /*
             translation_unit

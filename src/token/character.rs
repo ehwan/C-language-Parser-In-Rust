@@ -19,7 +19,5 @@ pub fn char_literal() -> DynParser {
         rp::or!(escape, rp::any().not('\'')),
         '\''.void()
     );
-    char_literal
-        .map(|c: char| Token::ConstantCharacter(c as u8))
-        .box_chars()
+    DynParser::new(char_literal.map(|c: char| Token::ConstantCharacter(c as u8)))
 }

@@ -25,7 +25,5 @@ pub fn string_literal() -> DynParser {
         '"'.void()
     );
 
-    string_literal
-        .map(|s: String| Token::StringLiteral(s))
-        .box_chars()
+    DynParser::new(string_literal.map(|s: String| Token::StringLiteral(s)))
 }

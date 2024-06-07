@@ -13,5 +13,5 @@ pub fn identifier() -> DynParser {
     )
     .string();
 
-    identifier.map(|s: String| Token::Identifier(s)).box_chars()
+    DynParser::new(identifier.map(|s: String| Token::Identifier(s)))
 }
