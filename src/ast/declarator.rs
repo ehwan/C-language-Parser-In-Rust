@@ -123,7 +123,7 @@ impl DeclaratorTrait for InitDeclaratorAST {
 
 #[derive(Debug)]
 pub struct AbstractArrayFixedDeclaratorAST {
-    pub decl: Box<dyn DeclaratorTrait>,
+    pub decl: Option<Box<dyn DeclaratorTrait>>,
     pub size: Box<dyn ExpressionTrait>,
 }
 impl AST for AbstractArrayFixedDeclaratorAST {
@@ -140,7 +140,7 @@ impl DeclaratorTrait for AbstractArrayFixedDeclaratorAST {
 
 #[derive(Debug)]
 pub struct AbstractArrayUnboundedDeclaratorAST {
-    pub decl: Box<dyn DeclaratorTrait>,
+    pub decl: Option<Box<dyn DeclaratorTrait>>,
 }
 impl AST for AbstractArrayUnboundedDeclaratorAST {
     fn emit(&self, program: &mut Program) {}
@@ -156,7 +156,7 @@ impl DeclaratorTrait for AbstractArrayUnboundedDeclaratorAST {
 
 #[derive(Debug)]
 pub struct AbstractFunctionDeclaratorAST {
-    pub decl: Box<dyn DeclaratorTrait>,
+    pub decl: Option<Box<dyn DeclaratorTrait>>,
     pub params: Vec<Box<dyn StatementTrait>>,
 }
 impl AST for AbstractFunctionDeclaratorAST {
@@ -173,7 +173,7 @@ impl DeclaratorTrait for AbstractFunctionDeclaratorAST {
 
 #[derive(Debug)]
 pub struct AbstractPointerDeclaratorAST {
-    pub decl: Box<dyn DeclaratorTrait>,
+    pub decl: Option<Box<dyn DeclaratorTrait>>,
 }
 impl AST for AbstractPointerDeclaratorAST {
     fn emit(&self, program: &mut Program) {}

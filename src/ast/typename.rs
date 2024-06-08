@@ -1,5 +1,6 @@
 use super::{
     ast::AST,
+    declarator::DeclaratorTrait,
     statement::{StatementTrait, StructMemberDeclarationStatementAST},
 };
 use crate::program::Program;
@@ -10,6 +11,7 @@ pub enum TypenameType {
     Specifier,
     StructDeclaration,
     Struct,
+    WithDeclaration,
 }
 pub trait TypenameTrait: AST {
     fn get_type(&self) -> TypenameType;
@@ -80,5 +82,22 @@ impl AST for StructTypenameAST {
 impl TypenameTrait for StructTypenameAST {
     fn get_type(&self) -> TypenameType {
         TypenameType::Struct
+    }
+}
+
+#[derive(Debug)]
+pub struct TypenameWithDeclarationAST {
+    pub typename: Box<dyn TypenameTrait>,
+    pub declarator: Box<dyn DeclaratorTrait>,
+}
+impl AST for TypenameWithDeclarationAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl TypenameTrait for TypenameWithDeclarationAST {
+    fn get_type(&self) -> TypenameType {
+        TypenameType::WithDeclaration
     }
 }

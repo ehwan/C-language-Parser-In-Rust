@@ -30,7 +30,7 @@ pub struct ASTParser {
 
     declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn DeclaratorTrait>,), Token>>>, // OK
     init_declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn DeclaratorTrait>,), Token>>>, // OK
-    abstract_declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn DeclaratorTrait>,), Token>>>,
+    abstract_declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn DeclaratorTrait>,), Token>>>, // OK
 
     translation_unit: Rc<RefCell<rp::DynBoxSlice<(Box<TranslationUnitAST>,), Token>>>, // OK
 }
@@ -122,11 +122,29 @@ impl ASTParser {
         );
         self.specifier_list.borrow_mut().assign(type_specifier);
 
-        self.type_name.borrow_mut().assign(
+        let specifier =
             self.specifier_list
                 .clone()
-                .map(|s| -> Box<dyn TypenameTrait> { Box::new(TypeSpecifierAST { specifier: s }) }),
+                .map(|s: TypeSpecifier| -> Box<dyn TypenameTrait> {
+                    Box::new(TypeSpecifierAST { specifier: s })
+                });
+
+        let type_name = rp::seq!(specifier, self.abstract_declarator.clone().optional()).map(
+            |specifier: Box<dyn TypenameTrait>,
+             declarator: Option<Box<dyn DeclaratorTrait>>|
+             -> Box<dyn TypenameTrait> {
+                if let Some(declarator) = declarator {
+                    Box::new(TypenameWithDeclarationAST {
+                        typename: specifier,
+                        declarator,
+                    })
+                } else {
+                    specifier
+                }
+            },
         );
+
+        self.type_name.borrow_mut().assign(type_name);
 
         /*
         struct_or_union_specifier
@@ -1127,6 +1145,7 @@ impl ASTParser {
             let direct_abstract_declarator: Rc<
                 RefCell<rp::DynBoxSlice<(Box<dyn DeclaratorTrait>,), Token>>,
             > = Default::default();
+
             let direct_abstract_declarator_leaf_array = rp::or!(
                 rp::seq!(
                     rp::one(Token::LeftBracket).void(),
@@ -1192,14 +1211,36 @@ impl ASTParser {
                 direct_abstract_declarator.clone(),
                 rp::one(Token::RightParen).void()
             );
-            let direct_abstract_declarator_leaf = rp::or!(
-                direct_abstract_declarator_leaf_paren,
+            let direct_abstract_declarator_decorator = rp::or!(
                 direct_abstract_declarator_leaf_array,
                 direct_abstract_declarator_leaf_function
             );
 
-            let direct_abstract_declarator = direct_abstract_declarator.reduce_left(
-                direct_abstract_declarator_leaf,
+            let direct_abstract_declarator_leaf = rp::or!(
+                direct_abstract_declarator_leaf_paren,
+                direct_abstract_declarator_decorator.clone().map(
+                    |op: DirectAbstractDeclaratorLeaf| -> Box<dyn DeclaratorTrait> {
+                        match op {
+                            DirectAbstractDeclaratorLeaf::Array(len) => {
+                                if let Some(len) = len {
+                                    Box::new(AbstractArrayFixedDeclaratorAST {
+                                        decl: None,
+                                        size: len,
+                                    })
+                                } else {
+                                    Box::new(AbstractArrayUnboundedDeclaratorAST { decl: None })
+                                }
+                            }
+                            DirectAbstractDeclaratorLeaf::Function(params) => {
+                                Box::new(AbstractFunctionDeclaratorAST { decl: None, params })
+                            }
+                        }
+                    },
+                )
+            );
+
+            let direct_abstract_declarator_ = direct_abstract_declarator_leaf.reduce_left(
+                direct_abstract_declarator_decorator,
                 |lhs: Box<dyn DeclaratorTrait>,
                  op: DirectAbstractDeclaratorLeaf|
                  -> Box<dyn DeclaratorTrait> {
@@ -1207,19 +1248,25 @@ impl ASTParser {
                         DirectAbstractDeclaratorLeaf::Array(len) => {
                             if let Some(len) = len {
                                 Box::new(AbstractArrayFixedDeclaratorAST {
-                                    decl: lhs,
+                                    decl: Some(lhs),
                                     size: len,
                                 })
                             } else {
-                                Box::new(AbstractArrayUnboundedDeclaratorAST { decl: lhs })
+                                Box::new(AbstractArrayUnboundedDeclaratorAST { decl: Some(lhs) })
                             }
                         }
                         DirectAbstractDeclaratorLeaf::Function(params) => {
-                            Box::new(AbstractFunctionDeclaratorAST { decl: lhs, params })
+                            Box::new(AbstractFunctionDeclaratorAST {
+                                decl: Some(lhs),
+                                params,
+                            })
                         }
                     }
                 },
             );
+            direct_abstract_declarator
+                .borrow_mut()
+                .assign(direct_abstract_declarator_);
             /*
             abstract_declarator
             : pointer
@@ -1227,6 +1274,32 @@ impl ASTParser {
             | pointer direct_abstract_declarator
             ;
             */
+            /*
+            pointer
+            : '*' pointer
+            ;
+            */
+            let pointered = direct_abstract_declarator.clone().reduce_right(
+                rp::one(Token::Star).void(),
+                |lhs: Box<dyn DeclaratorTrait>| -> Box<dyn DeclaratorTrait> {
+                    Box::new(AbstractPointerDeclaratorAST { decl: Some(lhs) })
+                },
+            );
+            let pointer = rp::one(Token::Star)
+                .void()
+                .map(|| -> Box<dyn DeclaratorTrait> {
+                    Box::new(AbstractPointerDeclaratorAST { decl: None })
+                })
+                .reduce_right(
+                    rp::one(Token::Star).void(),
+                    |lhs: Box<dyn DeclaratorTrait>| -> Box<dyn DeclaratorTrait> {
+                        Box::new(AbstractPointerDeclaratorAST { decl: Some(lhs) })
+                    },
+                );
+            let abstract_declarator_ = rp::or!(pointered, pointer, direct_abstract_declarator);
+            self.abstract_declarator
+                .borrow_mut()
+                .assign(abstract_declarator_);
         }
     }
 
