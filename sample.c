@@ -3,6 +3,18 @@ struct MyStruct
   int a;
   int b;
 };
+union MyUnion
+{
+  int a;
+  int b;
+};
+enum MyEnum
+{
+  a,
+  b = 10,
+  c,
+  d = 20
+};
 int take(float**, int* b, struct MyStruct s);
 int main()
 {

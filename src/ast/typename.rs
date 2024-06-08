@@ -1,6 +1,7 @@
 use super::{
     ast::AST,
     declarator::DeclaratorTrait,
+    expression::ExpressionTrait,
     statement::{StatementTrait, StructMemberDeclarationStatementAST},
 };
 use crate::program::Program;
@@ -11,6 +12,10 @@ pub enum TypenameType {
     Specifier,
     StructDeclaration,
     Struct,
+    EnumDeclaration,
+    Enum,
+    UnionDeclaration,
+    Union,
     WithDeclaration,
 }
 pub trait TypenameTrait: AST {
@@ -99,5 +104,77 @@ impl AST for TypenameWithDeclarationAST {
 impl TypenameTrait for TypenameWithDeclarationAST {
     fn get_type(&self) -> TypenameType {
         TypenameType::WithDeclaration
+    }
+}
+
+#[derive(Debug)]
+pub struct Enumerator {
+    pub name: String,
+    pub value: Option<Box<dyn ExpressionTrait>>,
+}
+
+#[derive(Debug)]
+pub struct EnumDeclarationTypenameAST {
+    pub name: Option<String>,
+    pub declarations: Vec<Enumerator>,
+}
+impl AST for EnumDeclarationTypenameAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl TypenameTrait for EnumDeclarationTypenameAST {
+    fn get_type(&self) -> TypenameType {
+        TypenameType::EnumDeclaration
+    }
+}
+
+#[derive(Debug)]
+pub struct EnumTypenameAST {
+    pub name: String,
+}
+impl AST for EnumTypenameAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl TypenameTrait for EnumTypenameAST {
+    fn get_type(&self) -> TypenameType {
+        TypenameType::Enum
+    }
+}
+
+#[derive(Debug)]
+pub struct UnionDeclarationTypenameAST {
+    pub name: Option<String>,
+    pub declarations: Vec<Box<StructMemberDeclarationStatementAST>>,
+}
+impl AST for UnionDeclarationTypenameAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl TypenameTrait for UnionDeclarationTypenameAST {
+    fn get_type(&self) -> TypenameType {
+        TypenameType::UnionDeclaration
+    }
+}
+
+#[derive(Debug)]
+pub struct UnionTypenameAST {
+    pub name: String,
+}
+impl AST for UnionTypenameAST {
+    fn emit(&self, program: &mut Program) {}
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl TypenameTrait for UnionTypenameAST {
+    fn get_type(&self) -> TypenameType {
+        TypenameType::Union
     }
 }

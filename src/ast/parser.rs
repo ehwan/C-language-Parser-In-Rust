@@ -15,7 +15,7 @@ pub struct ASTParser {
     type_name: Rc<RefCell<rp::DynBoxSlice<(Box<dyn TypenameTrait>,), Token>>>, // ? Only Single typename, no pointer
     specifier_list: Rc<RefCell<rp::DynBoxSlice<(TypeSpecifier,), Token>>>, // ? Only Single typename
     struct_specifier: Rc<RefCell<rp::DynBoxSlice<(Box<dyn TypenameTrait>,), Token>>>, // OK
-    union_specifier: Rc<RefCell<rp::DynBoxSlice<(Box<dyn TypenameTrait>,), Token>>>,
+    union_specifier: Rc<RefCell<rp::DynBoxSlice<(Box<dyn TypenameTrait>,), Token>>>, // OK
     enum_specifier: Rc<RefCell<rp::DynBoxSlice<(Box<dyn TypenameTrait>,), Token>>>,
 
     expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn ExpressionTrait>,), Token>>>, //OK
@@ -106,12 +106,11 @@ impl ASTParser {
             rp::one(Token::Unsigned).map(|_: Token| TypeSpecifier::U32),
             self.struct_specifier
                 .clone()
-                .map(|s| TypeSpecifier::Struct(s)), /*
-                                                    self.union_specifier
-                                                        .clone()
-                                                        .map(|s| TypeSpecifier::Union(s)),
-                                                    self.enum_specifier.clone().map(|e| TypeSpecifier::Enum(e)),
-                                                    */
+                .map(|s| TypeSpecifier::Struct(s)),
+            self.union_specifier
+                .clone()
+                .map(|s| TypeSpecifier::Union(s)),
+            self.enum_specifier.clone().map(|e| TypeSpecifier::Enum(e)),
             rp::check(|t: Token| -> Option<TypeSpecifier> {
                 if let Token::Identifier(s) = t {
                     Some(TypeSpecifier::Identifier(s))
@@ -246,6 +245,165 @@ impl ASTParser {
             struct_specifier1,
             struct_specifier2,
             struct_specifier3
+        ));
+
+        /*
+        struct_or_union_specifier
+        : struct_or_union IDENTIFIER '{' struct_member_declaration* '}'
+        | struct_or_union '{' struct_member_declaration* '}'
+        | struct_or_union IDENTIFIER
+        ;
+        */
+        let union_specifier1 = rp::seq!(
+            rp::one(Token::Union).void(),
+            rp::check(|t: Token| -> Option<String> {
+                if let Token::Identifier(s) = t {
+                    Some(s)
+                } else {
+                    None
+                }
+            }),
+            rp::one(Token::LeftBrace).void(),
+            struct_member_declaration.clone().repeat(0..),
+            rp::one(Token::RightBrace).void()
+        )
+        .map(
+            |name: String,
+             members: Vec<Box<StructMemberDeclarationStatementAST>>|
+             -> Box<dyn TypenameTrait> {
+                Box::new(StructDeclarationTypenameAST {
+                    name: Some(name),
+                    declarations: members,
+                })
+            },
+        );
+        let union_specifier2 = rp::seq!(
+            rp::one(Token::Union).void(),
+            rp::one(Token::LeftBrace).void(),
+            struct_member_declaration.clone().repeat(0..),
+            rp::one(Token::RightBrace).void()
+        )
+        .map(
+            |members: Vec<Box<StructMemberDeclarationStatementAST>>| -> Box<dyn TypenameTrait> {
+                Box::new(StructDeclarationTypenameAST {
+                    name: None,
+                    declarations: members,
+                })
+            },
+        );
+        let union_specifier3 = rp::seq!(
+            rp::one(Token::Union).void(),
+            rp::check(|t: Token| -> Option<String> {
+                if let Token::Identifier(s) = t {
+                    Some(s)
+                } else {
+                    None
+                }
+            })
+        )
+        .map(|name: String| -> Box<dyn TypenameTrait> { Box::new(StructTypenameAST { name }) });
+
+        self.union_specifier.borrow_mut().assign(rp::or!(
+            union_specifier1,
+            union_specifier2,
+            union_specifier3
+        ));
+
+        /*
+
+        enumerator_list
+        : enumerator
+        | enumerator_list ',' enumerator
+        ;
+
+        enumerator
+        : IDENTIFIER
+        | IDENTIFIER '=' constant_expression
+        ;
+        */
+        let enumerator = rp::seq!(
+            rp::check(|t: Token| -> Option<String> {
+                if let Token::Identifier(s) = t {
+                    Some(s)
+                } else {
+                    None
+                }
+            }),
+            rp::seq!(
+                rp::one(Token::Equal).void(),
+                self.constant_expression.clone()
+            )
+            .optional()
+        )
+        .map(|name: String, value: Option<Box<dyn ExpressionTrait>>| Enumerator { name, value });
+
+        let enumerator_list = enumerator
+            .clone()
+            .map(|e| -> Vec<Enumerator> { vec![e] })
+            .reduce_left(
+                rp::seq!(rp::one(Token::Comma).void(), enumerator.clone()),
+                |mut v: Vec<Enumerator>, e: Enumerator| -> Vec<Enumerator> {
+                    v.push(e);
+                    v
+                },
+            );
+        /*
+        enum_specifier
+        : ENUM '{' enumerator_list '}'
+        | ENUM IDENTIFIER '{' enumerator_list '}'
+        | ENUM IDENTIFIER
+        ;
+        */
+        let enum_specifier1 = rp::seq!(
+            rp::one(Token::Enum).void(),
+            rp::one(Token::LeftBrace).void(),
+            enumerator_list.clone(),
+            rp::one(Token::RightBrace).void()
+        )
+        .map(|enumerators: Vec<Enumerator>| -> Box<dyn TypenameTrait> {
+            Box::new(EnumDeclarationTypenameAST {
+                name: None,
+                declarations: enumerators,
+            })
+        });
+
+        let enum_specifier2 = rp::seq!(
+            rp::one(Token::Enum).void(),
+            rp::check(|t: Token| -> Option<String> {
+                if let Token::Identifier(s) = t {
+                    Some(s)
+                } else {
+                    None
+                }
+            }),
+            rp::one(Token::LeftBrace).void(),
+            enumerator_list.clone(),
+            rp::one(Token::RightBrace).void()
+        )
+        .map(
+            |name: String, enumerators: Vec<Enumerator>| -> Box<dyn TypenameTrait> {
+                Box::new(EnumDeclarationTypenameAST {
+                    name: Some(name),
+                    declarations: enumerators,
+                })
+            },
+        );
+        let enum_specifier3 = rp::seq!(
+            rp::one(Token::Enum).void(),
+            rp::check(|t: Token| -> Option<String> {
+                if let Token::Identifier(s) = t {
+                    Some(s)
+                } else {
+                    None
+                }
+            })
+        )
+        .map(|name: String| -> Box<dyn TypenameTrait> { Box::new(EnumTypenameAST { name }) });
+
+        self.enum_specifier.borrow_mut().assign(rp::or!(
+            enum_specifier1,
+            enum_specifier2,
+            enum_specifier3
         ));
     }
     fn expression_parser(&mut self) {
