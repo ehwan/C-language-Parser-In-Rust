@@ -17,9 +17,10 @@ struct MyStruct
   int a;
   int b;
 };
+int take(float**, int* b, struct MyStruct s);
 int main()
 {
-  int a = 10;
+  int a = (int)10;
   int b = 20;
   int c = a + b;
   return c;
@@ -49,6 +50,22 @@ SemiColon
 RightBrace
 SemiColon
 Int
+Identifier("take")
+LeftParen
+Float
+Star
+Star
+Comma
+Int
+Star
+Identifier("b")
+Comma
+Struct
+Identifier("MyStruct")
+Identifier("s")
+RightParen
+SemiColon
+Int
 Identifier("main")
 LeftParen
 RightParen
@@ -56,6 +73,9 @@ LeftBrace
 Int
 Identifier("a")
 Equal
+LeftParen
+Int
+RightParen
 ConstantInteger(10)
 SemiColon
 Int
@@ -77,7 +97,7 @@ RightBrace
 -----------------------------------
 Parsing...
 ASTs: 
-TranslationUnitAST { declarations: [DeclarationAST { specifier: Struct(StructDeclAndSpecifierAST { name: Some("MyStruct"), declarations: [StructMemberDeclarationAST { type_specifier: Int, declarators: [DeclaratorIdentifierAST { name: "a" }] }, StructMemberDeclarationAST { type_specifier: Int, declarators: [DeclaratorIdentifierAST { name: "b" }] }] }), init_declarators: [] }, FunctionDefinitionAST { return_type: Int, funcdecl: DeclaratorFunctionAST { decl: DeclaratorIdentifierAST { name: "main" }, args: [] }, body: CompoundStatementAST { statements: [DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "a" }, initializer: ConstantIntegerAST { value: 10 } }] }, DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "b" }, initializer: ConstantIntegerAST { value: 20 } }] }, DeclarationAST { specifier: Int, init_declarators: [InitDeclaratorAST { declarator: DeclaratorIdentifierAST { name: "c" }, initializer: BinaryExpressionAST { op: Add, lhs: PrimaryIdentifierAST { name: "a" }, rhs: PrimaryIdentifierAST { name: "b" } } }] }, ReturnStatementAST { expr: Some(PrimaryIdentifierAST { name: "c" }) }] } }] }
+TranslationUnitAST { statements: [DeclarationStatementAST { specifier: Struct(StructDeclarationTypenameAST { name: Some("MyStruct"), declarations: [StructMemberDeclarationStatementAST { specifier: I32, declarators: [IdentifierDeclaratorAST { name: "a" }] }, StructMemberDeclarationStatementAST { specifier: I32, declarators: [IdentifierDeclaratorAST { name: "b" }] }] }) }, DeclarationVarsStatementAST { specifier: I32, declarators: [DirectFunctionDeclaratorAST { decl: IdentifierDeclaratorAST { name: "take" }, params: [ParameterDeclarationStatementAST { specifier: F32, declarator: Some(AbstractPointerDeclaratorAST { decl: Some(AbstractPointerDeclaratorAST { decl: None }) }) }, ParameterDeclarationStatementAST { specifier: I32, declarator: Some(PointerDeclaratorAST { decl: IdentifierDeclaratorAST { name: "b" } }) }, ParameterDeclarationStatementAST { specifier: Struct(StructTypenameAST { name: "MyStruct" }), declarator: Some(IdentifierDeclaratorAST { name: "s" }) }] }] }, FunctionDefinitionStatementAST { specifier: I32, declarator: DirectFunctionDeclaratorAST { decl: IdentifierDeclaratorAST { name: "main" }, params: [] }, body: CompoundStatementAST { statements: [DeclarationVarsStatementAST { specifier: I32, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "a" }, initializer: CastExpressionAST { src: ConstantIntegerAST { value: 10 }, typename: TypeSpecifierAST { specifier: I32 } } }] }, DeclarationVarsStatementAST { specifier: I32, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "b" }, initializer: ConstantIntegerAST { value: 20 } }] }, DeclarationVarsStatementAST { specifier: I32, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "c" }, initializer: BinaryExpressionAST { op: Add, lhs: PrimaryIdentifierAST { name: "a" }, rhs: PrimaryIdentifierAST { name: "b" } } }] }, ReturnStatementAST { expr: Some(PrimaryIdentifierAST { name: "c" }) }] } }] }
 ```
 
 The AST will be:
@@ -90,13 +110,30 @@ TranslationUnitAST
 │       ├── MyStruct
 │       ├── I32 a
 │       └── I32 b
+├── DeclarationVarsStatementAST
+│   └── DirectFunctionDeclaratorAST
+│       ├── I32 take
+│       └── Parameters
+│           ├── ParameterDeclarationStatementAST
+│           │   ├── F32
+│           │   └── AbstractPointerDeclaratorAST
+│           │       └── AbstractPointerDeclaratorAST
+│           ├── ParameterDeclarationStatementAST
+│           │   ├── I32
+│           │   └── PointerDeclaratorAST
+│           │       └── IdentifierDeclaratorAST b
+│           └── ParameterDeclarationStatementAST
+│               ├── Struct MyStruct
+│               └── IdentifierDeclaratorAST s
 ├── FunctionDefinitionStatementAST
 │   ├── I32 main
 │   └── CompoundStatementAST
-│       ├── I32 a = 10
-│       ├── I32 b = 20
-│       ├── I32 c
-│       │   └── BinaryExpressionAST
-│       │       └── a + b
-│       └── Return c
+│       ├── DeclarationVarsStatementAST
+│       │   └── I32 a = CastExpressionAST (10 to I32)
+│       ├── DeclarationVarsStatementAST
+│       │   └── I32 b = 20
+│       ├── DeclarationVarsStatementAST
+│       │   └── I32 c = BinaryExpressionAST (a + b)
+│       └── ReturnStatementAST
+│           └── c
 ```
