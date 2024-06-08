@@ -351,7 +351,7 @@ impl StatementTrait for TranslationUnitAST {
 #[derive(Debug)]
 pub struct ParameterDeclarationStatementAST {
     pub specifier: TypeSpecifier,
-    pub declarator: Box<dyn DeclaratorTrait>,
+    pub declarator: Option<Box<dyn DeclaratorTrait>>,
 }
 impl AST for ParameterDeclarationStatementAST {
     fn emit(&self, program: &mut Program) {}

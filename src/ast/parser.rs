@@ -1323,17 +1323,20 @@ impl ASTParser {
             Default::default();
 
         {
-            let parameter_declaration =
-                rp::seq!(self.specifier_list.clone(), self.declarator.clone()).map(
-                    |spec: TypeSpecifier,
-                     decl: Box<dyn DeclaratorTrait>|
-                     -> Box<dyn StatementTrait> {
-                        Box::new(ParameterDeclarationStatementAST {
-                            specifier: spec,
-                            declarator: decl,
-                        })
-                    },
-                );
+            let parameter_declaration = rp::seq!(
+                self.specifier_list.clone(),
+                rp::or!(self.declarator.clone(), self.abstract_declarator.clone()).optional()
+            )
+            .map(
+                |spec: TypeSpecifier,
+                 decl: Option<Box<dyn DeclaratorTrait>>|
+                 -> Box<dyn StatementTrait> {
+                    Box::new(ParameterDeclarationStatementAST {
+                        specifier: spec,
+                        declarator: decl,
+                    })
+                },
+            );
             self.parameter_declaration
                 .borrow_mut()
                 .assign(parameter_declaration);
