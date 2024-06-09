@@ -4,38 +4,6 @@ use rusty_parser as rp;
 pub fn build_trie() -> rp::DictHashMap<(Token,), char> {
     let mut dict = rp::DictHashMap::new();
 
-    dict.insert("auto".chars(), (Token::Auto,));
-    dict.insert("break".chars(), (Token::Break,));
-    dict.insert("case".chars(), (Token::Case,));
-    dict.insert("char".chars(), (Token::Char,));
-    dict.insert("const".chars(), (Token::Const,));
-    dict.insert("continue".chars(), (Token::Continue,));
-    dict.insert("default".chars(), (Token::Default,));
-    dict.insert("do".chars(), (Token::Do,));
-    dict.insert("double".chars(), (Token::Double,));
-    dict.insert("else".chars(), (Token::Else,));
-    dict.insert("enum".chars(), (Token::Enum,));
-    dict.insert("extern".chars(), (Token::Extern,));
-    dict.insert("float".chars(), (Token::Float,));
-    dict.insert("for".chars(), (Token::For,));
-    dict.insert("goto".chars(), (Token::Goto,));
-    dict.insert("if".chars(), (Token::If,));
-    dict.insert("int".chars(), (Token::Int,));
-    dict.insert("long".chars(), (Token::Long,));
-    dict.insert("register".chars(), (Token::Register,));
-    dict.insert("return".chars(), (Token::Return,));
-    dict.insert("short".chars(), (Token::Short,));
-    dict.insert("signed".chars(), (Token::Signed,));
-    dict.insert("sizeof".chars(), (Token::Sizeof,));
-    dict.insert("static".chars(), (Token::Static,));
-    dict.insert("struct".chars(), (Token::Struct,));
-    dict.insert("switch".chars(), (Token::Switch,));
-    dict.insert("typedef".chars(), (Token::Typedef,));
-    dict.insert("union".chars(), (Token::Union,));
-    dict.insert("unsigned".chars(), (Token::Unsigned,));
-    dict.insert("void".chars(), (Token::Void,));
-    dict.insert("volatile".chars(), (Token::Volatile,));
-    dict.insert("while".chars(), (Token::While,));
     dict.insert("...".chars(), (Token::Ellipsis,));
     dict.insert(">>=".chars(), (Token::RightAssign,));
     dict.insert("<<=".chars(), (Token::LeftAssign,));
@@ -87,6 +55,44 @@ pub fn build_trie() -> rp::DictHashMap<(Token,), char> {
     dict.insert("^".chars(), (Token::Caret,));
     dict.insert("|".chars(), (Token::Pipe,));
     dict.insert("?".chars(), (Token::Question,));
+
+    dict
+}
+pub fn build_keyword_trie() -> rp::DictHashMap<(Token,), char> {
+    let mut dict = rp::DictHashMap::new();
+
+    dict.insert("auto".chars(), (Token::Auto,));
+    dict.insert("break".chars(), (Token::Break,));
+    dict.insert("case".chars(), (Token::Case,));
+    dict.insert("char".chars(), (Token::Char,));
+    dict.insert("const".chars(), (Token::Const,));
+    dict.insert("continue".chars(), (Token::Continue,));
+    dict.insert("default".chars(), (Token::Default,));
+    dict.insert("do".chars(), (Token::Do,));
+    dict.insert("double".chars(), (Token::Double,));
+    dict.insert("else".chars(), (Token::Else,));
+    dict.insert("enum".chars(), (Token::Enum,));
+    dict.insert("extern".chars(), (Token::Extern,));
+    dict.insert("float".chars(), (Token::Float,));
+    dict.insert("for".chars(), (Token::For,));
+    dict.insert("goto".chars(), (Token::Goto,));
+    dict.insert("if".chars(), (Token::If,));
+    dict.insert("int".chars(), (Token::Int,));
+    dict.insert("long".chars(), (Token::Long,));
+    dict.insert("register".chars(), (Token::Register,));
+    dict.insert("return".chars(), (Token::Return,));
+    dict.insert("short".chars(), (Token::Short,));
+    dict.insert("signed".chars(), (Token::Signed,));
+    dict.insert("sizeof".chars(), (Token::Sizeof,));
+    dict.insert("static".chars(), (Token::Static,));
+    dict.insert("struct".chars(), (Token::Struct,));
+    dict.insert("switch".chars(), (Token::Switch,));
+    dict.insert("typedef".chars(), (Token::Typedef,));
+    dict.insert("union".chars(), (Token::Union,));
+    dict.insert("unsigned".chars(), (Token::Unsigned,));
+    dict.insert("void".chars(), (Token::Void,));
+    dict.insert("volatile".chars(), (Token::Volatile,));
+    dict.insert("while".chars(), (Token::While,));
 
     dict
 }

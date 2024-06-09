@@ -1,25 +1,26 @@
 struct MyStruct
 {
-  int a;
-  int b;
+  int struct_a;
+  int struct_b;
 };
 union MyUnion
 {
-  int a;
-  int b;
+  int union_a;
+  int union_b;
 };
 enum MyEnum
 {
-  a,
-  b = 10,
-  c,
-  d = 20
+  enum_a,
+  enum_b,
+  enum_c = 10,
+  enum_d,
+  enum_e = 20
 };
 int take(float**, int* b, struct MyStruct s);
 int main()
 {
-  int a = (int)10;
-  int b = 20;
-  int c = a + b;
-  return c;
+  unsigned int ma = (int)10;
+  unsigned long long mb = 20;
+  int mc = ma + mb;
+  return mc;
 }

@@ -5,25 +5,37 @@ A lot of features are not implemented yet. This is just a toy project for testin
 
 ## Running Structures
  1) SourceFile -> Tokeninze -> `Token Stream`
- 2) TokenStream -> Parse -> `Abstract Syntax Tree` <-- Currently Here
- 3) AST -> Generate Code -> `Sequence of Instructions`
+ 2) TokenStream -> Parse -> `Abstract Syntax Tree`
+ 3) AST -> Generate Code -> `Sequence of Instructions` <-- Currently Here
  4) Execution
 
 ## Example
 ```c
-/// sample.c
 struct MyStruct
 {
-  int a;
-  int b;
+  int struct_a;
+  int struct_b;
+};
+union MyUnion
+{
+  int union_a;
+  int union_b;
+};
+enum MyEnum
+{
+  enum_a,
+  enum_b,
+  enum_c = 10,
+  enum_d,
+  enum_e = 20
 };
 int take(float**, int* b, struct MyStruct s);
 int main()
 {
-  int a = (int)10;
-  int b = 20;
-  int c = a + b;
-  return c;
+  unsigned int ma = (int)10;
+  unsigned long long mb = 20;
+  int mc = ma + mb;
+  return mc;
 }
 ```
 
@@ -42,11 +54,40 @@ Struct
 Identifier("MyStruct")
 LeftBrace
 Int
-Identifier("a")
+Identifier("struct_a")
 SemiColon
 Int
-Identifier("b")
+Identifier("struct_b")
 SemiColon
+RightBrace
+SemiColon
+Union
+Identifier("MyUnion")
+LeftBrace
+Int
+Identifier("union_a")
+SemiColon
+Int
+Identifier("union_b")
+SemiColon
+RightBrace
+SemiColon
+Enum
+Identifier("MyEnum")
+LeftBrace
+Identifier("enum_a")
+Comma
+Identifier("enum_b")
+Comma
+Identifier("enum_c")
+Equal
+ConstantInteger(10)
+Comma
+Identifier("enum_d")
+Comma
+Identifier("enum_e")
+Equal
+ConstantInteger(20)
 RightBrace
 SemiColon
 Int
@@ -70,70 +111,76 @@ Identifier("main")
 LeftParen
 RightParen
 LeftBrace
+Unsigned
 Int
-Identifier("a")
+Identifier("ma")
 Equal
 LeftParen
 Int
 RightParen
 ConstantInteger(10)
 SemiColon
-Int
-Identifier("b")
+Unsigned
+Long
+Long
+Identifier("mb")
 Equal
 ConstantInteger(20)
 SemiColon
 Int
-Identifier("c")
+Identifier("mc")
 Equal
-Identifier("a")
+Identifier("ma")
 Plus
-Identifier("b")
+Identifier("mb")
 SemiColon
 Return
-Identifier("c")
+Identifier("mc")
 SemiColon
 RightBrace
 -----------------------------------
 Parsing...
 ASTs: 
-TranslationUnitAST { statements: [DeclarationStatementAST { specifier: Struct(StructDeclarationTypenameAST { name: Some("MyStruct"), declarations: [StructMemberDeclarationStatementAST { specifier: I32, declarators: [IdentifierDeclaratorAST { name: "a" }] }, StructMemberDeclarationStatementAST { specifier: I32, declarators: [IdentifierDeclaratorAST { name: "b" }] }] }) }, DeclarationVarsStatementAST { specifier: I32, declarators: [DirectFunctionDeclaratorAST { decl: IdentifierDeclaratorAST { name: "take" }, params: [ParameterDeclarationStatementAST { specifier: F32, declarator: Some(AbstractPointerDeclaratorAST { decl: Some(AbstractPointerDeclaratorAST { decl: None }) }) }, ParameterDeclarationStatementAST { specifier: I32, declarator: Some(PointerDeclaratorAST { decl: IdentifierDeclaratorAST { name: "b" } }) }, ParameterDeclarationStatementAST { specifier: Struct(StructTypenameAST { name: "MyStruct" }), declarator: Some(IdentifierDeclaratorAST { name: "s" }) }] }] }, FunctionDefinitionStatementAST { specifier: I32, declarator: DirectFunctionDeclaratorAST { decl: IdentifierDeclaratorAST { name: "main" }, params: [] }, body: CompoundStatementAST { statements: [DeclarationVarsStatementAST { specifier: I32, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "a" }, initializer: CastExpressionAST { src: ConstantIntegerAST { value: 10 }, typename: TypeSpecifierAST { specifier: I32 } } }] }, DeclarationVarsStatementAST { specifier: I32, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "b" }, initializer: ConstantIntegerAST { value: 20 } }] }, DeclarationVarsStatementAST { specifier: I32, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "c" }, initializer: BinaryExpressionAST { op: Add, lhs: PrimaryIdentifierAST { name: "a" }, rhs: PrimaryIdentifierAST { name: "b" } } }] }, ReturnStatementAST { expr: Some(PrimaryIdentifierAST { name: "c" }) }] } }] }
+TranslationUnitAST { statements: [DeclarationStatementAST { typeinfo: Struct(StructInfo { name: Some("MyStruct"), fields: Some({"struct_a": Int32, "struct_b": Int32}) }) }, DeclarationStatementAST { typeinfo: Union(UnionInfo { name: Some("MyUnion"), fields: Some({"union_a": Int32, "union_b": Int32}) }) }, DeclarationStatementAST { typeinfo: Enum(EnumInfo { name: Some("MyEnum"), fields: Some({"enum_e": 20, "enum_a": 0, "enum_c": 10, "enum_b": 1, "enum_d": 11}) }) }, DeclarationVarsStatementAST { typeinfo: Int32, declarators: [DirectFunctionDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "take" }, params: [(Float32, Some(AbstractPointerDeclaratorAST { declarator: Some(AbstractPointerDeclaratorAST { declarator: None }) })), (Int32, Some(PointerDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "b" } })), (Struct(StructInfo { name: Some("MyStruct"), fields: None }), Some(IdentifierDeclaratorAST { name: "s" }))] }] }, FunctionDefinitionStatementAST { return_type: Int32, declarator: DirectFunctionDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "main" }, params: [] }, body: CompoundStatementAST { statements: [DeclarationVarsStatementAST { typeinfo: UInt32, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "ma" }, initializer: CastExpressionAST { src: ConstantIntegerAST { value: 10 }, typeinfo: Int32 } }] }, DeclarationVarsStatementAST { typeinfo: UInt64, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "mb" }, initializer: ConstantIntegerAST { value: 20 } }] }, DeclarationVarsStatementAST { typeinfo: Int32, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "mc" }, initializer: BinaryExpressionAST { op: Add, lhs: PrimaryIdentifierAST { name: "ma" }, rhs: PrimaryIdentifierAST { name: "mb" } } }] }, ReturnStatementAST { expr: Some(PrimaryIdentifierAST { name: "mc" }) }] } }] }
 ```
 
-The AST will be:
+The visualized AST will be:
+
 ![AST](tree.png)
 
 ```
 TranslationUnitAST
-├── DeclarationStatementAST
-│   └── StructDeclarationTypenameAST
-│       ├── MyStruct
-│       ├── I32 a
-│       └── I32 b
+├── DeclarationStatementAST 1
+│   └── StructInfo MyStruct
+│       ├── Int32 struct_a
+│       └── Int32 struct_b
+├── DeclarationStatementAST 2
+│   └── UnionInfo MyUnion
+│       ├── Int32 union_a
+│       └── Int32 union_b
+├── DeclarationStatementAST 3
+│   └── EnumInfo MyEnum
+│       ├── enum_e = 20
+│       ├── enum_a = 0
+│       ├── enum_c = 10
+│       ├── enum_b = 1
+│       └── enum_d = 11
 ├── DeclarationVarsStatementAST
-│   └── DirectFunctionDeclaratorAST
-│       ├── I32 take
-│       └── Parameters
-│           ├── ParameterDeclarationStatementAST
-│           │   ├── F32
-│           │   └── AbstractPointerDeclaratorAST
-│           │       └── AbstractPointerDeclaratorAST
-│           ├── ParameterDeclarationStatementAST
-│           │   ├── I32
-│           │   └── PointerDeclaratorAST
-│           │       └── IdentifierDeclaratorAST b
-│           └── ParameterDeclarationStatementAST
-│               ├── Struct MyStruct
-│               └── IdentifierDeclaratorAST s
-├── FunctionDefinitionStatementAST
-│   ├── I32 main
+│   └── DirectFunctionDeclaratorAST take
+│       ├── Parameters
+│       │   ├── (Float32, AbstractPointerDeclaratorAST)
+│       │   │   └── AbstractPointerDeclaratorAST
+│       │   ├── (Int32, PointerDeclaratorAST)
+│       │   │   └── IdentifierDeclaratorAST b
+│       │   └── (StructInfo MyStruct (no fields), IdentifierDeclaratorAST s)
+├── FunctionDefinitionStatementAST main
 │   └── CompoundStatementAST
-│       ├── DeclarationVarsStatementAST
-│       │   └── I32 a = CastExpressionAST (10 to I32)
-│       ├── DeclarationVarsStatementAST
-│       │   └── I32 b = 20
-│       ├── DeclarationVarsStatementAST
-│       │   └── I32 c = BinaryExpressionAST (a + b)
+│       ├── DeclarationVarsStatementAST ma
+│       │   └── UInt32 ma = CastExpressionAST (10 to Int32)
+│       ├── DeclarationVarsStatementAST mb
+│       │   └── UInt64 mb = 20
+│       ├── DeclarationVarsStatementAST mc
+│       │   └── Int32 mc = BinaryExpressionAST (ma + mb)
 │       └── ReturnStatementAST
-│           └── c
+│           └── mc
 ```

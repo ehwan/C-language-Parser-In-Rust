@@ -1,37 +1,10 @@
 use super::{
-    ast::AST, declarator::DeclaratorTrait, expression::ExpressionTrait, typename::TypeSpecifier,
+    ast::{ASTType, AST},
+    typename::TypeInfo,
 };
 use crate::program::Program;
 
 use std::any::Any;
-
-pub enum StatementType {
-    NullExpression, // ;
-    Expression,     // Expression;
-    Labeled,
-    Case,
-    Default,
-    Compound,
-    If,
-    Switch,
-    While,
-    DoWhile,
-    For,
-    Goto,
-    Continue,
-    Break,
-    Return,
-    DeclarationVars,
-    Declaration,
-    FunctionDefinition,
-    TranslationUnit,
-    ParameterDeclaration,
-    StructMemberDeclaration,
-}
-
-pub trait StatementTrait: AST {
-    fn get_type(&self) -> StatementType;
-}
 
 #[derive(Debug)]
 pub struct NullStatementAST;
@@ -40,180 +13,158 @@ impl AST for NullStatementAST {
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for NullStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::NullExpression
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementNullExpression
     }
 }
 
 #[derive(Debug)]
 pub struct ExpressionStatementAST {
-    pub expr: Box<dyn ExpressionTrait>,
+    pub expression: Box<dyn AST>,
 }
 impl AST for ExpressionStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for ExpressionStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Expression
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementExpression
     }
 }
 
 #[derive(Debug)]
 pub struct LabeledStatementAST {
     pub label: String,
-    pub statement: Box<dyn StatementTrait>,
+    pub statement: Box<dyn AST>,
 }
 impl AST for LabeledStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for LabeledStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Labeled
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementLabeled
     }
 }
 
 #[derive(Debug)]
 pub struct CaseStatementAST {
-    pub value: Box<dyn ExpressionTrait>,
-    pub statement: Box<dyn StatementTrait>,
+    pub value: Box<dyn AST>,
+    pub statement: Box<dyn AST>,
 }
 impl AST for CaseStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for CaseStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Case
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementCase
     }
 }
 
 #[derive(Debug)]
 pub struct DefaultStatementAST {
-    pub statement: Box<dyn StatementTrait>,
+    pub statement: Box<dyn AST>,
 }
 impl AST for DefaultStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for DefaultStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Default
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementDefault
     }
 }
 
 #[derive(Debug)]
 pub struct CompoundStatementAST {
-    pub statements: Vec<Box<dyn StatementTrait>>,
+    pub statements: Vec<Box<dyn AST>>,
 }
 impl AST for CompoundStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for CompoundStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Compound
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementCompound
     }
 }
 
 #[derive(Debug)]
 pub struct IfStatementAST {
-    pub cond: Box<dyn ExpressionTrait>,
-    pub then_statement: Box<dyn StatementTrait>,
-    pub else_statement: Option<Box<dyn StatementTrait>>,
+    pub cond: Box<dyn AST>,
+    pub then_statement: Box<dyn AST>,
+    pub else_statement: Option<Box<dyn AST>>,
 }
 impl AST for IfStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for IfStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::If
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementIf
     }
 }
 
 #[derive(Debug)]
 pub struct SwitchStatementAST {
-    pub cond: Box<dyn ExpressionTrait>,
-    pub statement: Box<dyn StatementTrait>,
+    pub cond: Box<dyn AST>,
+    pub statement: Box<dyn AST>,
 }
 impl AST for SwitchStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for SwitchStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Switch
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementSwitch
     }
 }
 
 #[derive(Debug)]
 pub struct WhileStatementAST {
-    pub cond: Box<dyn ExpressionTrait>,
-    pub statement: Box<dyn StatementTrait>,
+    pub cond: Box<dyn AST>,
+    pub statement: Box<dyn AST>,
 }
 impl AST for WhileStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for WhileStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::While
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementWhile
     }
 }
 
 #[derive(Debug)]
 pub struct DoWhileStatementAST {
-    pub cond: Box<dyn ExpressionTrait>,
-    pub statement: Box<dyn StatementTrait>,
+    pub cond: Box<dyn AST>,
+    pub statement: Box<dyn AST>,
 }
 impl AST for DoWhileStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for DoWhileStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::DoWhile
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementDoWhile
     }
 }
 
 #[derive(Debug)]
 pub struct ForStatementAST {
-    pub init: Box<dyn StatementTrait>,
-    pub cond: Box<dyn StatementTrait>,
-    pub next: Option<Box<dyn ExpressionTrait>>,
-    pub statement: Box<dyn StatementTrait>,
+    pub init: Box<dyn AST>,
+    pub cond: Box<dyn AST>,
+    pub next: Option<Box<dyn AST>>,
+    pub statement: Box<dyn AST>,
 }
 impl AST for ForStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for ForStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::For
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementFor
     }
 }
 
@@ -226,10 +177,8 @@ impl AST for GotoStatementAST {
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for GotoStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Goto
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementGoto
     }
 }
 
@@ -240,10 +189,8 @@ impl AST for ContinueStatementAST {
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for ContinueStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Continue
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementContinue
     }
 }
 
@@ -254,83 +201,73 @@ impl AST for BreakStatementAST {
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for BreakStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Break
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementBreak
     }
 }
 
 #[derive(Debug)]
 pub struct ReturnStatementAST {
-    pub expr: Option<Box<dyn ExpressionTrait>>,
+    pub expr: Option<Box<dyn AST>>,
 }
 impl AST for ReturnStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for ReturnStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Return
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementReturn
     }
 }
 
 #[derive(Debug)]
 pub struct DeclarationVarsStatementAST {
-    pub specifier: TypeSpecifier,
-    pub declarators: Vec<Box<dyn DeclaratorTrait>>,
+    pub typeinfo: TypeInfo,
+    pub declarators: Vec<Box<dyn AST>>,
 }
 impl AST for DeclarationVarsStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for DeclarationVarsStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::DeclarationVars
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementDeclarationVars
     }
 }
 
 #[derive(Debug)]
 pub struct DeclarationStatementAST {
-    pub specifier: TypeSpecifier,
+    pub typeinfo: TypeInfo,
 }
 impl AST for DeclarationStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for DeclarationStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::Declaration
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementDeclaration
     }
 }
 
 #[derive(Debug)]
 pub struct FunctionDefinitionStatementAST {
-    pub specifier: TypeSpecifier,
-    pub declarator: Box<dyn DeclaratorTrait>,
-    pub body: Box<dyn StatementTrait>,
+    pub return_type: TypeInfo,
+    pub declarator: Box<dyn AST>,
+    pub body: Box<dyn AST>,
 }
 impl AST for FunctionDefinitionStatementAST {
     fn emit(&self, program: &mut Program) {}
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for FunctionDefinitionStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::FunctionDefinition
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementFunctionDefinition
     }
 }
 
 #[derive(Debug)]
 pub struct TranslationUnitAST {
-    pub statements: Vec<Box<dyn StatementTrait>>,
+    pub statements: Vec<Box<dyn AST>>,
 }
 impl AST for TranslationUnitAST {
     fn emit(&self, program: &mut Program) {
@@ -341,43 +278,7 @@ impl AST for TranslationUnitAST {
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-impl StatementTrait for TranslationUnitAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::TranslationUnit
-    }
-}
-
-#[derive(Debug)]
-pub struct ParameterDeclarationStatementAST {
-    pub specifier: TypeSpecifier,
-    pub declarator: Option<Box<dyn DeclaratorTrait>>,
-}
-impl AST for ParameterDeclarationStatementAST {
-    fn emit(&self, program: &mut Program) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-impl StatementTrait for ParameterDeclarationStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::ParameterDeclaration
-    }
-}
-
-#[derive(Debug)]
-pub struct StructMemberDeclarationStatementAST {
-    pub specifier: TypeSpecifier,
-    pub declarators: Vec<Box<dyn DeclaratorTrait>>,
-}
-impl AST for StructMemberDeclarationStatementAST {
-    fn emit(&self, program: &mut Program) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-impl StatementTrait for StructMemberDeclarationStatementAST {
-    fn get_type(&self) -> StatementType {
-        StatementType::StructMemberDeclaration
+    fn get_type(&self) -> ASTType {
+        ASTType::StatementTranslationUnit
     }
 }
