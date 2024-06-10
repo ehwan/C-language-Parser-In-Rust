@@ -7,4 +7,3 @@ pub(crate) mod tokenize;
 pub(crate) mod trie;
 
 pub use token::Token;
-pub use tokenize::tokenize;

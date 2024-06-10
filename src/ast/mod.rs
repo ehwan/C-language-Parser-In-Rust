@@ -1,4 +1,3 @@
-pub mod ast;
 pub mod declarator;
 pub mod expression;
 pub mod parser;

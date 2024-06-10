@@ -48,8 +48,8 @@ The result will be:
 
 ```
 Enter your code:
-Tokenizing...
-Tokens: 
+============================ Tokenizing ============================
+Tokens:
 Struct
 Identifier("MyStruct")
 LeftBrace
@@ -138,10 +138,41 @@ Return
 Identifier("mc")
 SemiColon
 RightBrace
------------------------------------
-Parsing...
-ASTs: 
-TranslationUnitAST { statements: [DeclarationStatementAST { typeinfo: Struct(StructInfo { name: Some("MyStruct"), fields: Some({"struct_a": Int32, "struct_b": Int32}) }) }, DeclarationStatementAST { typeinfo: Union(UnionInfo { name: Some("MyUnion"), fields: Some({"union_a": Int32, "union_b": Int32}) }) }, DeclarationStatementAST { typeinfo: Enum(EnumInfo { name: Some("MyEnum"), fields: Some({"enum_e": 20, "enum_a": 0, "enum_c": 10, "enum_b": 1, "enum_d": 11}) }) }, DeclarationVarsStatementAST { typeinfo: Int32, declarators: [DirectFunctionDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "take" }, params: [(Float32, Some(AbstractPointerDeclaratorAST { declarator: Some(AbstractPointerDeclaratorAST { declarator: None }) })), (Int32, Some(PointerDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "b" } })), (Struct(StructInfo { name: Some("MyStruct"), fields: None }), Some(IdentifierDeclaratorAST { name: "s" }))] }] }, FunctionDefinitionStatementAST { return_type: Int32, declarator: DirectFunctionDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "main" }, params: [] }, body: CompoundStatementAST { statements: [DeclarationVarsStatementAST { typeinfo: UInt32, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "ma" }, initializer: CastExpressionAST { src: ConstantIntegerAST { value: 10 }, typeinfo: Int32 } }] }, DeclarationVarsStatementAST { typeinfo: UInt64, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "mb" }, initializer: ConstantIntegerAST { value: 20 } }] }, DeclarationVarsStatementAST { typeinfo: Int32, declarators: [InitDeclaratorAST { declarator: IdentifierDeclaratorAST { name: "mc" }, initializer: BinaryExpressionAST { op: Add, lhs: PrimaryIdentifierAST { name: "ma" }, rhs: PrimaryIdentifierAST { name: "mb" } } }] }, ReturnStatementAST { expr: Some(PrimaryIdentifierAST { name: "mc" }) }] } }] }
+============================ Building AST ============================
+ASTs:
+TranslationUnit { statements: [DeclarationStatement { vars: [(None, Struct(StructInfo { name: Some("MyStruct"), fields: Some({"struct_a": Int32, "struct_b": Int32}) }), None)] }, DeclarationStatement { vars: [(None, Union(UnionInfo { name: Some("MyUnion"), fields: Some({"union_a": Int32, "union_b": Int32}) }), None)] }, DeclarationStatement { vars: [(None, Enum(EnumInfo { name: Some("MyEnum"), fields: Some({"enum_a": 0, "enum_d": 11, "enum_c": 10, "enum_e": 20, "enum_b": 1}) }), None)] }, DeclarationStatement { vars: [(Some("take"), Function(Int32, [Pointer(Pointer(Float32)), Pointer(Int32), Struct(StructInfo { name: Some("MyStruct"), fields: None })]), None)] }, FunctionDefinitionStatement { return_type: Int32, name: "main", params: [], body: CompoundStatement { statements: [DeclarationStatement { vars: [(Some("ma"), UInt32, Some(CastExpression { src: ConstantInteger { value: 10 }, typeinfo: Int32 }))] }, DeclarationStatement { vars: [(Some("mb"), UInt64, Some(ConstantInteger { value: 20 }))] }, DeclarationStatement { vars: [(Some("mc"), Int32, Some(BinaryExpression { op: Add, lhs: PrimaryIdentifier { name: "ma" }, rhs: PrimaryIdentifier { name: "mb" } }))] }, ReturnStatement { expr: Some(PrimaryIdentifier { name: "mc" }) }] } }] }
+============================ Generating Instructions ============================
+Function Definition: main
+Instructions:
+DeclareStructure { info: StructInfo { name: Some("MyStruct"), fields: Some({"struct_a": Int32, "struct_b": Int32}) } }
+DeclareUnion { info: UnionInfo { name: Some("MyUnion"), fields: Some({"union_a": Int32, "union_b": Int32}) } }
+DeclareEnum { info: EnumInfo { name: Some("MyEnum"), fields: Some({"enum_a": 0, "enum_d": 11, "enum_c": 10, "enum_e": 20, "enum_b": 1}) } }
+NewVariable { name: "take", info: Function(Int32, [Pointer(Pointer(Float32)), Pointer(Int32), Struct(StructInfo { name: Some("MyStruct"), fields: None })]) }
+Null
+NewScope
+Constant { value: UInt32(10), info: UInt32 }
+Cast { info: Int32 }
+NewVariable { name: "ma", info: UInt32 }
+GetVariable { name: "ma" }
+Assign
+Constant { value: UInt32(20), info: UInt32 }
+NewVariable { name: "mb", info: UInt64 }
+GetVariable { name: "mb" }
+Assign
+GetVariable { name: "ma" }
+PushRegister
+GetVariable { name: "mb" }
+PopStackTo
+Add
+NewVariable { name: "mc", info: Int32 }
+GetVariable { name: "mc" }
+Assign
+GetVariable { name: "mc" }
+PopStackTo
+Jump
+PopScope
+PopStackTo
+Jump
 ```
 
 The visualized AST will be:

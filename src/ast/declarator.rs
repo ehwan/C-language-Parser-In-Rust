@@ -1,44 +1,45 @@
-use super::{
-    ast::{ASTType, AST},
-    typename::TypeInfo,
-};
-use crate::program::Program;
-use std::vec::Vec;
+use super::expression::Expression;
+use super::typename::TypeInfo;
 
 use std::any::Any;
+use std::vec::Vec;
+
+pub trait Declarator: std::fmt::Debug + Any {
+    fn as_any(&self) -> &dyn Any;
+
+    // get (variable_name, real_type) from direct declarator and type info
+    fn resolve_typeinfo(&self, _info: TypeInfo) -> (Option<String>, TypeInfo) {
+        panic!(
+            "get_direct_typeinfo_from_declarator not implemented for {:?}",
+            self
+        );
+    }
+}
 
 #[derive(Debug)]
-pub struct IdentifierDeclaratorAST {
+pub struct IdentifierDeclarator {
     pub name: String,
 }
-impl AST for IdentifierDeclaratorAST {
-    fn emit(&self, program: &mut Program) {}
+impl Declarator for IdentifierDeclarator {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_type(&self) -> ASTType {
-        ASTType::DeclaratorIdentifier
-    }
-    fn get_typeinfo_from_direct_declarator(&self, info: TypeInfo) -> (String, TypeInfo) {
-        (self.name.clone(), info)
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        (Some(self.name.clone()), info)
     }
 }
 
 #[derive(Debug)]
-pub struct DirectArrayFixedDeclaratorAST {
-    pub declarator: Box<dyn AST>,
-    pub size: Box<dyn AST>,
+pub struct DirectArrayFixedDeclarator {
+    pub declarator: Box<dyn Declarator>,
+    pub size: Box<dyn Expression>,
 }
-impl AST for DirectArrayFixedDeclaratorAST {
-    fn emit(&self, program: &mut Program) {}
+impl Declarator for DirectArrayFixedDeclarator {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_type(&self) -> ASTType {
-        ASTType::DeclaratorDirectArrayFixed
-    }
-    fn get_typeinfo_from_direct_declarator(&self, info: TypeInfo) -> (String, TypeInfo) {
-        let (name, info) = self.declarator.get_typeinfo_from_direct_declarator(info);
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        let (name, info) = self.declarator.resolve_typeinfo(info);
         let size = self
             .size
             .get_constant_i64()
@@ -48,210 +49,146 @@ impl AST for DirectArrayFixedDeclaratorAST {
 }
 
 #[derive(Debug)]
-pub struct DirectArrayUnboundedDeclaratorAST {
-    pub declarator: Box<dyn AST>,
+pub struct DirectArrayUnboundedDeclarator {
+    pub declarator: Box<dyn Declarator>,
 }
-impl AST for DirectArrayUnboundedDeclaratorAST {
-    fn emit(&self, program: &mut Program) {}
+impl Declarator for DirectArrayUnboundedDeclarator {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_type(&self) -> ASTType {
-        ASTType::DeclaratorDirectArrayUnbounded
-    }
-    fn get_typeinfo_from_direct_declarator(&self, info: TypeInfo) -> (String, TypeInfo) {
-        let (name, info) = self.declarator.get_typeinfo_from_direct_declarator(info);
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        let (name, info) = self.declarator.resolve_typeinfo(info);
         (name, TypeInfo::Array(Box::new(info), None))
     }
 }
 
 #[derive(Debug)]
-pub struct DirectFunctionDeclaratorAST {
-    pub declarator: Box<dyn AST>,
-    pub params: Vec<(TypeInfo, Option<Box<dyn AST>>)>,
+pub struct DirectFunctionDeclarator {
+    pub declarator: Box<dyn Declarator>,
+    pub params: Vec<(Option<String>, TypeInfo)>,
 }
-impl AST for DirectFunctionDeclaratorAST {
-    fn emit(&self, program: &mut Program) {}
+impl Declarator for DirectFunctionDeclarator {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_type(&self) -> ASTType {
-        ASTType::DeclaratorDirectFunction
-    }
-    fn get_typeinfo_from_declarator(&self, info: TypeInfo) -> TypeInfo {
-        let return_type = self.declarator.get_typeinfo_from_declarator(info);
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        let (name, return_type) = self.declarator.resolve_typeinfo(info);
         let mut params = Vec::new();
-        for (param_type, param_declarator) in &self.params {
-            let param_type = if let Some(param_declarator) = param_declarator {
-                param_declarator.get_typeinfo_from_declarator(param_type.clone())
-            } else {
-                param_type.clone()
-            };
-            params.push(param_type);
-        }
-        TypeInfo::Function(Box::new(return_type), params)
-    }
-    fn get_typeinfo_from_direct_declarator(&self, info: TypeInfo) -> (String, TypeInfo) {
-        let (name, return_type) = self.declarator.get_typeinfo_from_direct_declarator(info);
-        let mut params = Vec::new();
-        for (param_type, param_declarator) in &self.params {
-            let param_type = if let Some(param_declarator) = param_declarator {
-                param_declarator.get_typeinfo_from_declarator(param_type.clone())
-            } else {
-                param_type.clone()
-            };
-            params.push(param_type);
+        for (_, param_type) in &self.params {
+            params.push(param_type.clone());
         }
         (name, TypeInfo::Function(Box::new(return_type), params))
     }
 }
 
 #[derive(Debug)]
-pub struct PointerDeclaratorAST {
-    pub declarator: Box<dyn AST>,
+pub struct PointerDeclarator {
+    pub declarator: Box<dyn Declarator>,
 }
-impl AST for PointerDeclaratorAST {
-    fn emit(&self, program: &mut Program) {}
+impl Declarator for PointerDeclarator {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_type(&self) -> ASTType {
-        ASTType::DeclaratorPointer
-    }
-
-    fn get_typeinfo_from_direct_declarator(&self, info: TypeInfo) -> (String, TypeInfo) {
-        let (name, info) = self.declarator.get_typeinfo_from_direct_declarator(info);
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        let (name, info) = self.declarator.resolve_typeinfo(info);
         (name, TypeInfo::Pointer(Box::new(info)))
     }
-    fn get_typeinfo_from_declarator(&self, info: TypeInfo) -> TypeInfo {
-        let info = self.declarator.get_typeinfo_from_declarator(info);
-        TypeInfo::Pointer(Box::new(info))
+}
+
+#[derive(Debug)]
+pub struct InitDeclarator {
+    pub declarator: Box<dyn Declarator>,
+    pub initializer: Option<Box<dyn Expression>>,
+}
+impl Declarator for InitDeclarator {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        self.declarator.resolve_typeinfo(info)
     }
 }
 
 #[derive(Debug)]
-pub struct InitDeclaratorAST {
-    pub declarator: Box<dyn AST>,
-    pub initializer: Box<dyn AST>,
+pub struct AbstractArrayFixedDeclarator {
+    pub declarator: Option<Box<dyn Declarator>>,
+    pub size: Box<dyn Expression>,
 }
-impl AST for InitDeclaratorAST {
-    fn emit(&self, program: &mut Program) {}
+impl Declarator for AbstractArrayFixedDeclarator {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_type(&self) -> ASTType {
-        ASTType::DeclaratorInit
-    }
-    fn get_typeinfo_from_direct_declarator(&self, info: TypeInfo) -> (String, TypeInfo) {
-        self.declarator.get_typeinfo_from_direct_declarator(info)
-    }
-    fn get_typeinfo_from_declarator(&self, info: TypeInfo) -> TypeInfo {
-        self.declarator.get_typeinfo_from_declarator(info)
-    }
-}
-
-#[derive(Debug)]
-pub struct AbstractArrayFixedDeclaratorAST {
-    pub declarator: Option<Box<dyn AST>>,
-    pub size: Box<dyn AST>,
-}
-impl AST for AbstractArrayFixedDeclaratorAST {
-    fn emit(&self, program: &mut Program) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_type(&self) -> ASTType {
-        ASTType::DeclaratorAbstractArrayFixed
-    }
-
-    fn get_typeinfo_from_declarator(&self, info: TypeInfo) -> TypeInfo {
-        let info = if let Some(decl) = &self.declarator {
-            decl.get_typeinfo_from_declarator(info)
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        let (name, info_) = if let Some(decl) = &self.declarator {
+            decl.resolve_typeinfo(info)
         } else {
-            info
+            (None, info)
         };
         let size = self
             .size
             .get_constant_i64()
             .expect("Array size must be constant") as usize;
-        TypeInfo::Array(Box::new(info), Some(size))
+        (name, TypeInfo::Array(Box::new(info_), Some(size)))
     }
 }
 
 #[derive(Debug)]
-pub struct AbstractArrayUnboundedDeclaratorAST {
-    pub declarator: Option<Box<dyn AST>>,
+pub struct AbstractArrayUnboundedDeclarator {
+    pub declarator: Option<Box<dyn Declarator>>,
 }
-impl AST for AbstractArrayUnboundedDeclaratorAST {
-    fn emit(&self, program: &mut Program) {}
+impl Declarator for AbstractArrayUnboundedDeclarator {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_type(&self) -> ASTType {
-        ASTType::DeclaratorAbstractArrayUnbounded
-    }
-
-    fn get_typeinfo_from_declarator(&self, info: TypeInfo) -> TypeInfo {
-        let info = if let Some(decl) = &self.declarator {
-            decl.get_typeinfo_from_declarator(info)
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        let (name, info_) = if let Some(decl) = &self.declarator {
+            decl.resolve_typeinfo(info)
         } else {
-            info
+            (None, info)
         };
-        TypeInfo::Array(Box::new(info), None)
+        (name, TypeInfo::Array(Box::new(info_), None))
     }
 }
 
 #[derive(Debug)]
-pub struct AbstractFunctionDeclaratorAST {
-    pub declarator: Option<Box<dyn AST>>,
-    pub params: Vec<(TypeInfo, Option<Box<dyn AST>>)>,
+pub struct AbstractFunctionDeclarator {
+    pub declarator: Option<Box<dyn Declarator>>,
+    pub params: Vec<(Option<String>, TypeInfo)>,
 }
-impl AST for AbstractFunctionDeclaratorAST {
-    fn emit(&self, program: &mut Program) {}
+impl Declarator for AbstractFunctionDeclarator {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_type(&self) -> ASTType {
-        ASTType::DeclaratorAbstractFunction
-    }
-
-    fn get_typeinfo_from_declarator(&self, info: TypeInfo) -> TypeInfo {
-        let return_type = if let Some(decl) = &self.declarator {
-            decl.get_typeinfo_from_declarator(info)
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        let (name, return_type) = if let Some(decl) = &self.declarator {
+            decl.resolve_typeinfo(info)
         } else {
-            info
+            (None, info)
         };
-        let mut params = Vec::new();
-        for (param_type, param_declarator) in &self.params {
-            let param_type = if let Some(param_declarator) = param_declarator {
-                param_declarator.get_typeinfo_from_declarator(param_type.clone())
-            } else {
-                param_type.clone()
-            };
-            params.push(param_type);
-        }
-        TypeInfo::Function(Box::new(return_type), params)
+        (
+            name,
+            TypeInfo::Function(
+                Box::new(return_type),
+                self.params.iter().map(|(_, t)| t.clone()).collect(),
+            ),
+        )
     }
 }
 
 #[derive(Debug)]
-pub struct AbstractPointerDeclaratorAST {
-    pub declarator: Option<Box<dyn AST>>,
+pub struct AbstractPointerDeclarator {
+    pub declarator: Option<Box<dyn Declarator>>,
 }
-impl AST for AbstractPointerDeclaratorAST {
-    fn emit(&self, program: &mut Program) {}
+impl Declarator for AbstractPointerDeclarator {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_type(&self) -> ASTType {
-        ASTType::DeclaratorAbstractPointer
-    }
-    fn get_typeinfo_from_declarator(&self, info: TypeInfo) -> TypeInfo {
-        let info = if let Some(decl) = &self.declarator {
-            decl.get_typeinfo_from_declarator(info)
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        let (name, info_) = if let Some(decl) = &self.declarator {
+            decl.resolve_typeinfo(info)
         } else {
-            info
+            (None, info)
         };
-        TypeInfo::Pointer(Box::new(info))
+        (name, TypeInfo::Pointer(Box::new(info_)))
     }
 }
