@@ -9,7 +9,7 @@ mod token;
 use ast::statement::Statement;
 
 fn main() {
-    println!("Enter your code:");
+    println!("Enter your code (and ^D for EOF):");
     stdout().flush().expect("Failed to flush stdout");
 
     let mut source: Vec<u8> = Vec::new();

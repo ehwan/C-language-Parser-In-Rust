@@ -1,7 +1,13 @@
 [package]
-name = "clang-parser"
+name = "mini-c-parser"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "minimal C language lexer & parser & executer from scratch"
+repository = "https://github.com/ehwan/C-language-Parser-In-Rust"
+readme = "README.md"
+keywords = ["parser", "lexer", "c", "interpreter", "compiler"]
+categories = ["development-tools::compiler", "development-tools::parser"]
 
 [dependencies]
-rusty_parser = "1.0.0"
+rusty_parser = "1.0.2"
