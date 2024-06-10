@@ -1403,10 +1403,18 @@ impl<const REGISTER_LHS: usize, const REGISTER_RHS: usize> Instruction
         let lhs_variable = program.registers[REGISTER_LHS].clone();
         let lhs_type = lhs_variable.borrow().0.clone();
         let rhs_variable = program.registers[REGISTER_RHS].clone();
+        let rhs_type = rhs_variable.borrow().0.clone();
 
-        let rhs_cloned = rhs_variable.borrow().1.deep_clone();
-        let rhs_casted = rhs_cloned.cast_to(&lhs_type);
-
-        lhs_variable.borrow_mut().1 = rhs_casted;
+        if lhs_type == rhs_type {
+            let rhs_cloned = rhs_variable.borrow().1.deep_clone();
+            lhs_variable.borrow_mut().1 = rhs_cloned;
+        } else {
+            let rhs_cloned = rhs_variable.borrow().1.deep_clone();
+            if let Some(rhs_casted) = rhs_cloned.cast_to(&lhs_type) {
+                lhs_variable.borrow_mut().1 = rhs_casted;
+            } else {
+                panic!("Invalid type for assign: {:?} + {:?}", lhs_type, rhs_type);
+            }
+        }
     }
 }

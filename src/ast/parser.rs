@@ -150,14 +150,13 @@ impl ASTParser {
             primitive_specifier,
             struct_specifier.clone().map(|s| TypeInfo::Struct(s)),
             union_specifier.clone().map(|s| TypeInfo::Union(s)),
-            enum_specifier.clone().map(|e| TypeInfo::Enum(e)),
-            rp::check(|t: Token| -> Option<TypeInfo> {
-                if let Token::Identifier(s) = t {
-                    Some(TypeInfo::Identifier(s))
-                } else {
-                    None
-                }
-            })
+            enum_specifier.clone().map(|e| TypeInfo::Enum(e)) // rp::check(|t: Token| -> Option<TypeInfo> {
+                                                              //     if let Token::Identifier(s) = t {
+                                                              //         Some(TypeInfo::Identifier(s))
+                                                              //     } else {
+                                                              //         None
+                                                              //     }
+                                                              // })
         );
 
         self.type_specifier.borrow_mut().assign(type_specifier);

@@ -1,8 +1,13 @@
 use super::typename::TypeInfo;
-use crate::program::instruction::{DeepCopyRegister, GetLabelAddress, Instruction, Jump, JumpZero};
+use crate::program::instruction::binary::Assign;
+use crate::program::instruction::{
+    Constant, DeepCopyRegister, GetLabelAddress, GetVariable, Instruction, Jump, JumpZero,
+    NewScope, PopScope, Print, PushRegister, SetAddress,
+};
 use crate::program::{program::Program, variable::VariableData};
 
 use core::panic;
+use std::borrow::Borrow;
 use std::rc::Rc;
 use std::{any::Any, cell::RefCell};
 
@@ -52,7 +57,7 @@ impl Expression for PrimaryIdentifier {
     fn get_typeinfo(&self, program: &Program) -> TypeInfo {
         let var = program.search_variable(&self.name);
         if let Some(var) = var {
-            var.borrow().0.clone()
+            var.as_ref().borrow().0.clone()
         } else {
             panic!("Variable {} not found", self.name);
         }
@@ -265,15 +270,75 @@ pub struct PostParen {
     pub src: Box<dyn Expression>,
     pub args: Vec<Box<dyn Expression>>,
 }
+// currently only for function call
 impl Expression for PostParen {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        panic!("FunctionCall not implemented");
+        let identifier = self
+            .src
+            .as_any()
+            .downcast_ref::<PrimaryIdentifier>()
+            .expect("FunctionCall must be called on `Identifier`");
+        let name = identifier.name.clone();
+
+        // check if it is a built-in function, print
+        if &name == "print" {
+            for arg in self.args.iter().rev() {
+                arg.emit(program, instructions);
+                instructions.push(Box::new(PushRegister::<0> {}));
+            }
+            instructions.push(Box::new(Constant::<0> {
+                value: VariableData::UInt64(self.args.len() as u64),
+                info: TypeInfo::UInt64,
+            }));
+            instructions.push(Box::new(PushRegister::<0> {}));
+            instructions.push(Box::new(Print {}));
+            return;
+        } else {
+            let funcdata = (*program.functions.get(&name).expect("Function not found")).clone();
+            if funcdata.params.len() != self.args.len() {
+                panic!(
+                    "Function {} expects {} arguments, but {} were provided",
+                    name,
+                    funcdata.params.len(),
+                    self.args.len()
+                );
+            }
+            // push current address to stack
+            instructions.push(Box::new(SetAddress::<0> {}));
+            instructions.push(Box::new(PushRegister::<0> {}));
+
+            // variable scope
+            instructions.push(Box::new(NewScope {}));
+
+            for i in 0..funcdata.params.len() {
+                self.args[i].emit(program, instructions);
+
+                // assign to named parameter
+                if let (Some(name), typeinfo) = &funcdata.params[i] {
+                    instructions.push(Box::new(crate::program::instruction::NewVariable {
+                        name: name.clone(),
+                        info: typeinfo.clone(),
+                    }));
+                    instructions.push(Box::new(GetVariable::<1> { name: name.clone() }));
+                    instructions.push(Box::new(Assign::<1, 0> {}));
+                }
+            }
+
+            // call function
+            instructions.push(Box::new(GetLabelAddress::<1> {
+                label: name.clone(),
+            }));
+            instructions.push(Box::new(Jump::<1> {}));
+
+            // end of scope
+            instructions.push(Box::new(PopScope {}));
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
     fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        panic!("FunctionCall not implemented");
+        panic!("FunctionCall::get_typeinfo not implemented");
     }
 }
 
@@ -506,12 +571,12 @@ impl Expression for UnaryExpression {
             }
             UnaryOperator::Increment => {
                 instructions.push(Box::new(
-                    crate::program::instruction::unary::Increment::<0> {},
+                    crate::program::instruction::unary::Increment::<1> {},
                 ));
             }
             UnaryOperator::Decrement => {
                 instructions.push(Box::new(
-                    crate::program::instruction::unary::Decrement::<0> {},
+                    crate::program::instruction::unary::Decrement::<1> {},
                 ));
             }
         }

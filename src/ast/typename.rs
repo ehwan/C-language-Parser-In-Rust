@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TypeInfo {
     Void,
     Int8,
@@ -49,7 +49,7 @@ impl TypeInfo {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StructInfo {
     pub name: Option<String>,
     pub fields: Option<HashMap<String, TypeInfo>>,
@@ -63,7 +63,7 @@ impl StructInfo {
         size
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnionInfo {
     pub name: Option<String>,
     pub fields: Option<HashMap<String, TypeInfo>>,
@@ -78,7 +78,7 @@ impl UnionInfo {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct EnumInfo {
     pub name: Option<String>,
     pub fields: Option<HashMap<String, i64>>,

@@ -60,7 +60,11 @@ impl<const REGISTER_FROM: usize, const REGISTER_TO: usize> Instruction
             .borrow()
             .1
             .cast_to(&self.info);
-        program.registers[REGISTER_TO] = Rc::new(RefCell::new((self.info.clone(), casted)));
+        if let Some(casted) = casted {
+            program.registers[REGISTER_TO] = Rc::new(RefCell::new((self.info.clone(), casted)));
+        } else {
+            panic!("Invalid cast");
+        }
     }
 }
 

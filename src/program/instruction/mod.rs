@@ -250,3 +250,17 @@ impl Instruction for DeclareEnum {
         }
     }
 }
+
+// print vars in stack
+#[derive(Debug)]
+pub struct Print {}
+impl Instruction for Print {
+    fn execute(&self, program: &mut crate::program::program::Program) {
+        let count = program.pop_from_stack().borrow().1.to_u64();
+
+        for _ in 0..count {
+            let var = program.pop_from_stack();
+            println!("{:?}", var.borrow().1);
+        }
+    }
+}

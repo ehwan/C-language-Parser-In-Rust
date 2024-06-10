@@ -7,6 +7,7 @@ use std::{boxed::Box, cell::RefCell};
 
 use crate::ast::typename::TypeInfo;
 
+#[derive(Debug, Clone)]
 pub struct FunctionData {
     pub return_type: TypeInfo,
     pub params: Vec<(Option<String>, TypeInfo)>,
@@ -105,6 +106,9 @@ impl Program {
         None
     }
     pub fn push_to_stack(&mut self, var: Rc<RefCell<(TypeInfo, VariableData)>>) {
+        if self.stack.len() == 1000 {
+            panic!("stack size exceeded 1000");
+        }
         self.stack.push(var);
     }
     pub fn pop_from_stack(&mut self) -> Rc<RefCell<(TypeInfo, VariableData)>> {
