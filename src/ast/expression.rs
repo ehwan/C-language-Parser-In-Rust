@@ -29,15 +29,15 @@ pub struct VoidExpression {}
 impl Expression for VoidExpression {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
         instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::Void,
-            info: TypeInfo::Void,
+            value: crate::program::variable::VariableData::Int32(1),
+            info: TypeInfo::Int32,
         }));
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
     fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        TypeInfo::Void
+        TypeInfo::Int32
     }
 }
 
