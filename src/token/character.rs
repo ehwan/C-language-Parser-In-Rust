@@ -19,5 +19,5 @@ pub fn char_literal() -> DynParser {
         rp::or!(escape, rp::any().not('\'')),
         '\''.void()
     );
-    DynParser::new(char_literal.map(|c: char| Token::ConstantCharacter(c as u8)))
+    DynParser::new(char_literal.map(|c: char| Token::ConstantCharacter((c as u8) as i8)))
 }

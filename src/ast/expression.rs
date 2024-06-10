@@ -61,9 +61,30 @@ impl Expression for PrimaryIdentifier {
 
 #[derive(Debug, Clone)]
 pub struct ConstantInteger {
-    pub value: u32,
+    pub value: i32,
 }
 impl Expression for ConstantInteger {
+    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
+        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
+            value: crate::program::variable::VariableData::Int32(self.value),
+            info: TypeInfo::Int32,
+        }));
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn get_constant_i64(&self) -> Result<i64, String> {
+        Ok(self.value as i64)
+    }
+    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+        TypeInfo::Int32
+    }
+}
+#[derive(Debug, Clone)]
+pub struct ConstantUnsignedInteger {
+    pub value: u32,
+}
+impl Expression for ConstantUnsignedInteger {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
         instructions.push(Box::new(crate::program::instruction::Constant::<0> {
             value: crate::program::variable::VariableData::UInt32(self.value),
@@ -83,12 +104,12 @@ impl Expression for ConstantInteger {
 
 #[derive(Debug, Clone)]
 pub struct ConstantCharacter {
-    pub value: u8,
+    pub value: i8,
 }
 impl Expression for ConstantCharacter {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
         instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::UInt8(self.value),
+            value: crate::program::variable::VariableData::Int8(self.value),
             info: TypeInfo::UInt8,
         }));
     }
@@ -99,15 +120,36 @@ impl Expression for ConstantCharacter {
         Ok(self.value as i64)
     }
     fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        TypeInfo::UInt8
+        TypeInfo::Int8
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct ConstantLong {
-    pub value: u64,
+    pub value: i64,
 }
 impl Expression for ConstantLong {
+    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
+        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
+            value: crate::program::variable::VariableData::Int64(self.value),
+            info: TypeInfo::Int64,
+        }));
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn get_constant_i64(&self) -> Result<i64, String> {
+        Ok(self.value as i64)
+    }
+    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+        TypeInfo::Int64
+    }
+}
+#[derive(Debug, Clone)]
+pub struct ConstantUnsignedLong {
+    pub value: u64,
+}
+impl Expression for ConstantUnsignedLong {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
         instructions.push(Box::new(crate::program::instruction::Constant::<0> {
             value: crate::program::variable::VariableData::UInt64(self.value),

@@ -567,9 +567,15 @@ impl ASTParser {
             });
             let integer_constant = rp::check(|t: Token| -> Option<Box<dyn Expression>> {
                 match t {
+                    Token::ConstantUnsignedInteger(i) => {
+                        Some(Box::new(ConstantUnsignedInteger { value: i }))
+                    }
                     Token::ConstantInteger(i) => Some(Box::new(ConstantInteger { value: i })),
                     Token::ConstantCharacter(ch) => Some(Box::new(ConstantCharacter { value: ch })),
                     Token::ConstantLong(l) => Some(Box::new(ConstantLong { value: l })),
+                    Token::ConstantUnsignedLong(l) => {
+                        Some(Box::new(ConstantUnsignedLong { value: l }))
+                    }
                     _ => None,
                 }
             });

@@ -36,11 +36,11 @@ pub fn integer_numeric() -> DynParser {
 
     DynParser::new(integer_numeric.map(|s: String, suffix: Option<char>| {
         let parse_res = s.parse::<u64>().expect("Failed to parse String to u64");
-        let suffix = suffix.or(Some('u')).unwrap();
+        let suffix = suffix.or(Some('+')).unwrap();
         match suffix {
-            'u' | 'U' => Token::ConstantInteger(parse_res as u32),
-            'l' | 'L' => Token::ConstantLong(parse_res),
-            _ => panic!("Invalid suffix for integer"),
+            'u' | 'U' => Token::ConstantUnsignedInteger(parse_res as u32),
+            'l' | 'L' => Token::ConstantLong(parse_res as i64),
+            _ => Token::ConstantInteger(parse_res as i32),
         }
     }))
 }
