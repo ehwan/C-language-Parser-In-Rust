@@ -13,9 +13,13 @@ pub trait Instruction: std::fmt::Debug {
 
 /// Do Nothing
 #[derive(Debug)]
-pub struct Null {}
-impl Instruction for Null {
-    fn execute(&self, _program: &mut crate::program::program::Program) {}
+pub struct DefineLabel {
+    pub label: String,
+}
+impl Instruction for DefineLabel {
+    fn execute(&self, _program: &mut crate::program::program::Program) {
+        // label is defined at emitting session
+    }
 }
 
 // move constant to register

@@ -5,6 +5,14 @@ A minimal C language parser written in Rust
 A lot of features are not implemented yet. 
 This is just a toy project for testing [RustyParser](https://github.com/ehwan/RustyParser)
 
+## How to run
+```sh
+cargo run
+```
+Will execute the program, and you can pass the C code to stdin. Once you are done, press `^D` to finish the input. The program will tokenize, parse, generate instructions, and execute the code.
+
+Sample C codes (only with implemented features) can be found in `samples/` directory. Try them with `cat samples/sample.c | cargo run`
+
 ## Running Workflows
  1) SourceFile -> Tokeninze -> `Token Stream`
  2) `TokenStream` -> Parse -> `Abstract Syntax Tree`
@@ -13,7 +21,7 @@ This is just a toy project for testing [RustyParser](https://github.com/ehwan/Ru
 
 ## Example
 ```c
-/// sample.c
+/// samples/sample.c
 int main()
 {
   unsigned int ma = (int)10;
@@ -35,7 +43,7 @@ int main()
 
 Pass c code to stdin
 ```sh
-cat sample.c | ./target/debug/clang-parser
+cat samples/sample.c | cargo run
 ```
 
 The result will be:

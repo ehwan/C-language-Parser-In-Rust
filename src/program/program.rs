@@ -1,4 +1,4 @@
-use super::instruction::{Instruction, Null};
+use super::instruction::{DefineLabel, Instruction};
 use super::variable::VariableData;
 
 use std::collections::HashMap;
@@ -27,6 +27,9 @@ pub struct Program {
     pub labels: HashMap<String, usize>,
     /// label, anonymous name generation
     pub unique_id: usize,
+    /// label stack for break, continue
+    /// stack pushed when entering loop, popped when exiting loop
+    pub label_stack: Vec<String>,
 
     /// ======================= for execute =======================
     pub scopes: Vec<Scope>,
@@ -43,6 +46,7 @@ impl Program {
             scopes: Vec::new(),
             stack: Vec::new(),
             labels: HashMap::new(),
+            label_stack: Vec::new(),
 
             registers: [
                 Rc::new(RefCell::new((TypeInfo::Int32, VariableData::Int32(0)))),
@@ -94,8 +98,11 @@ impl Program {
     }
 
     pub fn set_label(&mut self, name: String, instructions: &mut Vec<Box<dyn Instruction>>) {
-        self.labels.insert(name, instructions.len());
-        instructions.push(Box::new(Null {}));
+        let old = self.labels.insert(name.clone(), instructions.len());
+        if let Some(old) = old {
+            panic!("Label {} already exists", old);
+        }
+        instructions.push(Box::new(DefineLabel { label: name }));
     }
     pub fn search_typeinfo<'a>(&self, name: &'a str) -> Option<Rc<TypeInfo>> {
         for scope in self.scopes.iter().rev() {

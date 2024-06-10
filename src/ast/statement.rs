@@ -1,8 +1,8 @@
 use super::{expression::Expression, typename::TypeInfo};
 use crate::program::instruction::binary::Assign;
 use crate::program::instruction::{
-    self, DeclareEnum, DeclareStructure, DeclareUnion, GetLabelAddress, Jump, JumpZero, NewScope,
-    PopScope,
+    self, DeclareEnum, DeclareStructure, DeclareUnion, GetLabelAddress, Jump, JumpNotZero,
+    JumpZero, NewScope, PopScope,
 };
 use crate::program::instruction::{GetVariable, Instruction};
 use crate::program::program::FunctionData;
@@ -143,20 +143,14 @@ impl Statement for DefaultStatement {
 pub struct ContinueStatement;
 impl Statement for ContinueStatement {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        panic!("ContinueStatementAST::emit not implemented");
-        /*
-        let end_label = program.string_stack.pop().expect("string_stack is empty");
-        let start_label = program.string_stack.pop().expect("string_stack is empty");
-
-        program
-            .instructions
-            .push(Box::new(crate::program::instruction::conditional::Jump {
-                label: start_label.clone(),
-            }));
-
-        program.string_stack.push(start_label);
-        program.string_stack.push(end_label);
-        */
+        if program.label_stack.len() < 2 {
+            panic!("Continue: label_stack is empty");
+        }
+        let continue_label = &program.label_stack[program.label_stack.len() - 2];
+        instructions.push(Box::new(GetLabelAddress::<1> {
+            label: continue_label.clone(),
+        }));
+        instructions.push(Box::new(Jump::<1> {}));
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -167,21 +161,13 @@ impl Statement for ContinueStatement {
 pub struct BreakStatement;
 impl Statement for BreakStatement {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        panic!("BreakStatementAST::emit not implemented");
-        /*
-
-        let end_label = program.string_stack.pop().expect("string_stack is empty");
-        let start_label = program.string_stack.pop().expect("string_stack is empty");
-
-        program
-            .instructions
-            .push(Box::new(crate::program::instruction::conditional::Jump {
-                label: end_label.clone(),
-            }));
-
-        program.string_stack.push(start_label);
-        program.string_stack.push(end_label);
-        */
+        let end_label = program
+            .label_stack
+            .last()
+            .expect("Break: label_stack is empty")
+            .clone();
+        instructions.push(Box::new(GetLabelAddress::<1> { label: end_label }));
+        instructions.push(Box::new(Jump::<1> {}));
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -197,6 +183,9 @@ impl Statement for WhileStatement {
         let start_label = program.get_unique_label();
         let end_label = program.get_unique_label();
 
+        program.label_stack.push(start_label.clone());
+        program.label_stack.push(end_label.clone());
+
         program.set_label(start_label.clone(), instructions);
         self.cond.emit(program, instructions);
         instructions.push(Box::new(GetLabelAddress::<1> {
@@ -209,6 +198,9 @@ impl Statement for WhileStatement {
         }));
         instructions.push(Box::new(Jump::<1> {}));
         program.set_label(end_label, instructions);
+
+        program.label_stack.pop().expect("label_stack is empty");
+        program.label_stack.pop().expect("label_stack is empty");
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -222,27 +214,38 @@ pub struct DoWhileStatement {
 }
 impl Statement for DoWhileStatement {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        panic!("DoWhileStatementAST::emit not implemented");
-        /*
+        let start_label = program.get_unique_label();
+        let continue_label = program.get_unique_label();
+        let end_label = program.get_unique_label();
 
-        let start_label = format!("start_{}", program.get_unique_id());
-        let end_label = format!("end_{}", program.get_unique_id());
-        program.string_stack.push(start_label.clone());
-        program.string_stack.push(end_label.clone());
+        // start_label:
+        //    do { body ... }
+        // continue_label:
+        //    while (cond);
+        // end_label:
 
-        program.set_label(start_label.clone());
-        self.statement.emit(program);
-        self.cond.emit(program);
-        program.instructions.push(Box::new(
-            crate::program::instruction::conditional::JumpIfTrue {
-                label: start_label.clone(),
-            },
-        ));
-        program.set_label(end_label);
+        program.label_stack.push(continue_label.clone());
+        program.label_stack.push(end_label.clone());
 
-        program.string_stack.pop().expect("string_stack is empty");
-        program.string_stack.pop().expect("string_stack is empty");
-        */
+        program.set_label(start_label.clone(), instructions);
+        self.statement.emit(program, instructions);
+
+        program.set_label(continue_label.clone(), instructions);
+        self.cond.emit(program, instructions);
+        instructions.push(Box::new(GetLabelAddress::<1> {
+            label: start_label.clone(),
+        }));
+        instructions.push(Box::new(JumpNotZero::<1, 0> {}));
+        program.set_label(end_label.clone(), instructions);
+
+        program
+            .label_stack
+            .pop()
+            .expect("DoWhile: label_stack is empty");
+        program
+            .label_stack
+            .pop()
+            .expect("DoWhile: label_stack is empty");
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -260,6 +263,10 @@ impl Statement for ForStatement {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
         let cond_label = program.get_unique_label();
         let end_label = program.get_unique_label();
+        let continue_label = program.get_unique_label();
+
+        program.label_stack.push(continue_label.clone());
+        program.label_stack.push(end_label.clone());
 
         self.init.emit(program, instructions);
         program.set_label(cond_label.clone(), instructions);
@@ -270,6 +277,7 @@ impl Statement for ForStatement {
         instructions.push(Box::new(JumpZero::<1, 0> {}));
 
         self.statement.emit(program, instructions);
+        program.set_label(continue_label.clone(), instructions);
         if let Some(next) = &self.next {
             next.emit(program, instructions);
         }
@@ -278,6 +286,9 @@ impl Statement for ForStatement {
         }));
         instructions.push(Box::new(Jump::<1> {}));
         program.set_label(end_label, instructions);
+
+        program.label_stack.pop().expect("label_stack is empty");
+        program.label_stack.pop().expect("label_stack is empty");
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -290,7 +301,10 @@ pub struct GotoStatement {
 }
 impl Statement for GotoStatement {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        panic!("GotoStatementAST::emit not implemented");
+        instructions.push(Box::new(GetLabelAddress::<1> {
+            label: self.label.clone(),
+        }));
+        instructions.push(Box::new(Jump::<1> {}));
         /*
         program
             .instructions

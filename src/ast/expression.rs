@@ -23,7 +23,7 @@ pub trait Expression: std::fmt::Debug + Any {
     fn get_typeinfo(&self, program: &Program) -> TypeInfo;
 }
 
-// expression that always returns void
+// expression that always returns true int32(1)
 #[derive(Debug, Clone)]
 pub struct VoidExpression {}
 impl Expression for VoidExpression {
@@ -421,7 +421,7 @@ impl Expression for PostIncrement {
         ));
         instructions.push(Box::new(DeepCopyRegister::<1, 0> {}));
         instructions.push(Box::new(
-            crate::program::instruction::unary::Increment::<0> {},
+            crate::program::instruction::unary::Increment::<1> {},
         ));
     }
     fn as_any(&self) -> &dyn Any {
@@ -444,7 +444,7 @@ impl Expression for PostDecrement {
         ));
         instructions.push(Box::new(DeepCopyRegister::<1, 0> {}));
         instructions.push(Box::new(
-            crate::program::instruction::unary::Decrement::<0> {},
+            crate::program::instruction::unary::Decrement::<1> {},
         ));
     }
     fn as_any(&self) -> &dyn Any {
