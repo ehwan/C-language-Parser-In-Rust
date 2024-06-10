@@ -150,13 +150,14 @@ impl ASTParser {
             primitive_specifier,
             struct_specifier.clone().map(|s| TypeInfo::Struct(s)),
             union_specifier.clone().map(|s| TypeInfo::Union(s)),
-            enum_specifier.clone().map(|e| TypeInfo::Enum(e)) // rp::check(|t: Token| -> Option<TypeInfo> {
-                                                              //     if let Token::Identifier(s) = t {
-                                                              //         Some(TypeInfo::Identifier(s))
-                                                              //     } else {
-                                                              //         None
-                                                              //     }
-                                                              // })
+            enum_specifier.clone().map(|e| TypeInfo::Enum(e)),
+            rp::check(|t: Token| -> Option<TypeInfo> {
+                if let Token::Identifier(s) = t {
+                    Some(TypeInfo::Identifier(s))
+                } else {
+                    None
+                }
+            })
         );
 
         self.type_specifier.borrow_mut().assign(type_specifier);
@@ -1580,17 +1581,17 @@ impl ASTParser {
             ;
             */
             let statement = rp::or!(
+                expression_statement
+                    .clone()
+                    .map(|expr| -> Box<dyn Statement> {
+                        Box::new(ExpressionStatement { expression: expr })
+                    }),
                 self.declaration.clone(),
                 labeled_statement.clone(),
                 self.compound_statement.clone(),
                 selection_statement.clone(),
                 iteration_statement.clone(),
-                jump_statement.clone(),
-                expression_statement
-                    .clone()
-                    .map(|expr| -> Box<dyn Statement> {
-                        Box::new(ExpressionStatement { expression: expr })
-                    })
+                jump_statement.clone()
             );
             self.statement.borrow_mut().assign(statement);
         }
