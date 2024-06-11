@@ -268,3 +268,34 @@ impl Instruction for Print {
         }
     }
 }
+
+/// push current address and scope count to stack and jump
+#[derive(Debug)]
+pub struct Call<const REGISTER: usize> {}
+impl<const REGISTER: usize> Instruction for Call<REGISTER> {
+    fn execute(&self, program: &mut crate::program::program::Program) {
+        program.push_to_stack(Rc::new(RefCell::new((
+            TypeInfo::UInt64,
+            VariableData::UInt64(program.scopes.len() as u64),
+        ))));
+        let address = program.registers[REGISTER].borrow().1.to_u64() as usize;
+        program.push_to_stack(Rc::new(RefCell::new((
+            TypeInfo::UInt64,
+            VariableData::UInt64(program.current_instruction as u64),
+        ))));
+        program.current_instruction = address;
+    }
+}
+
+#[derive(Debug)]
+pub struct Return {}
+impl Instruction for Return {
+    fn execute(&self, program: &mut crate::program::program::Program) {
+        let address = program.pop_from_stack().borrow().1.to_u64() as usize;
+        let scope_count = program.pop_from_stack().borrow().1.to_u64() as usize;
+        program.current_instruction = address;
+        while program.scopes.len() > scope_count {
+            program.pop_scope();
+        }
+    }
+}

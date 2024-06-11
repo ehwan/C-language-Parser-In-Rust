@@ -1,7 +1,7 @@
 use super::typename::TypeInfo;
 use crate::program::instruction::binary::Assign;
 use crate::program::instruction::{
-    Constant, DeepCopyRegister, GetLabelAddress, GetVariable, Instruction, Jump, JumpZero,
+    Call, Constant, DeepCopyRegister, GetLabelAddress, GetVariable, Instruction, Jump, JumpZero,
     NewScope, PopScope, Print, PushRegister, SetAddress,
 };
 use crate::program::{program::Program, variable::VariableData};
@@ -303,9 +303,6 @@ impl Expression for PostParen {
                     self.args.len()
                 );
             }
-            // push current address to stack
-            instructions.push(Box::new(SetAddress::<0> {}));
-            instructions.push(Box::new(PushRegister::<0> {}));
 
             // variable scope
             instructions.push(Box::new(NewScope {}));
@@ -328,7 +325,7 @@ impl Expression for PostParen {
             instructions.push(Box::new(GetLabelAddress::<1> {
                 label: name.clone(),
             }));
-            instructions.push(Box::new(Jump::<1> {}));
+            instructions.push(Box::new(Call::<1> {}));
 
             // end of scope
             instructions.push(Box::new(PopScope {}));

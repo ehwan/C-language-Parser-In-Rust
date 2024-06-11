@@ -125,6 +125,13 @@ impl Program {
     pub fn execute(&mut self, instructions: &Vec<Box<dyn Instruction>>) {
         self.current_instruction = instructions.len();
 
+        // push current scope count = 1 to stack
+        let scope_count = Rc::new(RefCell::new((
+            TypeInfo::UInt64,
+            VariableData::UInt64(self.scopes.len() as u64),
+        )));
+        self.push_to_stack(scope_count);
+
         // push end of instructions as a return address
         let ret_addr = Rc::new(RefCell::new((
             TypeInfo::UInt64,

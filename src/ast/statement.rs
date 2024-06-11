@@ -2,7 +2,7 @@ use super::{expression::Expression, typename::TypeInfo};
 use crate::program::instruction::binary::Assign;
 use crate::program::instruction::{
     self, DeclareEnum, DeclareStructure, DeclareUnion, GetLabelAddress, Jump, JumpNotZero,
-    JumpZero, NewScope, PopScope,
+    JumpZero, NewScope, PopScope, Return,
 };
 use crate::program::instruction::{GetVariable, Instruction};
 use crate::program::program::FunctionData;
@@ -301,10 +301,12 @@ pub struct GotoStatement {
 }
 impl Statement for GotoStatement {
     fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(GetLabelAddress::<1> {
-            label: self.label.clone(),
-        }));
-        instructions.push(Box::new(Jump::<1> {}));
+        panic!("GotoStatementAST::emit not implemented");
+        // comment out due to scope level not matching
+        // instructions.push(Box::new(GetLabelAddress::<1> {
+        //     label: self.label.clone(),
+        // }));
+        // instructions.push(Box::new(Jump::<1> {}));
         /*
         program
             .instructions
@@ -327,11 +329,7 @@ impl Statement for ReturnStatement {
         if let Some(expr) = &self.expr {
             expr.emit(program, instructions);
         }
-        // pop return address to register1
-        instructions.push(Box::new(crate::program::instruction::PopStackTo::<1> {}));
-
-        // jump to where register 1 point
-        instructions.push(Box::new(Jump::<1> {}));
+        instructions.push(Box::new(Return {}));
     }
     fn as_any(&self) -> &dyn Any {
         self
