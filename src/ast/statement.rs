@@ -10,6 +10,7 @@ use crate::virtualmachine::scope::FunctionScope;
 use crate::virtualmachine::variable::VariableData;
 
 use std::any::Any;
+use std::cell::RefCell;
 
 pub trait Statement: core::fmt::Debug + Any {
     fn emit(&self, instructions: &mut InstructionGenerator);
@@ -109,7 +110,63 @@ pub struct SwitchStatement {
 }
 impl Statement for SwitchStatement {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        panic!("SwitchStatementAST::emit not implemented");
+        let end_label = instructions.get_unique_label();
+        let default_label = instructions.get_unique_label();
+        instructions
+            .label_stack
+            .push((default_label.clone(), end_label.clone()));
+
+        // push target to stack
+        self.target.emit(instructions);
+        if self.target.is_return_reference() {
+            instructions.push(PushStack {
+                operand: Operand::Derefed(0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
+        // and push variable for 'if the pattern matched already?'
+        instructions.push(PushStack {
+            operand: Operand::Value(VariableData::UInt8(0)),
+        });
+
+        // body
+        self.statement.emit(instructions);
+        // check if the pattern matched and default is defined
+        instructions.push(PopStack {
+            operand: Operand::Register(0),
+        });
+        if instructions.labels.get(&default_label).is_some() {
+            // if not matched, set pattern matched to true and goto default
+            instructions.push(PushStack {
+                operand: Operand::Value(VariableData::UInt8(1)),
+            });
+            instructions.push(JumpZero {
+                label: default_label.clone(),
+                operand_cond: Operand::Register(0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
+
+        // end label here, cleanup
+        instructions.set_label(&end_label);
+        // pop pattern-matched state and target from stack
+        instructions.push(PopStack {
+            operand: Operand::Register(0),
+        });
+        instructions.push(PopStack {
+            operand: Operand::Register(0),
+        });
+
+        instructions
+            .label_stack
+            .pop()
+            .expect("Switch: label_stack is empty");
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -122,7 +179,73 @@ pub struct CaseStatement {
 }
 impl Statement for CaseStatement {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        panic!("CaseStatementAST::emit not implemented");
+        let case_end_label = instructions.get_unique_label();
+        let comparison_skip_label = instructions.get_unique_label();
+
+        // copy state from stack
+        instructions.push(PopStack {
+            operand: Operand::Register(0),
+        });
+        instructions.push(PushStack {
+            operand: Operand::Register(0),
+        });
+        // if the pattern matched already, skip comparison
+        instructions.push(JumpNonZero {
+            label: comparison_skip_label.clone(),
+            operand_cond: Operand::Register(0),
+        });
+
+        // comparison start here
+        // evaluate value
+        self.value.emit(instructions);
+        // register1 = value
+        if self.value.is_return_reference() {
+            instructions.push(MoveRegister {
+                operand_from: Operand::Derefed(0),
+                operand_to: Operand::Register(1),
+            });
+        } else {
+            instructions.push(MoveRegister {
+                operand_from: Operand::Register(0),
+                operand_to: Operand::Register(1),
+            });
+        }
+        // register2 = already matched?
+        instructions.push(PopStack {
+            operand: Operand::Register(2),
+        });
+        // register0 = target
+        instructions.push(PopStack {
+            operand: Operand::Register(0),
+        });
+        instructions.push(PushStack {
+            operand: Operand::Register(0),
+        });
+        instructions.push(PushStack {
+            operand: Operand::Register(2),
+        });
+        // register3 = result of comparison
+        instructions.push(Equal {
+            lhs: Operand::Register(0),
+            rhs: Operand::Register(1),
+            to: Operand::Register(2),
+        });
+        instructions.push(JumpZero {
+            label: case_end_label.clone(),
+            operand_cond: Operand::Register(2),
+        });
+
+        instructions.push(PopStack {
+            operand: Operand::Register(0),
+        });
+        instructions.push(PushStack {
+            operand: Operand::Value(VariableData::UInt8(1)),
+        });
+
+        instructions.set_label(&comparison_skip_label);
+        self.statement.emit(instructions);
+
+        instructions.set_label(&case_end_label);
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -134,7 +257,19 @@ pub struct DefaultStatement {
 }
 impl Statement for DefaultStatement {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        panic!("DefaultStatementAST::emit not implemented");
+        let default_end_label = instructions.get_unique_label();
+        let (default_label, _) = instructions
+            .label_stack
+            .last()
+            .expect("Default: label_stack is empty")
+            .clone();
+        // skip default statement
+        instructions.push(Jump {
+            label: default_end_label.clone(),
+        });
+        instructions.set_label(&default_label);
+        self.statement.emit(instructions);
+        instructions.set_label(&default_end_label);
     }
     fn as_any(&self) -> &dyn Any {
         self

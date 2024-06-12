@@ -28,6 +28,7 @@ pub struct InstructionGenerator {
     /// label, anonymous name generation
     pub unique_id: usize,
     /// label stack for continue, break
+    ///                  default, break for switch statement
     pub label_stack: Vec<(String, String)>,
 
     /// global variables must have absolute address in stack

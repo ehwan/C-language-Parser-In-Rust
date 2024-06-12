@@ -67,11 +67,65 @@ Tokens:
    8: Equal
    9: LeftParen
   10: Int
-
-
- // ~~~~~~~~ Result of Tokenizing ~~~~~~~~
-
-
+  11: RightParen
+  12: ConstantInteger(10)
+  13: SemiColon
+  14: Unsigned
+  15: Long
+  16: Long
+  17: Identifier("mb")
+  18: Equal
+  19: ConstantInteger(20)
+  20: SemiColon
+  21: Int
+  22: Identifier("mc")
+  23: Equal
+  24: LeftParen
+  25: Unsigned
+  26: Long
+  27: Long
+  28: RightParen
+  29: Identifier("ma")
+  30: Plus
+  31: Identifier("mb")
+  32: SemiColon
+  33: Identifier("print")
+  34: LeftParen
+  35: Identifier("ma")
+  36: Comma
+  37: Identifier("mb")
+  38: Comma
+  39: Identifier("mc")
+  40: RightParen
+  41: SemiColon
+  42: IncOp
+  43: Identifier("ma")
+  44: SemiColon
+  45: Identifier("print")
+  46: LeftParen
+  47: Identifier("ma")
+  48: Comma
+  49: Identifier("mb")
+  50: RightParen
+  51: SemiColon
+  52: Int
+  53: Identifier("i")
+  54: Equal
+  55: ConstantInteger(0)
+  56: SemiColon
+  57: For
+  58: LeftParen
+  59: Identifier("i")
+  60: Equal
+  61: ConstantInteger(0)
+  62: SemiColon
+  63: Identifier("i")
+  64: LessThan
+  65: ConstantInteger(10)
+  66: SemiColon
+  67: IncOp
+  68: Identifier("i")
+  69: RightParen
   70: LeftBrace
   71: Identifier("print")
   72: LeftParen
@@ -96,11 +150,73 @@ Instructions:
    5: Cast { info: Int32, operand_from: Register(1), operand_to: Register(0) }
    6: Assign { lhs_type: UInt32, lhs: Register(1), rhs: Register(0) }
    7: PushStack { operand: Register(1) }
-
-
-// ~~~~~~~~ Result of Generating Instructions ~~~~~~~~
-
-
+   8: MoveRegister { operand_from: Value(Int32(20)), operand_to: Register(0) }
+   9: Assign { lhs_type: UInt64, lhs: Register(1), rhs: Register(0) }
+  10: PushStack { operand: Register(1) }
+  11: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  12: AddAssign { lhs: Register(0), rhs: Value(Int64(1)) }
+  13: PushStack { operand: Derefed(0) }
+  14: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  15: AddAssign { lhs: Register(0), rhs: Value(Int64(0)) }
+  16: MoveRegister { operand_from: Register(0), operand_to: Register(1) }
+  17: Cast { info: UInt64, operand_from: Derefed(1), operand_to: Register(0) }
+  18: PopStack { operand: Register(2) }
+  19: MoveRegister { operand_from: Register(0), operand_to: Register(1) }
+  20: AddAssign { lhs: Register(1), rhs: Register(2) }
+  21: MoveRegister { operand_from: Register(1), operand_to: Register(0) }
+  22: Assign { lhs_type: Int32, lhs: Register(1), rhs: Register(0) }
+  23: PushStack { operand: Register(1) }
+  24: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  25: AddAssign { lhs: Register(0), rhs: Value(Int64(2)) }
+  26: PushStack { operand: Derefed(0) }
+  27: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  28: AddAssign { lhs: Register(0), rhs: Value(Int64(1)) }
+  29: PushStack { operand: Derefed(0) }
+  30: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  31: AddAssign { lhs: Register(0), rhs: Value(Int64(0)) }
+  32: PushStack { operand: Derefed(0) }
+  33: PushStack { operand: Value(UInt64(3)) }
+  34: Print
+  35: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  36: AddAssign { lhs: Register(0), rhs: Value(Int64(0)) }
+  37: MoveRegister { operand_from: Register(0), operand_to: Register(1) }
+  38: MoveRegister { operand_from: Derefed(1), operand_to: Register(0) }
+  39: Increment { operand: Derefed(1) }
+  40: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  41: AddAssign { lhs: Register(0), rhs: Value(Int64(1)) }
+  42: PushStack { operand: Derefed(0) }
+  43: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  44: AddAssign { lhs: Register(0), rhs: Value(Int64(0)) }
+  45: PushStack { operand: Derefed(0) }
+  46: PushStack { operand: Value(UInt64(2)) }
+  47: Print
+  48: MoveRegister { operand_from: Value(Int32(0)), operand_to: Register(0) }
+  49: Assign { lhs_type: Int32, lhs: Register(1), rhs: Register(0) }
+  50: PushStack { operand: Register(1) }
+  51: MoveRegister { operand_from: Value(Int32(0)), operand_to: Register(0) }
+  52: PushStack { operand: Register(0) }
+  53: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  54: AddAssign { lhs: Register(0), rhs: Value(Int64(3)) }
+  55: PopStack { operand: Register(2) }
+  56: Assign { lhs_type: Int32, lhs: Derefed(0), rhs: Register(2) }
+  57: DefineLabel { label: ".__L0__" }
+  58: MoveRegister { operand_from: Value(Int32(10)), operand_to: Register(0) }
+  59: PushStack { operand: Register(0) }
+  60: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  61: AddAssign { lhs: Register(0), rhs: Value(Int64(3)) }
+  62: PopStack { operand: Register(2) }
+  63: MoveRegister { operand_from: Derefed(0), operand_to: Register(1) }
+  64: LessThan { lhs: Register(1), rhs: Register(2), to: Register(0) }
+  65: JumpZero { label: ".__L1__", operand_cond: Register(0) }
+  66: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  67: AddAssign { lhs: Register(0), rhs: Value(Int64(3)) }
+  68: PushStack { operand: Derefed(0) }
+  69: PushStack { operand: Value(UInt64(1)) }
+  70: Print
+  71: DefineLabel { label: ".__L2__" }
+  72: MoveRegister { operand_from: Register(4), operand_to: Register(0) }
+  73: AddAssign { lhs: Register(0), rhs: Value(Int64(3)) }
+  74: MoveRegister { operand_from: Register(0), operand_to: Register(1) }
   75: MoveRegister { operand_from: Derefed(1), operand_to: Register(0) }
   76: Increment { operand: Derefed(1) }
   77: Jump { label: ".__L0__" }
