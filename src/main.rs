@@ -1,10 +1,11 @@
 use std::io::{stdin, stdout, Read, Write};
 
-use program::program::Program;
+use virtualmachine::instruction::generation::InstructionGenerator;
+use virtualmachine::program::VirtualProgram;
 
 mod ast;
-mod program;
 mod token;
+mod virtualmachine;
 
 use ast::statement::Statement;
 
@@ -24,8 +25,8 @@ fn main() {
     let tokens = token::tokenize::tokenize(source);
     println!("Tokens: ");
 
-    for token in tokens.iter() {
-        println!("{:?}", *token);
+    for (id, token) in tokens.iter().enumerate() {
+        println!("{:4}: {:?}", id, *token);
     }
 
     println!("============================ Building AST ============================");
@@ -37,13 +38,16 @@ fn main() {
 
     println!("============================ Generating Instructions ============================");
 
-    let mut program: Program = Program::new();
-    let mut instructions: Vec<_> = Vec::new();
-    translation_unit.emit(&mut program, &mut instructions);
+    let mut program: VirtualProgram = VirtualProgram::new();
+    let mut instructions: InstructionGenerator = InstructionGenerator::new();
+    translation_unit.emit(&mut instructions);
 
     println!("Instructions: ");
-    for instruction in instructions.iter() {
-        println!("{:?}", instruction);
+    for (id, instruction) in instructions.instructions.iter().enumerate() {
+        if id == instructions.start_address {
+            println!("      -------------------- Start Address ---------------------");
+        }
+        println!("{:4}: {:?}", id, instruction);
     }
 
     println!("============================ Executing Instructions ============================");

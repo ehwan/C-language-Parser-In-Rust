@@ -1,43 +1,49 @@
 use super::typename::TypeInfo;
-use crate::program::instruction::binary::Assign;
-use crate::program::instruction::{
-    Call, Constant, DeepCopyRegister, GetLabelAddress, GetVariable, Instruction, Jump, JumpZero,
-    NewScope, PopScope, Print, PushRegister, SetAddress,
-};
-use crate::program::{program::Program, variable::VariableData};
+use crate::virtualmachine::instruction::binary::*;
+use crate::virtualmachine::instruction::generation::InstructionGenerator;
+use crate::virtualmachine::instruction::generation::VariableOffset;
+use crate::virtualmachine::instruction::operand::Operand;
+use crate::virtualmachine::instruction::unary::*;
+use crate::virtualmachine::instruction::*;
+use crate::virtualmachine::program::STACK_POINTER_BASE_REGISTER;
+use crate::virtualmachine::program::STACK_POINTER_REGISTER;
+use crate::virtualmachine::variable::VariableData;
 
 use core::panic;
-use std::borrow::Borrow;
-use std::rc::Rc;
-use std::{any::Any, cell::RefCell};
+use std::any::Any;
 
 pub trait Expression: std::fmt::Debug + Any {
     /// push instruction that eval expression and store result in register0
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>);
+    fn emit(&self, instuctions: &mut InstructionGenerator);
 
     fn as_any(&self) -> &dyn Any;
+
+    fn is_return_reference(&self) -> bool;
 
     fn get_constant_i64(&self) -> Result<i64, String> {
         Err(format!("get_constant_i64 not implemented for {:?}", self))
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo;
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo;
 }
 
 // expression that always returns true int32(1)
 #[derive(Debug, Clone)]
 pub struct VoidExpression {}
 impl Expression for VoidExpression {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::Int32(1),
-            info: TypeInfo::Int32,
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::Int32(1)),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int32
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -45,22 +51,44 @@ impl Expression for VoidExpression {
 pub struct PrimaryIdentifier {
     pub name: String,
 }
+// push pointer
 impl Expression for PrimaryIdentifier {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(crate::program::instruction::GetVariable::<0> {
-            name: self.name.clone(),
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        let offset = instructions
+            .search_variable(&self.name)
+            .expect(format!("Variable {} not found", self.name).as_str())
+            .1;
+        match offset {
+            VariableOffset::Global(absolute_offset) => {
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Value(VariableData::UInt64(absolute_offset as u64)),
+                    operand_to: Operand::Register(0),
+                });
+            }
+            VariableOffset::Local(relative_offset) => {
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(STACK_POINTER_BASE_REGISTER),
+                    operand_to: Operand::Register(0),
+                });
+                instructions.push(AddAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Value(VariableData::Int64(relative_offset as i64)),
+                });
+            }
+        }
+    }
+    fn is_return_reference(&self) -> bool {
+        true
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        let var = program.search_variable(&self.name);
-        if let Some(var) = var {
-            var.as_ref().borrow().0.clone()
-        } else {
-            panic!("Variable {} not found", self.name);
-        }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        instructions
+            .search_variable(&self.name)
+            .expect(format!("Variable {} not found", self.name).as_str())
+            .0
+            .clone()
     }
 }
 
@@ -69,11 +97,11 @@ pub struct ConstantInteger {
     pub value: i32,
 }
 impl Expression for ConstantInteger {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::Int32(self.value),
-            info: TypeInfo::Int32,
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::Int32(self.value)),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -81,8 +109,11 @@ impl Expression for ConstantInteger {
     fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.value as i64)
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int32
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 #[derive(Debug, Clone)]
@@ -90,11 +121,11 @@ pub struct ConstantUnsignedInteger {
     pub value: u32,
 }
 impl Expression for ConstantUnsignedInteger {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::UInt32(self.value),
-            info: TypeInfo::UInt32,
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::UInt32(self.value)),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -102,8 +133,11 @@ impl Expression for ConstantUnsignedInteger {
     fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.value as i64)
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt32
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -112,11 +146,11 @@ pub struct ConstantCharacter {
     pub value: i8,
 }
 impl Expression for ConstantCharacter {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::Int8(self.value),
-            info: TypeInfo::UInt8,
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::Int8(self.value)),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -124,8 +158,11 @@ impl Expression for ConstantCharacter {
     fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.value as i64)
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int8
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -134,11 +171,11 @@ pub struct ConstantLong {
     pub value: i64,
 }
 impl Expression for ConstantLong {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::Int64(self.value),
-            info: TypeInfo::Int64,
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::Int64(self.value)),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -146,8 +183,11 @@ impl Expression for ConstantLong {
     fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.value as i64)
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int64
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 #[derive(Debug, Clone)]
@@ -155,11 +195,11 @@ pub struct ConstantUnsignedLong {
     pub value: u64,
 }
 impl Expression for ConstantUnsignedLong {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::UInt64(self.value),
-            info: TypeInfo::UInt64,
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::UInt64(self.value)),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -167,8 +207,11 @@ impl Expression for ConstantUnsignedLong {
     fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.value as i64)
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt64
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -177,17 +220,20 @@ pub struct ConstantFloat {
     pub value: f32,
 }
 impl Expression for ConstantFloat {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::Float32(self.value),
-            info: TypeInfo::Float32,
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::Float32(self.value)),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Float32
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -196,17 +242,20 @@ pub struct ConstantDouble {
     pub value: f64,
 }
 impl Expression for ConstantDouble {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::Float64(self.value),
-            info: TypeInfo::Float64,
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::Float64(self.value)),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Float64
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -215,25 +264,18 @@ pub struct StringLiteral {
     pub value: String,
 }
 impl Expression for StringLiteral {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        let mut bytes = self.value.as_bytes().to_vec();
-        bytes.push(0);
-        let bytes: Vec<_> = bytes
-            .into_iter()
-            .map(|b| Rc::new(RefCell::new((TypeInfo::UInt8, VariableData::UInt8(b)))))
-            .collect();
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::Array(bytes),
-            info: TypeInfo::Array(Box::new(TypeInfo::UInt8), Some(self.value.len() + 1)),
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
         panic!("StringLiteral.eval not implemented");
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         // len+1 for null-terminator
-        TypeInfo::Array(Box::new(TypeInfo::UInt8), Some(self.value.len() + 1))
+        TypeInfo::Array(Box::new(TypeInfo::Int8), Some(self.value.len() + 1))
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -243,25 +285,29 @@ pub struct PostBracket {
     pub index: Box<dyn Expression>,
 }
 impl Expression for PostBracket {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        self.src.emit(program, instructions);
-        instructions.push(Box::new(
-            crate::program::instruction::MoveRegister::<0, 1> {},
-        ));
-        self.index.emit(program, instructions);
-        instructions.push(Box::new(
-            crate::program::instruction::expression::GetArrayElement {},
-        ));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        panic!("PostBracket.eval not implemented");
+        // self.src.emit(program, instructions);
+        // instructions.push(Box::new(
+        //     crate::program::instruction::MoveRegister::<0, 1> {},
+        // ));
+        // self.index.emit(program, instructions);
+        // instructions.push(Box::new(
+        //     crate::program::instruction::expression::GetArrayElement {},
+        // ));
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        if let TypeInfo::Array(t, _) = self.src.get_typeinfo(program) {
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        if let TypeInfo::Array(t, _) = self.src.get_typeinfo(instructions) {
             *t
         } else {
             panic!("Bracket on non-array type");
         }
+    }
+    fn is_return_reference(&self) -> bool {
+        panic!("PostBracket.is_return_reference not implemented");
     }
 }
 
@@ -272,7 +318,7 @@ pub struct PostParen {
 }
 // currently only for function call
 impl Expression for PostParen {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
         let identifier = self
             .src
             .as_any()
@@ -283,18 +329,27 @@ impl Expression for PostParen {
         // check if it is a built-in function, print
         if &name == "print" {
             for arg in self.args.iter().rev() {
-                arg.emit(program, instructions);
-                instructions.push(Box::new(PushRegister::<0> {}));
+                arg.emit(instructions);
+                if arg.is_return_reference() {
+                    instructions.push(PushStack {
+                        operand: Operand::Derefed(0),
+                    });
+                } else {
+                    instructions.push(PushStack {
+                        operand: Operand::Register(0),
+                    });
+                }
             }
-            instructions.push(Box::new(Constant::<0> {
-                value: VariableData::UInt64(self.args.len() as u64),
-                info: TypeInfo::UInt64,
-            }));
-            instructions.push(Box::new(PushRegister::<0> {}));
-            instructions.push(Box::new(Print {}));
-            return;
+            instructions.push(PushStack {
+                operand: Operand::Value(VariableData::UInt64(self.args.len() as u64)),
+            });
+            instructions.push(Print {});
         } else {
-            let funcdata = (*program.functions.get(&name).expect("Function not found")).clone();
+            let funcdata = instructions
+                .functions
+                .get(&name)
+                .expect(format!("Function not found : {}", &name).as_str())
+                .clone();
             if funcdata.params.len() != self.args.len() {
                 panic!(
                     "Function {} expects {} arguments, but {} were provided",
@@ -304,38 +359,50 @@ impl Expression for PostParen {
                 );
             }
 
-            // variable scope
-            instructions.push(Box::new(NewScope {}));
-
-            for i in 0..funcdata.params.len() {
-                self.args[i].emit(program, instructions);
-
-                // assign to named parameter
-                if let (Some(name), typeinfo) = &funcdata.params[i] {
-                    instructions.push(Box::new(crate::program::instruction::NewVariable {
-                        name: name.clone(),
-                        info: typeinfo.clone(),
-                    }));
-                    instructions.push(Box::new(GetVariable::<1> { name: name.clone() }));
-                    instructions.push(Box::new(Assign::<1, 0> {}));
+            // push arguments to stack
+            for param in self.args.iter().rev() {
+                param.emit(instructions);
+                if param.is_return_reference() {
+                    instructions.push(PushStack {
+                        operand: Operand::Derefed(0),
+                    });
+                } else {
+                    instructions.push(PushStack {
+                        operand: Operand::Register(0),
+                    });
                 }
             }
 
             // call function
-            instructions.push(Box::new(GetLabelAddress::<1> {
-                label: name.clone(),
-            }));
-            instructions.push(Box::new(Call::<1> {}));
+            instructions.push(Call {
+                address: Operand::Value(VariableData::UInt64(funcdata.address.unwrap() as u64)),
+            });
 
-            // end of scope
-            instructions.push(Box::new(PopScope {}));
+            // pop arguments from stack
+            instructions.push(SubAssign {
+                lhs: Operand::Register(STACK_POINTER_REGISTER),
+                rhs: Operand::Value(VariableData::UInt64(funcdata.params.len() as u64)),
+            });
         }
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        panic!("FunctionCall::get_typeinfo not implemented");
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        let identifier = self
+            .src
+            .as_any()
+            .downcast_ref::<PrimaryIdentifier>()
+            .expect("FunctionCall must be called on `Identifier`");
+        let name = identifier.name.clone();
+        let funcdata = &instructions
+            .functions
+            .get(&name)
+            .expect(format!("Function not found : {}", &name).as_str());
+        funcdata.return_type.clone()
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -345,64 +412,17 @@ pub struct PostMember {
     pub member: String,
 }
 impl Expression for PostMember {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        self.src.emit(program, instructions);
-        instructions.push(Box::new(
-            crate::program::instruction::expression::GetStructElement {
-                name: self.member.clone(),
-            },
-        ));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        panic!("PostMember.eval not implemented");
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        let src_type = self.src.get_typeinfo(program);
-        if let TypeInfo::Struct(s) = src_type {
-            let fields = if let Some(fields) = s.fields {
-                fields
-            } else {
-                if let Some(name) = s.name {
-                    let s = program
-                        .search_typeinfo(&name)
-                        .expect(format!("struct not found: {}", name).as_str());
-                    if let TypeInfo::Struct(ref s) = s.as_ref() {
-                        s.fields.clone().unwrap()
-                    } else {
-                        panic!("{} is not a struct", name);
-                    }
-                } else {
-                    panic!("invalid struct type");
-                }
-            };
-            fields
-                .get(&self.member)
-                .expect(format!("field not found: {}", self.member).as_str())
-                .clone()
-        } else if let TypeInfo::Union(s) = src_type {
-            let fields = if let Some(fields) = s.fields {
-                fields
-            } else {
-                if let Some(name) = s.name {
-                    let s = program
-                        .search_typeinfo(&name)
-                        .expect(format!("union not found: {}", name).as_str());
-                    if let TypeInfo::Union(ref s) = s.as_ref() {
-                        s.fields.clone().unwrap()
-                    } else {
-                        panic!("{} is not a union", name);
-                    }
-                } else {
-                    panic!("invalid union type");
-                }
-            };
-            fields
-                .get(&self.member)
-                .expect(format!("field not found: {}", self.member).as_str())
-                .clone()
-        } else {
-            panic!("Member on non-struct type");
-        }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        panic!("PostMember.get_typeinfo not implemented");
+    }
+    fn is_return_reference(&self) -> bool {
+        panic!("PostMember.is_return_reference not implemented");
     }
 }
 
@@ -411,21 +431,31 @@ pub struct PostIncrement {
     pub src: Box<dyn Expression>,
 }
 impl Expression for PostIncrement {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        self.src.emit(program, instructions);
-        instructions.push(Box::new(
-            crate::program::instruction::MoveRegister::<0, 1> {},
-        ));
-        instructions.push(Box::new(DeepCopyRegister::<1, 0> {}));
-        instructions.push(Box::new(
-            crate::program::instruction::unary::Increment::<1> {},
-        ));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        if self.src.is_return_reference() == false {
+            panic!("PostIncrement on non-lhs");
+        }
+        self.src.emit(instructions);
+        instructions.push(MoveRegister {
+            operand_from: Operand::Register(0),
+            operand_to: Operand::Register(1),
+        });
+        instructions.push(MoveRegister {
+            operand_from: Operand::Derefed(1),
+            operand_to: Operand::Register(0),
+        });
+        instructions.push(Increment {
+            operand: Operand::Derefed(1),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        self.src.get_typeinfo(program)
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        self.src.get_typeinfo(instructions)
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -434,21 +464,31 @@ pub struct PostDecrement {
     pub src: Box<dyn Expression>,
 }
 impl Expression for PostDecrement {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        self.src.emit(program, instructions);
-        instructions.push(Box::new(
-            crate::program::instruction::MoveRegister::<0, 1> {},
-        ));
-        instructions.push(Box::new(DeepCopyRegister::<1, 0> {}));
-        instructions.push(Box::new(
-            crate::program::instruction::unary::Decrement::<1> {},
-        ));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        if self.src.is_return_reference() == false {
+            panic!("PostDecrement on non-lhs");
+        }
+        self.src.emit(instructions);
+        instructions.push(MoveRegister {
+            operand_from: Operand::Register(0),
+            operand_to: Operand::Register(1),
+        });
+        instructions.push(MoveRegister {
+            operand_from: Operand::Derefed(1),
+            operand_to: Operand::Register(0),
+        });
+        instructions.push(Decrement {
+            operand: Operand::Derefed(1),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        self.src.get_typeinfo(program)
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        self.src.get_typeinfo(instructions)
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -458,17 +498,34 @@ pub struct CastExpression {
     pub typeinfo: TypeInfo,
 }
 impl Expression for CastExpression {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        self.src.emit(program, instructions);
-        instructions.push(Box::new(crate::program::instruction::unary::Cast::<0, 0> {
-            info: self.typeinfo.clone(),
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        self.src.emit(instructions);
+        instructions.push(MoveRegister {
+            operand_from: Operand::Register(0),
+            operand_to: Operand::Register(1),
+        });
+        if self.src.is_return_reference() {
+            instructions.push(Cast {
+                info: self.typeinfo.clone(),
+                operand_from: Operand::Derefed(1),
+                operand_to: Operand::Register(0),
+            });
+        } else {
+            instructions.push(Cast {
+                info: self.typeinfo.clone(),
+                operand_from: Operand::Register(1),
+                operand_to: Operand::Register(0),
+            });
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         self.typeinfo.clone()
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -477,11 +534,11 @@ pub struct SizeofType {
     pub typeinfo: TypeInfo,
 }
 impl Expression for SizeofType {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::UInt64(self.typeinfo.sizeof() as u64),
-            info: TypeInfo::UInt64,
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::UInt64(self.typeinfo.sizeof() as u64)),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -489,8 +546,11 @@ impl Expression for SizeofType {
     fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.typeinfo.sizeof() as i64)
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt64
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -499,18 +559,22 @@ pub struct SizeofExpr {
     pub expr: Box<dyn Expression>,
 }
 impl Expression for SizeofExpr {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        let sizeof = self.expr.get_typeinfo(program).sizeof();
-        instructions.push(Box::new(crate::program::instruction::Constant::<0> {
-            value: crate::program::variable::VariableData::UInt64(sizeof as u64),
-            info: TypeInfo::UInt64,
-        }));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::UInt64(
+                self.expr.get_typeinfo(instructions).sizeof() as u64,
+            )),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt64
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -531,63 +595,62 @@ pub struct UnaryExpression {
     pub src: Box<dyn Expression>,
 }
 impl Expression for UnaryExpression {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        self.src.emit(program, instructions);
-        instructions.push(Box::new(
-            crate::program::instruction::MoveRegister::<0, 1> {},
-        ));
-        instructions.push(Box::new(crate::program::instruction::DeepCopyRegister::<
-            1,
-            0,
-        > {}));
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        self.src.emit(instructions);
+        instructions.push(MoveRegister {
+            operand_from: Operand::Register(0),
+            operand_to: Operand::Register(1),
+        });
+        instructions.push(MoveRegister {
+            operand_from: Operand::Derefed(1),
+            operand_to: Operand::Register(0),
+        });
 
         match self.op {
             UnaryOperator::Plus => {}
             UnaryOperator::Minus => {
-                instructions.push(Box::new(crate::program::instruction::unary::Negate::<0> {}));
+                instructions.push(Negate {
+                    operand: Operand::Register(0),
+                });
             }
             UnaryOperator::LogicalNot => {
-                instructions.push(Box::new(crate::program::instruction::unary::LogicalNot::<
-                    0,
-                > {}));
+                instructions.push(LogicalNot {
+                    operand: Operand::Register(0),
+                });
             }
             UnaryOperator::BitwiseNot => {
-                instructions.push(Box::new(crate::program::instruction::unary::BitwiseNot::<
-                    0,
-                > {}));
+                instructions.push(BitwiseNot {
+                    operand: Operand::Register(0),
+                });
             }
             UnaryOperator::Dereference => {
-                instructions.push(Box::new(crate::program::instruction::unary::Dereference::<
-                    0,
-                > {}));
+                panic!("Dereference not implemented");
             }
             UnaryOperator::AddressOf => {
-                instructions.push(Box::new(
-                    crate::program::instruction::unary::AddressOf::<0> {},
-                ));
+                panic!("AddressOf not implemented");
             }
             UnaryOperator::Increment => {
-                instructions.push(Box::new(
-                    crate::program::instruction::unary::Increment::<1> {},
-                ));
+                instructions.push(Increment {
+                    operand: Operand::Derefed(1),
+                });
             }
             UnaryOperator::Decrement => {
-                instructions.push(Box::new(
-                    crate::program::instruction::unary::Decrement::<1> {},
-                ));
+                instructions.push(Decrement {
+                    operand: Operand::Derefed(1),
+                });
             }
         }
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        let srctype = self.src.get_typeinfo(program);
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        let srctype = self.src.get_typeinfo(instructions);
         match self.op {
             UnaryOperator::Plus | UnaryOperator::Minus => srctype,
             UnaryOperator::LogicalNot | UnaryOperator::BitwiseNot => srctype,
             UnaryOperator::Dereference => {
-                if let TypeInfo::Pointer(t) = self.src.get_typeinfo(program) {
+                if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
                     *t
                 } else {
                     panic!("Dereference on non-pointer type");
@@ -596,6 +659,9 @@ impl Expression for UnaryExpression {
             UnaryOperator::AddressOf => TypeInfo::Pointer(Box::new(srctype)),
             UnaryOperator::Increment | UnaryOperator::Decrement => srctype,
         }
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -638,186 +704,535 @@ pub struct BinaryExpression {
     pub rhs: Box<dyn Expression>,
 }
 impl Expression for BinaryExpression {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        self.lhs.emit(program, instructions);
-        // register0 = lhs
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        self.rhs.emit(instructions);
+        if self.rhs.is_return_reference() {
+            instructions.push(PushStack {
+                operand: Operand::Derefed(0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
 
-        instructions.push(Box::new(crate::program::instruction::PushRegister::<0> {}));
-        // push register0 to stack
+        // register0 = (value or address of) lhs
+        self.lhs.emit(instructions);
 
-        self.rhs.emit(program, instructions);
-        // register0 = rhs
-
-        instructions.push(Box::new(crate::program::instruction::PopStackTo::<1> {}));
-        // register1 = lhs
+        // register2 = value of rhs
+        instructions.push(PopStack {
+            operand: Operand::Register(2),
+        });
 
         match self.op {
             BinaryOperator::Add => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::Add::<1, 0> {},
-                ));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register1 += register2
+                instructions.push(AddAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                });
+                // register0 = register1
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(1),
+                    operand_to: Operand::Register(0),
+                });
             }
             BinaryOperator::Sub => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::Sub::<1, 0> {},
-                ));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register1 -= register2
+                instructions.push(SubAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                });
+                // register0 = register1
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(1),
+                    operand_to: Operand::Register(0),
+                });
             }
             BinaryOperator::Mul => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::Mul::<1, 0> {},
-                ));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register1 *= register2
+                instructions.push(MulAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                });
+                // register0 = register1
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(1),
+                    operand_to: Operand::Register(0),
+                });
             }
             BinaryOperator::Div => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::Div::<1, 0> {},
-                ));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register1 /= register2
+                instructions.push(DivAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                });
+                // register0 = register1
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(1),
+                    operand_to: Operand::Register(0),
+                });
             }
             BinaryOperator::Mod => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::Mod::<1, 0> {},
-                ));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register1 %= register2
+                instructions.push(ModAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                });
+                // register0 = register1
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(1),
+                    operand_to: Operand::Register(0),
+                });
             }
             BinaryOperator::BitwiseAnd => {
-                instructions.push(Box::new(crate::program::instruction::binary::BitwiseAnd::<
-                    1,
-                    0,
-                > {}));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register1 &= register2
+                instructions.push(BitwiseAndAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                });
+                // register0 = register1
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(1),
+                    operand_to: Operand::Register(0),
+                });
             }
             BinaryOperator::BitwiseOr => {
-                instructions.push(Box::new(crate::program::instruction::binary::BitwiseOr::<
-                    1,
-                    0,
-                > {}));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register1 |= register2
+                instructions.push(BitwiseOrAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                });
+                // register0 = register1
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(1),
+                    operand_to: Operand::Register(0),
+                });
             }
             BinaryOperator::BitwiseXor => {
-                instructions.push(Box::new(crate::program::instruction::binary::BitwiseXor::<
-                    1,
-                    0,
-                > {}));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register1 ^= register2
+                instructions.push(BitwiseXorAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                });
+                // register0 = register1
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(1),
+                    operand_to: Operand::Register(0),
+                });
             }
             BinaryOperator::LogicalAnd => {
-                instructions.push(Box::new(crate::program::instruction::binary::LogicalAnd::<
-                    1,
-                    0,
-                > {}));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register0 = register1 && register2
+                instructions.push(LogicalAnd {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                    to: Operand::Register(0),
+                });
             }
             BinaryOperator::LogicalOr => {
-                instructions.push(Box::new(crate::program::instruction::binary::LogicalOr::<
-                    1,
-                    0,
-                > {}));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register0 = register1 || register2
+                instructions.push(LogicalOr {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                    to: Operand::Register(0),
+                });
             }
             BinaryOperator::ShiftLeft => {
-                instructions.push(Box::new(crate::program::instruction::binary::ShiftLeft::<
-                    1,
-                    0,
-                > {}));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register1 <<= register2
+                instructions.push(ShiftLeftAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                });
+                // register0 = register1
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(1),
+                    operand_to: Operand::Register(0),
+                });
             }
             BinaryOperator::ShiftRight => {
-                instructions.push(Box::new(crate::program::instruction::binary::ShiftRight::<
-                    1,
-                    0,
-                > {}));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register1 >>= register2
+                instructions.push(ShiftRightAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                });
+                // register0 = register1
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(1),
+                    operand_to: Operand::Register(0),
+                });
             }
             BinaryOperator::LessThan => {
-                instructions.push(Box::new(crate::program::instruction::binary::LessThan::<
-                    1,
-                    0,
-                > {}));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register0 = register1 < register2
+                instructions.push(LessThan {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                    to: Operand::Register(0),
+                });
             }
             BinaryOperator::GreaterThan => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::GreaterThan::<1, 0> {},
-                ));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register0 = register1 > register2
+                instructions.push(LessThan {
+                    lhs: Operand::Register(2),
+                    rhs: Operand::Register(1),
+                    to: Operand::Register(0),
+                });
             }
             BinaryOperator::LessThanOrEqual => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::LessThanOrEqual::<1, 0> {},
-                ));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register0 = !(register1 > register2)
+                instructions.push(LessThan {
+                    lhs: Operand::Register(2),
+                    rhs: Operand::Register(1),
+                    to: Operand::Register(0),
+                });
+                instructions.push(LogicalNot {
+                    operand: Operand::Register(0),
+                });
             }
             BinaryOperator::GreaterThanOrEqual => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::GreaterThanOrEqual::<1, 0> {},
-                ));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register0 = !(register1 < register2)
+                instructions.push(LessThan {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                    to: Operand::Register(0),
+                });
+                instructions.push(LogicalNot {
+                    operand: Operand::Register(0),
+                });
             }
             BinaryOperator::Equal => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::Equal::<1, 0> {},
-                ));
+                // register1 = value of lhs
+                if self.lhs.is_return_reference() {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Derefed(0),
+                        operand_to: Operand::Register(1),
+                    });
+                } else {
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Register(0),
+                        operand_to: Operand::Register(1),
+                    });
+                }
+                // register0 = (register1 == register2)
+                instructions.push(Equal {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                    to: Operand::Register(0),
+                });
             }
             BinaryOperator::NotEqual => {
-                instructions.push(Box::new(crate::program::instruction::binary::NotEqual::<
-                    1,
-                    0,
-                > {}));
+                // register1 = value of lhs
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Derefed(0),
+                    operand_to: Operand::Register(1),
+                });
+                // register0 = (register1 == register2)
+                instructions.push(Equal {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Register(2),
+                    to: Operand::Register(0),
+                });
+                instructions.push(LogicalNot {
+                    operand: Operand::Register(0),
+                });
             }
             BinaryOperator::Assign => {
-                instructions.push(Box::new(crate::program::instruction::binary::Assign::<
-                    1,
-                    0,
-                > {}));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(Assign {
+                    lhs_type: self.lhs.get_typeinfo(instructions),
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
             BinaryOperator::AddAssign => {
-                instructions.push(Box::new(crate::program::instruction::binary::AddAssign::<
-                    1,
-                    0,
-                > {}));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(AddAssign {
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
             BinaryOperator::SubAssign => {
-                instructions.push(Box::new(crate::program::instruction::binary::SubAssign::<
-                    1,
-                    0,
-                > {}));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(SubAssign {
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
             BinaryOperator::MulAssign => {
-                instructions.push(Box::new(crate::program::instruction::binary::MulAssign::<
-                    1,
-                    0,
-                > {}));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(MulAssign {
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
             BinaryOperator::DivAssign => {
-                instructions.push(Box::new(crate::program::instruction::binary::DivAssign::<
-                    1,
-                    0,
-                > {}));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(DivAssign {
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
             BinaryOperator::ModAssign => {
-                instructions.push(Box::new(crate::program::instruction::binary::ModAssign::<
-                    1,
-                    0,
-                > {}));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(ModAssign {
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
             BinaryOperator::BitwiseAndAssign => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::BitwiseAndAssign::<1, 0> {},
-                ));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(BitwiseAndAssign {
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
             BinaryOperator::BitwiseOrAssign => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::BitwiseOrAssign::<1, 0> {},
-                ));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(BitwiseOrAssign {
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
             BinaryOperator::BitwiseXorAssign => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::BitwiseXorAssign::<1, 0> {},
-                ));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(BitwiseXorAssign {
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
             BinaryOperator::ShiftLeftAssign => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::ShiftLeftAssign::<1, 0> {},
-                ));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(ShiftLeftAssign {
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
             BinaryOperator::ShiftRightAssign => {
-                instructions.push(Box::new(
-                    crate::program::instruction::binary::ShiftRightAssign::<1, 0> {},
-                ));
+                if self.lhs.is_return_reference() == false {
+                    panic!("Assign on non-lhs");
+                }
+                instructions.push(ShiftRightAssign {
+                    lhs: Operand::Derefed(0),
+                    rhs: Operand::Register(2),
+                });
             }
         }
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         match self.op {
             BinaryOperator::Add
             | BinaryOperator::Sub
@@ -830,13 +1245,13 @@ impl Expression for BinaryExpression {
             | BinaryOperator::ShiftLeft
             | BinaryOperator::ShiftRight
             | BinaryOperator::LogicalAnd
-            | BinaryOperator::LogicalOr => todo!("Binary operator {:?}", self.op),
+            | BinaryOperator::LogicalOr => self.lhs.get_typeinfo(instructions),
             BinaryOperator::LessThan
             | BinaryOperator::GreaterThan
             | BinaryOperator::LessThanOrEqual
             | BinaryOperator::GreaterThanOrEqual
             | BinaryOperator::Equal
-            | BinaryOperator::NotEqual => TypeInfo::UInt32,
+            | BinaryOperator::NotEqual => TypeInfo::UInt8,
             BinaryOperator::Assign
             | BinaryOperator::AddAssign
             | BinaryOperator::SubAssign
@@ -847,8 +1262,11 @@ impl Expression for BinaryExpression {
             | BinaryOperator::BitwiseOrAssign
             | BinaryOperator::BitwiseXorAssign
             | BinaryOperator::ShiftLeftAssign
-            | BinaryOperator::ShiftRightAssign => self.lhs.get_typeinfo(program),
+            | BinaryOperator::ShiftRightAssign => self.lhs.get_typeinfo(instructions),
         }
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -858,42 +1276,17 @@ pub struct PostArrow {
     pub member: String,
 }
 impl Expression for PostArrow {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
         panic!("PostArrow.eval not implemented");
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        let src_type = self.src.get_typeinfo(program);
-        if let TypeInfo::Pointer(t) = src_type {
-            if let TypeInfo::Struct(s) = *t {
-                let fields = if let Some(fields) = s.fields {
-                    fields
-                } else {
-                    if let Some(name) = s.name {
-                        let s = program
-                            .search_typeinfo(&name)
-                            .expect(format!("struct not found: {}", name).as_str());
-                        if let TypeInfo::Struct(ref s) = s.as_ref() {
-                            s.fields.clone().unwrap()
-                        } else {
-                            panic!("{} is not a struct", name);
-                        }
-                    } else {
-                        panic!("invalid struct type");
-                    }
-                };
-                fields
-                    .get(&self.member)
-                    .expect(format!("field not found: {}", self.member).as_str())
-                    .clone()
-            } else {
-                panic!("Arrow on non-struct type");
-            }
-        } else {
-            panic!("Arrow on non-pointer type");
-        }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        panic!("PostArrow.get_typeinfo not implemented");
+    }
+    fn is_return_reference(&self) -> bool {
+        panic!("PostArrow.is_return_reference not implemented");
     }
 }
 
@@ -904,28 +1297,59 @@ pub struct ConditionalExpression {
     pub else_expr: Box<dyn Expression>,
 }
 impl Expression for ConditionalExpression {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        self.cond.emit(program, instructions);
-        let else_label = program.get_unique_label();
-        let end_label = program.get_unique_label();
-        instructions.push(Box::new(GetLabelAddress::<1> {
-            label: else_label.clone(),
-        }));
-        instructions.push(Box::new(JumpZero::<1, 0> {}));
-        self.then_expr.emit(program, instructions);
-        instructions.push(Box::new(GetLabelAddress::<1> {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        let else_label = instructions.get_unique_label();
+        let end_label = instructions.get_unique_label();
+
+        self.cond.emit(instructions);
+        if self.cond.is_return_reference() {
+            instructions.push(JumpZero {
+                label: else_label.clone(),
+                operand_cond: Operand::Derefed(0),
+            });
+        } else {
+            instructions.push(JumpZero {
+                label: else_label.clone(),
+                operand_cond: Operand::Register(0),
+            });
+        }
+
+        self.then_expr.emit(instructions);
+        if self.then_expr.is_return_reference() {
+            instructions.push(MoveRegister {
+                operand_from: Operand::Derefed(0),
+                operand_to: Operand::Register(1),
+            });
+            instructions.push(MoveRegister {
+                operand_from: Operand::Register(1),
+                operand_to: Operand::Register(0),
+            });
+        }
+        instructions.push(Jump {
             label: end_label.clone(),
-        }));
-        instructions.push(Box::new(Jump::<1> {}));
-        program.set_label(else_label, instructions);
-        self.else_expr.emit(program, instructions);
-        program.set_label(end_label.clone(), instructions);
+        });
+        instructions.set_label(&else_label);
+        self.else_expr.emit(instructions);
+        if self.else_expr.is_return_reference() {
+            instructions.push(MoveRegister {
+                operand_from: Operand::Derefed(0),
+                operand_to: Operand::Register(1),
+            });
+            instructions.push(MoveRegister {
+                operand_from: Operand::Register(1),
+                operand_to: Operand::Register(0),
+            });
+        }
+        instructions.set_label(&end_label);
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        self.then_expr.get_typeinfo(program)
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        self.then_expr.get_typeinfo(instructions)
+    }
+    fn is_return_reference(&self) -> bool {
+        false
     }
 }
 
@@ -935,15 +1359,18 @@ pub struct CommaExpression {
     pub rhs: Box<dyn Expression>,
 }
 impl Expression for CommaExpression {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
-        self.lhs.emit(program, instructions);
-        self.rhs.emit(program, instructions);
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        self.lhs.emit(instructions);
+        self.rhs.emit(instructions);
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
-        self.rhs.get_typeinfo(program)
+    fn is_return_reference(&self) -> bool {
+        self.rhs.is_return_reference()
+    }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        self.rhs.get_typeinfo(instructions)
     }
 }
 
@@ -952,13 +1379,16 @@ pub struct InitializerListExpression {
     pub initializers: Vec<Box<dyn Expression>>,
 }
 impl Expression for InitializerListExpression {
-    fn emit(&self, program: &mut Program, instructions: &mut Vec<Box<dyn Instruction>>) {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
         panic!("InitializerListExpression.eval not implemented");
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, program: &Program) -> TypeInfo {
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         panic!("InitializerListExpression.get_typeinfo not implemented");
+    }
+    fn is_return_reference(&self) -> bool {
+        panic!("InitializerListExpression.is_return_reference not implemented");
     }
 }

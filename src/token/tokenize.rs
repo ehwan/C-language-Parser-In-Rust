@@ -56,24 +56,19 @@ pub fn tokenize(source: String) -> Vec<Token> {
         }
     }
 
-    tokens
+    // tokens
 
     // ignoring unsupported tokens
-    // let ignore = rp::or!(
-    //     rp::one(Token::Static),
-    //     rp::one(Token::Const),
-    //     rp::one(Token::Volatile),
-    //     rp::one(Token::Auto),
-    //     rp::one(Token::Register),
-    //     rp::one(Token::Typedef)
-    // );
-    // tokens
-    //     .iter()
-    //     .cloned()
-    //     .filter(move |t| {
-    //         rp::parse(&ignore, Some(t).into_iter().cloned())
-    //             .output
-    //             .is_none()
-    //     })
-    //     .collect()
+    tokens
+        .iter()
+        .cloned()
+        .filter(move |t| {
+            *t != Token::Static
+                && *t != Token::Const
+                && *t != Token::Volatile
+                && *t != Token::Auto
+                && *t != Token::Register
+                && *t != Token::Typedef
+        })
+        .collect()
 }

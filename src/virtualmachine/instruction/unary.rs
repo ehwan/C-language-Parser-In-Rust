@@ -1,17 +1,18 @@
 use super::Instruction;
 
-use crate::program::variable::VariableData;
+use super::operand::*;
+use crate::ast::typename::TypeInfo;
+use crate::virtualmachine::program::VirtualProgram;
+use crate::virtualmachine::variable::VariableData;
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
-/// inc 1 to register N
+/// inc 1 register N
 #[derive(Debug)]
-pub struct Increment<const REGISTER: usize> {}
-impl<const REGISTER: usize> Instruction for Increment<REGISTER> {
-    fn execute(&self, program: &mut crate::program::program::Program) {
-        let var = program.registers[REGISTER].clone();
-        let var = &mut var.borrow_mut().1;
+pub struct Increment {
+    pub operand: Operand, // register that have value of stack index
+}
+impl Instruction for Increment {
+    fn execute(&self, program: &mut VirtualProgram) {
+        let var = get_operand_value_mut(program, &self.operand);
         match var {
             VariableData::Int8(ref mut value) => *value += 1,
             VariableData::UInt8(ref mut value) => *value += 1,
@@ -28,11 +29,12 @@ impl<const REGISTER: usize> Instruction for Increment<REGISTER> {
 
 /// dec 1 to register N
 #[derive(Debug)]
-pub struct Decrement<const REGISTER: usize> {}
-impl<const REGISTER: usize> Instruction for Decrement<REGISTER> {
-    fn execute(&self, program: &mut crate::program::program::Program) {
-        let var = program.registers[REGISTER].clone();
-        let var = &mut var.borrow_mut().1;
+pub struct Decrement {
+    pub operand: Operand, // register that have value of stack index
+}
+impl Instruction for Decrement {
+    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualProgram) {
+        let var = get_operand_value_mut(program, &self.operand);
         match var {
             VariableData::Int8(ref mut value) => *value -= 1,
             VariableData::UInt8(ref mut value) => *value -= 1,
@@ -49,31 +51,27 @@ impl<const REGISTER: usize> Instruction for Decrement<REGISTER> {
 
 /// cast register N to type
 #[derive(Debug)]
-pub struct Cast<const REGISTER_FROM: usize, const REGISTER_TO: usize> {
-    pub info: crate::ast::typename::TypeInfo,
+pub struct Cast {
+    pub info: TypeInfo,
+    pub operand_from: Operand,
+    pub operand_to: Operand,
 }
-impl<const REGISTER_FROM: usize, const REGISTER_TO: usize> Instruction
-    for Cast<REGISTER_FROM, REGISTER_TO>
-{
-    fn execute(&self, program: &mut crate::program::program::Program) {
-        let casted = program.registers[REGISTER_FROM]
-            .borrow()
-            .1
-            .cast_to(&self.info);
-        if let Some(casted) = casted {
-            program.registers[REGISTER_TO] = Rc::new(RefCell::new((self.info.clone(), casted)));
-        } else {
-            panic!("Invalid cast");
-        }
+impl Instruction for Cast {
+    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualProgram) {
+        let rhs = get_operand_value(program, &self.operand_from);
+        let casted = rhs.cast_to(&self.info).expect("Invalid cast");
+        *get_operand_value_mut(program, &self.operand_to) = casted;
     }
 }
 
 /// neg register N
 #[derive(Debug)]
-pub struct Negate<const REGISTER: usize> {}
-impl<const REGISTER: usize> Instruction for Negate<REGISTER> {
-    fn execute(&self, program: &mut crate::program::program::Program) {
-        let var = &mut program.registers[REGISTER].borrow_mut().1;
+pub struct Negate {
+    pub operand: Operand,
+}
+impl Instruction for Negate {
+    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualProgram) {
+        let var = get_operand_value_mut(program, &self.operand);
         match var {
             VariableData::UInt8(ref mut value) => *value = -(*value as i8) as u8,
             VariableData::UInt16(ref mut value) => *value = -(*value as i16) as u16,
@@ -90,10 +88,12 @@ impl<const REGISTER: usize> Instruction for Negate<REGISTER> {
 
 /// logical not register N
 #[derive(Debug)]
-pub struct LogicalNot<const REGISTER: usize> {}
-impl<const REGISTER: usize> Instruction for LogicalNot<REGISTER> {
-    fn execute(&self, program: &mut crate::program::program::Program) {
-        let var = &mut program.registers[REGISTER].borrow_mut().1;
+pub struct LogicalNot {
+    pub operand: Operand,
+}
+impl Instruction for LogicalNot {
+    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualProgram) {
+        let var = get_operand_value_mut(program, &self.operand);
         match var {
             VariableData::UInt8(ref mut value) => *value = if *value == 0 { 1 } else { 0 },
             VariableData::UInt16(ref mut value) => *value = if *value == 0 { 1 } else { 0 },
@@ -110,10 +110,12 @@ impl<const REGISTER: usize> Instruction for LogicalNot<REGISTER> {
 
 /// bitwise not register N
 #[derive(Debug)]
-pub struct BitwiseNot<const REGISTER: usize> {}
-impl<const REGISTER: usize> Instruction for BitwiseNot<REGISTER> {
-    fn execute(&self, program: &mut crate::program::program::Program) {
-        let var = &mut program.registers[REGISTER].borrow_mut().1;
+pub struct BitwiseNot {
+    pub operand: Operand,
+}
+impl Instruction for BitwiseNot {
+    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualProgram) {
+        let var = get_operand_value_mut(program, &self.operand);
         match var {
             VariableData::UInt8(ref mut value) => *value = !*value,
             VariableData::UInt16(ref mut value) => *value = !*value,
@@ -128,31 +130,24 @@ impl<const REGISTER: usize> Instruction for BitwiseNot<REGISTER> {
     }
 }
 
+/*
 /// dereference register N
 #[derive(Debug)]
-pub struct Dereference<const REGISTER: usize> {}
-impl<const REGISTER: usize> Instruction for Dereference<REGISTER> {
+pub struct Dereference {
+    pub register_address: usize, // register that have value of stack index
+    pub register_to: usize,
+}
+impl Instruction for Dereference {
     fn execute(&self, program: &mut crate::program::program::Program) {
-        let ptr = program.registers[REGISTER].clone().borrow().1.clone();
-        if let VariableData::Pointer(val) = ptr {
-            program.registers[REGISTER] = val.clone();
+        let ptr = &program.registers[self.register_address];
+        if let VariableData::Pointer(ptr) = ptr {
+            program.registers[self.register_to] = program.stack[*ptr].clone();
+        } else if let VariableData::UInt64(ptr) = ptr {
+            program.registers[self.register_to] = program.stack[*ptr as usize].clone();
         } else {
             panic!("Invalid type for dereference");
         }
     }
 }
 
-/// address of variable to register N
-#[derive(Debug)]
-pub struct AddressOf<const REGISTER: usize> {}
-impl<const REGISTER: usize> Instruction for AddressOf<REGISTER> {
-    fn execute(&self, program: &mut crate::program::program::Program) {
-        let var = program.registers[REGISTER].clone();
-        let vartype = var.borrow().0.clone();
-        let ptr = Rc::new(RefCell::new((
-            crate::ast::typename::TypeInfo::Pointer(Box::new(vartype)),
-            VariableData::Pointer(var),
-        )));
-        program.registers[REGISTER] = ptr;
-    }
-}
+*/

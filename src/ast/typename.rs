@@ -24,6 +24,11 @@ pub enum TypeInfo {
     // temporary store the name of the type; will be replaced by the actual type in emitting
     Identifier(String),
 }
+impl Default for TypeInfo {
+    fn default() -> Self {
+        TypeInfo::Int32
+    }
+}
 impl TypeInfo {
     pub fn sizeof(&self) -> usize {
         match self {
