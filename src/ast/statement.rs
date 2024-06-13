@@ -539,57 +539,116 @@ impl Statement for DeclarationStatement {
                 panic!("Anonymous variable is not allowed in declaration statement");
             } else {
                 // variable declaration
+
                 instructions.declare_variable(declaration.0.as_ref().unwrap(), &declaration.1);
                 if let Some(initial_value) = &declaration.2 {
-                    // register0 = initial value
-                    initial_value.emit(instructions);
+                    // variable with initial value
 
-                    // register1 = (type-casting) register0
-                    if initial_value.is_return_reference() {
-                        instructions.push(Assign {
-                            lhs_type: declaration.1.clone(),
-                            lhs: Operand::Register(1),
-                            rhs: Operand::Derefed(0, 0),
-                        });
-                    } else {
-                        instructions.push(Assign {
-                            lhs_type: declaration.1.clone(),
-                            lhs: Operand::Register(1),
-                            rhs: Operand::Register(0),
-                        });
+                    // check type
+                    match &declaration.1 {
+                        TypeInfo::Function(return_type, params) => {
+                            panic!( "Function declaration cannot have initial value; something went wrong");
+                        }
+                        TypeInfo::Struct(_sinfo) => {
+                            panic!(
+                                "Struct declaration in declaration statement is not implemented"
+                            );
+                        }
+                        TypeInfo::Union(_uinfo) => {
+                            panic!("Union declaration in declaration statement is not implemented");
+                        }
+
+                        // primitive types
+                        _ => {
+                            // register0 = initial value
+                            initial_value.emit(instructions);
+
+                            // register1 = (type-casting) register0
+                            if initial_value.is_return_reference() {
+                                instructions.push(Assign {
+                                    lhs_type: declaration.1.clone(),
+                                    lhs: Operand::Register(1),
+                                    rhs: Operand::Derefed(0, 0),
+                                });
+                            } else {
+                                instructions.push(Assign {
+                                    lhs_type: declaration.1.clone(),
+                                    lhs: Operand::Register(1),
+                                    rhs: Operand::Register(0),
+                                });
+                            }
+                            // push register1 to stack
+                            instructions.push(PushStack {
+                                operand: Operand::Register(1),
+                            });
+                        }
                     }
-                    // push register1 to stack
-                    instructions.push(PushStack {
-                        operand: Operand::Register(1),
-                    });
                 } else {
-                    // it is function declaration
-                    if let TypeInfo::Function(ret, args) = &declaration.1 {
-                        let function_data = FunctionInfo {
-                            return_type: *ret.clone(),
-                            params: args
-                                .iter()
-                                .map(|typeinfo| (None, typeinfo.clone()))
-                                .collect(),
-                            is_defined: false,
-                        };
-                        let _old = instructions
-                            .functions
-                            .insert(declaration.0.as_ref().unwrap().clone(), function_data);
-                    } else {
-                        // variable with default value
+                    // variable without initial value
 
-                        // register1 = default value
-                        instructions.push(MoveRegister {
-                            operand_from: Operand::Value(VariableData::init_default(
-                                &declaration.1,
-                            )),
-                            operand_to: Operand::Register(1),
-                        });
-                        // push register1 to stack
-                        instructions.push(PushStack {
-                            operand: Operand::Register(1),
-                        });
+                    match &declaration.1 {
+                        TypeInfo::Function(return_type, params) => {
+                            // check if its already declared
+                            let old = instructions.functions.get(declaration.0.as_ref().unwrap());
+                            if let Some(old) = old {
+                                // function is declared
+
+                                // check parameter types are same
+                                let param_equal =
+                                    old.params.iter().map(|(_, type_)| type_).eq(params.iter());
+                                if param_equal == false {
+                                    panic!(
+                                        "Function {} is already declared with different parameter types",
+                                        declaration.0.as_ref().unwrap()
+                                    );
+                                }
+
+                                // check return type is same
+                                if &old.return_type != return_type.as_ref() {
+                                    panic!(
+                                        "Function {} is already declared with different return type",
+                                        declaration.0.as_ref().unwrap()
+                                    );
+                                }
+                            } else {
+                                // function is not declared
+                                let params: Vec<_> = params
+                                    .iter()
+                                    .map(|typeinfo| (None, typeinfo.clone()))
+                                    .collect();
+                                let function_data = FunctionInfo {
+                                    return_type: *return_type.clone(),
+                                    params,
+                                    is_defined: false,
+                                };
+                                instructions
+                                    .functions
+                                    .insert(declaration.0.as_ref().unwrap().clone(), function_data);
+                            }
+                        }
+                        TypeInfo::Struct(_sinfo) => {
+                            panic!(
+                                "Struct declaration in declaration statement is not implemented"
+                            );
+                        }
+                        TypeInfo::Union(_uinfo) => {
+                            panic!("Union declaration in declaration statement is not implemented");
+                        }
+
+                        // primitive types + pointer
+                        _ => {
+                            // register1 = default value
+                            instructions.push(MoveRegister {
+                                operand_from: Operand::Value(VariableData::init_default(
+                                    &declaration.1,
+                                )),
+                                operand_to: Operand::Register(1),
+                            });
+                            // push register1 to stack
+                            instructions.push(PushStack {
+                                operand: Operand::Register(1),
+                            });
+                        }
                     }
                 }
             }
