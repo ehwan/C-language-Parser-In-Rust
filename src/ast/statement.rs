@@ -755,16 +755,9 @@ impl Statement for DeclarationStatement {
                                 1,
                             );
 
-                            // register1 = default value
-                            instructions.push(MoveRegister {
-                                operand_from: Operand::Value(VariableData::init_default(
-                                    &declaration.1,
-                                )),
-                                operand_to: Operand::Register(1),
-                            });
-                            // push register1 to stack
+                            // push default value to stack
                             instructions.push(PushStack {
-                                operand: Operand::Register(1),
+                                operand: Operand::Value(VariableData::init_default(&declaration.1)),
                             });
                         }
                         _ => {}
