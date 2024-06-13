@@ -1,3 +1,4 @@
+use super::expression::InitializerListExpression;
 use super::{expression::Expression, typename::TypeInfo};
 use crate::virtualmachine::instruction::binary::*;
 use crate::virtualmachine::instruction::generation::FunctionInfo;
@@ -540,7 +541,6 @@ impl Statement for DeclarationStatement {
             } else {
                 // variable declaration
 
-                instructions.declare_variable(declaration.0.as_ref().unwrap(), &declaration.1);
                 if let Some(initial_value) = &declaration.2 {
                     // variable with initial value
 
@@ -558,6 +558,67 @@ impl Statement for DeclarationStatement {
                             panic!("Union declaration in declaration statement is not implemented");
                         }
 
+                        // array
+                        TypeInfo::Array(type_, size) => {
+                            // initializer must be initializer list
+                            let initial_value = initial_value
+                                .as_any()
+                                .downcast_ref::<InitializerListExpression>()
+                                .expect("Array initializer must be initializer list");
+
+                            let size = match size {
+                                Some(size) => {
+                                    if initial_value.initializers.len() > *size {
+                                        panic!("Too many initializers for array");
+                                    }
+                                    *size
+                                }
+                                None => initial_value.initializers.len(),
+                            };
+                            if size == 0 {
+                                panic!("Array size must be greater than 0");
+                            }
+                            let init_with_default = size - initial_value.initializers.len();
+
+                            // link name to stack
+                            instructions.declare_variable(
+                                declaration.0.as_ref().unwrap(),
+                                &TypeInfo::Array(type_.clone(), Some(size)),
+                                size,
+                            );
+
+                            // init with initializer
+                            for initializer in initial_value.initializers.iter() {
+                                // register0 = initial value
+                                initializer.emit(instructions);
+
+                                // register1 = (type-casting) register0
+                                if initializer.is_return_reference() {
+                                    instructions.push(Assign {
+                                        lhs_type: *type_.clone(),
+                                        lhs: Operand::Register(1),
+                                        rhs: Operand::Derefed(0, 0),
+                                    });
+                                } else {
+                                    instructions.push(Assign {
+                                        lhs_type: *type_.clone(),
+                                        lhs: Operand::Register(1),
+                                        rhs: Operand::Register(0),
+                                    });
+                                }
+                                // push to stack
+                                instructions.push(PushStack {
+                                    operand: Operand::Register(1),
+                                });
+                            }
+                            for _ in 0..init_with_default {
+                                // push to stack
+                                instructions.push(PushStack {
+                                    operand: Operand::Value(VariableData::init_default(type_)),
+                                });
+                            }
+                        }
+
                         // primitive types + pointer
                         TypeInfo::UInt8
                         | TypeInfo::UInt16
@@ -570,6 +631,13 @@ impl Statement for DeclarationStatement {
                         | TypeInfo::Float32
                         | TypeInfo::Float64
                         | TypeInfo::Pointer(_) => {
+                            // link name to stack
+                            instructions.declare_variable(
+                                declaration.0.as_ref().unwrap(),
+                                &declaration.1,
+                                1,
+                            );
+
                             // register0 = initial value
                             initial_value.emit(instructions);
 
@@ -646,7 +714,27 @@ impl Statement for DeclarationStatement {
                             panic!("Union declaration in declaration statement is not implemented");
                         }
 
-                        // TypeInfo::Array(_type
+                        TypeInfo::Array(type_, size) => {
+                            let size =
+                                size.expect("Array declaration without initializer must have size");
+                            if size == 0 {
+                                panic!("Array size must be greater than 0");
+                            }
+
+                            // link name to stack
+                            instructions.declare_variable(
+                                declaration.0.as_ref().unwrap(),
+                                &TypeInfo::Array(type_.clone(), Some(size)),
+                                size,
+                            );
+
+                            for _ in 0..size {
+                                // push to stack
+                                instructions.push(PushStack {
+                                    operand: Operand::Value(VariableData::init_default(type_)),
+                                });
+                            }
+                        }
 
                         // primitive types + pointer
                         TypeInfo::UInt8
@@ -660,6 +748,13 @@ impl Statement for DeclarationStatement {
                         | TypeInfo::Float32
                         | TypeInfo::Float64
                         | TypeInfo::Pointer(_) => {
+                            // link name to stack
+                            instructions.declare_variable(
+                                declaration.0.as_ref().unwrap(),
+                                &declaration.1,
+                                1,
+                            );
+
                             // register1 = default value
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Value(VariableData::init_default(
