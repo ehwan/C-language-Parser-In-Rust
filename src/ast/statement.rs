@@ -493,49 +493,29 @@ impl Statement for DeclarationStatement {
         for declaration in &self.vars {
             if declaration.0.is_none() && declaration.2.is_none() {
                 // Struct & Enum & Union declaration
-                panic!("Struct & Enum & Union declaration is not allowed in declaration statement");
-                // match &declaration.1 {
-                // TypeInfo::Struct(t) => {
-                //     if t.name.is_none() {
-                //         println!("Anonymous struct in declaration statement; ignored it");
-                //     } else {
-                //         let old = instructions.cur_scope_mut().type_infos.insert(
-                //             t.name.as_ref().unwrap().clone(),
-                //             TypeInfo::Struct(t.clone()),
-                //         );
-                //         if old.is_some() {
-                //             panic!("Struct {} already exists", t.name.as_ref().unwrap());
-                //         }
-                //     }
-                // }
-                // TypeInfo::Union(t) => {
-                //     if t.name.is_none() {
-                //         println!("Anonymous union in declaration statement; ignored it");
-                //     } else {
-                //         let old = instructions.cur_scope_mut().type_infos.insert(
-                //             t.name.as_ref().unwrap().clone(),
-                //             TypeInfo::Union(t.clone()),
-                //         );
-                //         if old.is_some() {
-                //             panic!("Union {} already exists", t.name.as_ref().unwrap());
-                //         }
-                //     }
-                // }
-                // TypeInfo::Enum(t) => {
-                //     if t.name.is_none() {
-                //         println!("Anonymous enum in declaration statement; ignored it");
-                //     } else {
-                //         let old = instructions.cur_scope_mut().type_infos.insert(
-                //             t.name.as_ref().unwrap().clone(),
-                //             TypeInfo::Enum(t.clone()),
-                //         );
-                //         if old.is_some() {
-                //             panic!("Enum {} already exists", t.name.as_ref().unwrap());
-                //         }
-                //     }
-                // }
-                // _ => panic!("Invalid type for anonymous declaration"),
-                // }
+                // panic!("Struct & Enum & Union declaration is not allowed in declaration statement");
+                match &declaration.1 {
+                    TypeInfo::Struct(t) => {
+                        if t.name.is_none() {
+                            println!("Anonymous struct in declaration statement; ignored it");
+                        } else {
+                            let old = if instructions.scopes.is_empty() {
+                                &mut instructions.global_scope
+                            } else {
+                                instructions.scopes.last_mut().unwrap()
+                            }
+                            .type_infos
+                            .insert(
+                                t.name.as_ref().unwrap().clone(),
+                                TypeInfo::Struct(t.clone()),
+                            );
+                            if old.is_some() {
+                                panic!("Struct {} already exists", t.name.as_ref().unwrap());
+                            }
+                        }
+                    }
+                    _ => panic!("Invalid type for type declaration: {:?}", declaration.1),
+                }
             } else if declaration.0.is_none() {
                 panic!("Anonymous variable is not allowed in declaration statement");
             } else {
@@ -551,7 +531,7 @@ impl Statement for DeclarationStatement {
                         }
                         TypeInfo::Struct(_sinfo) => {
                             panic!(
-                                "Struct declaration in declaration statement is not implemented"
+                                "Struct variable declaration in declaration statement is not implemented"
                             );
                         }
                         TypeInfo::Union(_uinfo) => {
