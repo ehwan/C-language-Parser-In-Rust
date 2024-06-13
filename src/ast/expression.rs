@@ -441,16 +441,44 @@ pub struct PostMember {
 }
 impl Expression for PostMember {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        panic!("PostMember.eval not implemented");
+        let member_offset = if let TypeInfo::Struct(sinfo) = self.src.get_typeinfo(instructions) {
+            sinfo
+                .fields
+                .expect("struct fields not defined")
+                .get(&self.member)
+                .expect(format!("Field {} not found", self.member).as_str())
+                .1
+        } else {
+            panic!("PostMember on non-struct type");
+        };
+        self.src.emit(instructions);
+        instructions.push(AddAssign {
+            lhs: Operand::Register(0),
+            rhs: Operand::Value(VariableData::UInt64(member_offset as u64)),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        panic!("PostMember.get_typeinfo not implemented");
+        if let TypeInfo::Struct(sinfo) = self.src.get_typeinfo(instructions) {
+            sinfo
+                .fields
+                .expect("PostMember on struct without fields")
+                .get(&self.member)
+                .expect(format!("Field {} not found", self.member).as_str())
+                .0
+                .clone()
+        } else {
+            panic!("PostMember on non-struct type");
+        }
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
-        panic!("PostMember.is_return_reference not implemented");
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        if let TypeInfo::Struct(_) = self.src.get_typeinfo(instructions) {
+            true
+        } else {
+            panic!("PostMember on non-struct type");
+        }
     }
 }
 
