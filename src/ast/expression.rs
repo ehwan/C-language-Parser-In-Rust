@@ -500,9 +500,17 @@ impl Expression for PostIncrement {
             operand_from: Operand::Derefed(1, 0),
             operand_to: Operand::Register(0),
         });
-        instructions.push(Increment {
-            operand: Operand::Derefed(1, 0),
-        });
+        if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
+            let move_size = t.number_of_primitives();
+            instructions.push(AddAssign {
+                lhs: Operand::Derefed(1, 0),
+                rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
+            });
+        } else {
+            instructions.push(Increment {
+                operand: Operand::Derefed(1, 0),
+            });
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -533,9 +541,18 @@ impl Expression for PostDecrement {
             operand_from: Operand::Derefed(1, 0),
             operand_to: Operand::Register(0),
         });
-        instructions.push(Decrement {
-            operand: Operand::Derefed(1, 0),
-        });
+
+        if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
+            let move_size = t.number_of_primitives();
+            instructions.push(SubAssign {
+                lhs: Operand::Derefed(1, 0),
+                rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
+            });
+        } else {
+            instructions.push(Decrement {
+                operand: Operand::Derefed(1, 0),
+            });
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -796,18 +813,28 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int32
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
-                    | TypeInfo::UInt64
-                    | TypeInfo::Pointer(_) => {
+                    | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(MoveRegister {
-                                operand_from: Operand::Register(0),
-                                operand_to: Operand::Register(1),
-                            });
                             instructions.push(Increment {
-                                operand: Operand::Derefed(1, 0),
+                                operand: Operand::Derefed(0, 0),
                             });
                             instructions.push(MoveRegister {
-                                operand_from: Operand::Derefed(1, 0),
+                                operand_from: Operand::Derefed(0, 0),
+                                operand_to: Operand::Register(0),
+                            });
+                        } else {
+                            panic!("Increment on non-reference");
+                        }
+                    }
+                    TypeInfo::Pointer(t) => {
+                        let move_size = t.number_of_primitives();
+                        if self.src.is_return_reference(instructions) {
+                            instructions.push(AddAssign {
+                                lhs: Operand::Derefed(0, 0),
+                                rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
+                            });
+                            instructions.push(MoveRegister {
+                                operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
                             });
                         } else {
@@ -829,18 +856,28 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int32
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
-                    | TypeInfo::UInt64
-                    | TypeInfo::Pointer(_) => {
+                    | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(MoveRegister {
-                                operand_from: Operand::Register(0),
-                                operand_to: Operand::Register(1),
-                            });
                             instructions.push(Decrement {
-                                operand: Operand::Derefed(1, 0),
+                                operand: Operand::Derefed(0, 0),
                             });
                             instructions.push(MoveRegister {
-                                operand_from: Operand::Derefed(1, 0),
+                                operand_from: Operand::Derefed(0, 0),
+                                operand_to: Operand::Register(0),
+                            });
+                        } else {
+                            panic!("Decrement on non-reference");
+                        }
+                    }
+                    TypeInfo::Pointer(t) => {
+                        let move_size = t.number_of_primitives();
+                        if self.src.is_return_reference(instructions) {
+                            instructions.push(SubAssign {
+                                lhs: Operand::Derefed(0, 0),
+                                rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
+                            });
+                            instructions.push(MoveRegister {
+                                operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
                             });
                         } else {
@@ -1314,6 +1351,11 @@ impl Expression for BinaryExpression {
 
         match self.op {
             BinaryOperator::Add => {
+                /* TODO: implement for different types */
+                // for pointer + int,
+                // the value of address must increase by n*type.number_of_primitives()
+                // currently the value of address increase by the number as it is
+
                 // register1 = value of lhs
                 if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
@@ -1338,6 +1380,11 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::Sub => {
+                /* TODO: implement for different types */
+                // for pointer + int,
+                // the value of address must increase by n*type.number_of_primitives()
+                // currently the value of address increase by the number as it is
+
                 // register1 = value of lhs
                 if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
