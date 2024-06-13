@@ -236,10 +236,12 @@ impl ASTParser {
         )
         .map(
             |name: String, memberss: Vec<Vec<(String, TypeInfo)>>| -> StructInfo {
-                let mut fields: HashMap<String, TypeInfo> = HashMap::new();
+                let mut fields: HashMap<String, (TypeInfo, usize)> = HashMap::new();
+                let mut idx: usize = 0;
                 for members in memberss.into_iter() {
                     for member in members.into_iter() {
-                        let old = fields.insert(member.0.clone(), member.1);
+                        let old = fields.insert(member.0.clone(), (member.1.clone(), idx));
+                        idx += member.1.number_of_primitives();
                         if old.is_some() {
                             panic!("Duplicated field name: {}", member.0);
                         }
@@ -258,10 +260,12 @@ impl ASTParser {
             rp::one(Token::RightBrace).void()
         )
         .map(|memberss: Vec<Vec<(String, TypeInfo)>>| -> StructInfo {
-            let mut fields: HashMap<String, TypeInfo> = HashMap::new();
+            let mut fields: HashMap<String, (TypeInfo, usize)> = HashMap::new();
+            let mut idx: usize = 0;
             for members in memberss.into_iter() {
                 for member in members.into_iter() {
-                    let old = fields.insert(member.0.clone(), member.1);
+                    let old = fields.insert(member.0.clone(), (member.1.clone(), idx));
+                    idx += member.1.number_of_primitives();
                     if old.is_some() {
                         panic!("Duplicated field name: {}", member.0);
                     }

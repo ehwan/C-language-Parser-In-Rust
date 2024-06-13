@@ -54,20 +54,47 @@ impl TypeInfo {
             TypeInfo::Identifier(_) => panic!("sizeof(identifier) is invalid"),
         }
     }
+    pub fn number_of_primitives(&self) -> usize {
+        match self {
+            TypeInfo::Void => 0,
+            TypeInfo::Int8 | TypeInfo::Int16 | TypeInfo::Int32 | TypeInfo::Int64 => 1,
+            TypeInfo::UInt8 | TypeInfo::UInt16 | TypeInfo::UInt32 | TypeInfo::UInt64 => 1,
+            TypeInfo::Float32 | TypeInfo::Float64 => 1,
+            TypeInfo::Struct(structinfo) => structinfo.number_of_primitives(),
+            TypeInfo::Pointer(_) => 1,
+            TypeInfo::Array(info, Some(size)) => info.number_of_primitives() * size,
+            _ => panic!("number_of_primitives: unsupported type: {:?}", self),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructInfo {
     pub name: Option<String>,
-    pub fields: Option<HashMap<String, TypeInfo>>,
+    pub fields: Option<HashMap<String, (TypeInfo, usize)>>,
 }
 impl StructInfo {
     pub fn sizeof(&self) -> usize {
         let mut size: usize = 0;
-        for (_, field) in self.fields.as_ref().unwrap() {
-            size += field.sizeof();
+        for (_, (fieldtype, _)) in self.fields.as_ref().unwrap() {
+            size += fieldtype.sizeof();
         }
         size
+    }
+    pub fn number_of_primitives(&self) -> usize {
+        let mut count: usize = 0;
+        for (_, (fieldtype, _)) in self.fields.as_ref().unwrap() {
+            match fieldtype {
+                TypeInfo::UInt8 | TypeInfo::UInt16 | TypeInfo::UInt32 | TypeInfo::UInt64 => {
+                    count += 1
+                }
+                TypeInfo::Int8 | TypeInfo::Int16 | TypeInfo::Int32 | TypeInfo::Int64 => count += 1,
+                TypeInfo::Float32 | TypeInfo::Float64 => count += 1,
+                TypeInfo::Struct(structinfo) => count += structinfo.number_of_primitives(),
+                _ => panic!("number_of_primitives: unsupported type: {:?}", fieldtype),
+            }
+        }
+        count
     }
 }
 #[derive(Debug, Clone, PartialEq)]
