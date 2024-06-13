@@ -8,7 +8,7 @@ use std::collections::HashMap;
 pub struct FunctionInfo {
     pub return_type: TypeInfo,
     pub params: Vec<(Option<String>, TypeInfo)>,
-    pub address: Option<usize>, // None if not defined
+    pub is_defined: bool,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -185,11 +185,15 @@ impl Instruction for Panic {
 /// push current address and scope count to stack and jump
 #[derive(Debug)]
 pub struct Call {
-    pub address: Operand,
+    pub label: String,
 }
 impl Instruction for Call {
     fn execute(&self, program: &mut crate::virtualmachine::program::VirtualProgram) {
-        let move_to_address = get_operand_value(program, &self.address).to_u64() as usize;
+        let move_to_address = *program
+            .label_map
+            .get(&self.label)
+            .expect(format!("Call: label not found: {}", self.label).as_str());
+        // let move_to_address = get_operand_value(program, &self.address).to_u64() as usize;
         let current_address = program.current_instruction;
 
         // push current address to stack

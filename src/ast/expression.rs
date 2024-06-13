@@ -375,7 +375,8 @@ impl Expression for PostParen {
 
             // call function
             instructions.push(Call {
-                address: Operand::Value(VariableData::UInt64(funcdata.address.unwrap() as u64)),
+                label: name.clone(),
+                // address: Operand::Value(VariableData::UInt64(funcdata.address.unwrap() as u64)),
             });
 
             // pop arguments from stack

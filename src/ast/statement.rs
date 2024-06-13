@@ -563,17 +563,34 @@ impl Statement for DeclarationStatement {
                         operand: Operand::Register(1),
                     });
                 } else {
-                    // variable with default value
+                    // it is function declaration
+                    if let TypeInfo::Function(ret, args) = &declaration.1 {
+                        let function_data = FunctionInfo {
+                            return_type: *ret.clone(),
+                            params: args
+                                .iter()
+                                .map(|typeinfo| (None, typeinfo.clone()))
+                                .collect(),
+                            is_defined: false,
+                        };
+                        let _old = instructions
+                            .functions
+                            .insert(declaration.0.as_ref().unwrap().clone(), function_data);
+                    } else {
+                        // variable with default value
 
-                    // register1 = default value
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Value(VariableData::init_default(&declaration.1)),
-                        operand_to: Operand::Register(1),
-                    });
-                    // push register1 to stack
-                    instructions.push(PushStack {
-                        operand: Operand::Register(1),
-                    });
+                        // register1 = default value
+                        instructions.push(MoveRegister {
+                            operand_from: Operand::Value(VariableData::init_default(
+                                &declaration.1,
+                            )),
+                            operand_to: Operand::Register(1),
+                        });
+                        // push register1 to stack
+                        instructions.push(PushStack {
+                            operand: Operand::Register(1),
+                        });
+                    }
                 }
             }
         }
@@ -601,24 +618,21 @@ impl Statement for FunctionDefinitionStatement {
         let function_data = FunctionInfo {
             return_type: self.return_type.clone(),
             params: self.params.clone(),
-            address: Some(address),
+            is_defined: true,
         };
         let old = instructions
             .functions
             .insert(self.name.clone(), function_data);
         if let Some(old) = old {
             // check if old was declaration
-            if old.address.is_some() == true {
+            if old.is_defined {
                 panic!("redefinition of function {}", &self.name);
             }
         }
+        instructions.set_label(&self.name);
 
         instructions.function_scope = Some(FunctionScope::new());
         instructions.push_scope();
-
-        instructions.push(DefineLabel {
-            label: self.name.clone(),
-        });
 
         // argument initialization
         // function's arguments are pushed to stack before call ( and MUST BE )
@@ -688,16 +702,10 @@ impl Statement for TranslationUnit {
             .get("main")
             .expect("main function not found");
 
-        let main_address = main.address.expect("main function not defined");
-
         let startaddress = instructions.instructions.len();
         instructions.start_address = startaddress;
-        instructions.push(MoveRegister {
-            operand_from: Operand::Value(VariableData::UInt64(main_address as u64)),
-            operand_to: Operand::Register(0),
-        });
         instructions.push(Call {
-            address: Operand::Register(0),
+            label: "main".to_string(),
         });
     }
     fn as_any(&self) -> &dyn Any {
