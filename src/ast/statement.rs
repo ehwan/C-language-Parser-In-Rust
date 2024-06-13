@@ -546,7 +546,7 @@ impl Statement for DeclarationStatement {
 
                     // check type
                     match &declaration.1 {
-                        TypeInfo::Function(return_type, params) => {
+                        TypeInfo::Function(_, _) => {
                             panic!( "Function declaration cannot have initial value; something went wrong");
                         }
                         TypeInfo::Struct(_sinfo) => {
@@ -558,8 +558,18 @@ impl Statement for DeclarationStatement {
                             panic!("Union declaration in declaration statement is not implemented");
                         }
 
-                        // primitive types
-                        _ => {
+                        // primitive types + pointer
+                        TypeInfo::UInt8
+                        | TypeInfo::UInt16
+                        | TypeInfo::UInt32
+                        | TypeInfo::UInt64
+                        | TypeInfo::Int8
+                        | TypeInfo::Int16
+                        | TypeInfo::Int32
+                        | TypeInfo::Int64
+                        | TypeInfo::Float32
+                        | TypeInfo::Float64
+                        | TypeInfo::Pointer(_) => {
                             // register0 = initial value
                             initial_value.emit(instructions);
 
@@ -582,6 +592,7 @@ impl Statement for DeclarationStatement {
                                 operand: Operand::Register(1),
                             });
                         }
+                        _ => panic!("Invalid type for variable declaration"),
                     }
                 } else {
                     // variable without initial value
@@ -635,8 +646,20 @@ impl Statement for DeclarationStatement {
                             panic!("Union declaration in declaration statement is not implemented");
                         }
 
+                        // TypeInfo::Array(_type
+
                         // primitive types + pointer
-                        _ => {
+                        TypeInfo::UInt8
+                        | TypeInfo::UInt16
+                        | TypeInfo::UInt32
+                        | TypeInfo::UInt64
+                        | TypeInfo::Int8
+                        | TypeInfo::Int16
+                        | TypeInfo::Int32
+                        | TypeInfo::Int64
+                        | TypeInfo::Float32
+                        | TypeInfo::Float64
+                        | TypeInfo::Pointer(_) => {
                             // register1 = default value
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Value(VariableData::init_default(
@@ -649,6 +672,7 @@ impl Statement for DeclarationStatement {
                                 operand: Operand::Register(1),
                             });
                         }
+                        _ => {}
                     }
                 }
             }
