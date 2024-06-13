@@ -286,28 +286,43 @@ pub struct PostBracket {
 }
 impl Expression for PostBracket {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        panic!("PostBracket.eval not implemented");
-        // self.src.emit(program, instructions);
-        // instructions.push(Box::new(
-        //     crate::program::instruction::MoveRegister::<0, 1> {},
-        // ));
-        // self.index.emit(program, instructions);
-        // instructions.push(Box::new(
-        //     crate::program::instruction::expression::GetArrayElement {},
-        // ));
+        match self.src.get_typeinfo(instructions) {
+            TypeInfo::Array(_, _) => {}
+            TypeInfo::Pointer(_) => {}
+            _ => panic!("Bracket is only available at array or pointer type"),
+        }
+        self.index.emit(instructions);
+        if self.index.is_return_reference() {
+            instructions.push(PushStack {
+                operand: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
+        self.src.emit(instructions);
+        instructions.push(PopStack {
+            operand: Operand::Register(1),
+        });
+        instructions.push(Bracket {
+            operand_from: Operand::Register(0),
+            operand_idx: Operand::Register(1),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        if let TypeInfo::Array(t, _) = self.src.get_typeinfo(instructions) {
-            *t
-        } else {
-            panic!("Bracket on non-array type");
+        match self.src.get_typeinfo(instructions) {
+            TypeInfo::Array(t, _) => *t,
+            TypeInfo::Pointer(t) => *t,
+            _ => panic!("Bracket is only available at array or pointer type"),
         }
     }
     fn is_return_reference(&self) -> bool {
-        panic!("PostBracket.is_return_reference not implemented");
+        true
     }
 }
 
