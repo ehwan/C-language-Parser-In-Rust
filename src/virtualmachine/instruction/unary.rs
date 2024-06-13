@@ -58,9 +58,10 @@ pub struct Cast {
 }
 impl Instruction for Cast {
     fn execute(&self, program: &mut VirtualProgram) {
-        let rhs = get_operand_value(program, &self.operand_from);
-        let casted = rhs.cast_to(&self.info).expect("Invalid cast");
-        *get_operand_value_mut(program, &self.operand_to) = casted;
+        let rhs_casted = get_operand_value(program, &self.operand_from)
+            .cast_to(&self.info)
+            .expect("Invalid cast");
+        *get_operand_value_mut(program, &self.operand_to) = rhs_casted;
     }
 }
 
@@ -190,8 +191,9 @@ pub struct Bracket {
 }
 impl Instruction for Bracket {
     fn execute(&self, program: &mut VirtualProgram) {
-        let ptr = get_operand_value(program, &self.operand_from).to_u64() as u64;
-        let idx = get_operand_value(program, &self.operand_idx).to_u64() as u64;
-        *get_operand_value_mut(program, &self.operand_to) = VariableData::UInt64(ptr + idx);
+        let ptr = get_operand_value(program, &self.operand_from).to_i64();
+        let idx = get_operand_value(program, &self.operand_idx).to_i64();
+        *get_operand_value_mut(program, &self.operand_to) =
+            VariableData::UInt64((ptr + idx) as u64);
     }
 }

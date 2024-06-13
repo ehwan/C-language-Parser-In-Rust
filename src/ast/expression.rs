@@ -404,7 +404,6 @@ impl Expression for PostParen {
             // call function
             instructions.push(Call {
                 label: name.clone(),
-                // address: Operand::Value(VariableData::UInt64(funcdata.address.unwrap() as u64)),
             });
 
             // pop arguments from stack
@@ -529,20 +528,16 @@ pub struct CastExpression {
 impl Expression for CastExpression {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         self.src.emit(instructions);
-        instructions.push(MoveRegister {
-            operand_from: Operand::Register(0),
-            operand_to: Operand::Register(1),
-        });
         if self.src.is_return_reference(instructions) {
             instructions.push(Cast {
                 info: self.typeinfo.clone(),
-                operand_from: Operand::Derefed(1, 0),
+                operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
             });
         } else {
             instructions.push(Cast {
                 info: self.typeinfo.clone(),
-                operand_from: Operand::Register(1),
+                operand_from: Operand::Register(0),
                 operand_to: Operand::Register(0),
             });
         }
@@ -640,7 +635,8 @@ impl Expression for UnaryExpression {
                     | TypeInfo::UInt64
                     | TypeInfo::Float32
                     | TypeInfo::Float64
-                    | TypeInfo::Pointer(_) => {
+                    | TypeInfo::Pointer(_)
+                    | TypeInfo::Array(_, _) => {
                         if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
@@ -664,7 +660,9 @@ impl Expression for UnaryExpression {
                 | TypeInfo::Int64
                 | TypeInfo::UInt64
                 | TypeInfo::Float32
-                | TypeInfo::Float64 => {
+                | TypeInfo::Float64
+                | TypeInfo::Pointer(_)
+                | TypeInfo::Array(_, _) => {
                     if self.src.is_return_reference(instructions) {
                         instructions.push(MoveRegister {
                             operand_from: Operand::Derefed(0, 0),
@@ -690,7 +688,8 @@ impl Expression for UnaryExpression {
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
                     | TypeInfo::UInt64
-                    | TypeInfo::Pointer(_) => {
+                    | TypeInfo::Pointer(_)
+                    | TypeInfo::Array(_, _) => {
                         if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
@@ -716,7 +715,9 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int32
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
-                    | TypeInfo::UInt64 => {
+                    | TypeInfo::UInt64
+                    | TypeInfo::Pointer(_)
+                    | TypeInfo::Array(_, _) => {
                         if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
@@ -844,10 +845,26 @@ impl Expression for UnaryExpression {
                 TypeInfo::UInt64 => TypeInfo::Int64,
                 TypeInfo::Float32 => TypeInfo::Float32,
                 TypeInfo::Float64 => TypeInfo::Float64,
+                TypeInfo::Pointer(t) => TypeInfo::Pointer(t),
+                TypeInfo::Array(t, _) => TypeInfo::Pointer(t),
                 _ => panic!("Unary Minus not implemented for {:?}", srctype),
             },
             UnaryOperator::LogicalNot => TypeInfo::UInt8,
-            UnaryOperator::BitwiseNot => srctype,
+            UnaryOperator::BitwiseNot => match srctype {
+                TypeInfo::Int8 => TypeInfo::Int8,
+                TypeInfo::UInt8 => TypeInfo::Int8,
+                TypeInfo::Int16 => TypeInfo::Int16,
+                TypeInfo::UInt16 => TypeInfo::Int16,
+                TypeInfo::Int32 => TypeInfo::Int32,
+                TypeInfo::UInt32 => TypeInfo::Int32,
+                TypeInfo::Int64 => TypeInfo::Int64,
+                TypeInfo::UInt64 => TypeInfo::Int64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                TypeInfo::Pointer(t) => TypeInfo::Pointer(t),
+                TypeInfo::Array(t, _) => TypeInfo::Pointer(t),
+                _ => panic!("BitwiseNot not implemented for {:?}", srctype),
+            },
             UnaryOperator::Dereference => {
                 if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
                     *t
@@ -923,7 +940,8 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int32
             | TypeInfo::UInt64
             | TypeInfo::Int64
-            | TypeInfo::Pointer(_) => {}
+            | TypeInfo::Pointer(_)
+            | TypeInfo::Array(_, _) => {}
             _ => panic!("LogicalBinaryExpression on non-int type (LHS)"),
         }
         match self.rhs.get_typeinfo(instructions) {
@@ -935,7 +953,8 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int32
             | TypeInfo::UInt64
             | TypeInfo::Int64
-            | TypeInfo::Pointer(_) => {}
+            | TypeInfo::Pointer(_)
+            | TypeInfo::Array(_, _) => {}
             _ => panic!("LogicalBinaryExpression on non-int type (RHS)"),
         }
 
@@ -1043,7 +1062,8 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int32
             | TypeInfo::UInt64
             | TypeInfo::Int64
-            | TypeInfo::Pointer(_) => {}
+            | TypeInfo::Pointer(_)
+            | TypeInfo::Array(_, _) => {}
             _ => panic!("LogicalBinaryExpression on non-int type (LHS)"),
         }
         match self.rhs.get_typeinfo(instructions) {
@@ -1055,7 +1075,8 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int32
             | TypeInfo::UInt64
             | TypeInfo::Int64
-            | TypeInfo::Pointer(_) => {}
+            | TypeInfo::Pointer(_)
+            | TypeInfo::Array(_, _) => {}
             _ => panic!("LogicalBinaryExpression on non-int type (RHS)"),
         }
 
@@ -1082,7 +1103,8 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Int64
             | TypeInfo::Float32
             | TypeInfo::Float64
-            | TypeInfo::Pointer(_) => {}
+            | TypeInfo::Pointer(_)
+            | TypeInfo::Array(_, _) => {}
             _ => panic!("ComparisonExpression on non-int type (LHS)"),
         }
         match self.rhs.get_typeinfo(instructions) {
@@ -1096,7 +1118,8 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Int64
             | TypeInfo::Float32
             | TypeInfo::Float64
-            | TypeInfo::Pointer(_) => {}
+            | TypeInfo::Pointer(_)
+            | TypeInfo::Array(_, _) => {}
             _ => panic!("ComparisonExpression on non-int type (LHS)"),
         }
 
@@ -1207,7 +1230,8 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Int64
             | TypeInfo::Float32
             | TypeInfo::Float64
-            | TypeInfo::Pointer(_) => {}
+            | TypeInfo::Pointer(_)
+            | TypeInfo::Array(_, _) => {}
             _ => panic!("ComparisonExpression on non-int type (LHS)"),
         }
         match self.rhs.get_typeinfo(instructions) {
@@ -1221,7 +1245,8 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Int64
             | TypeInfo::Float32
             | TypeInfo::Float64
-            | TypeInfo::Pointer(_) => {}
+            | TypeInfo::Pointer(_)
+            | TypeInfo::Array(_, _) => {}
             _ => panic!("ComparisonExpression on non-int type (LHS)"),
         }
 
