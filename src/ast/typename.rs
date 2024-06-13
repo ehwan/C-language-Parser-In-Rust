@@ -47,7 +47,9 @@ impl TypeInfo {
             TypeInfo::Union(info) => info.sizeof(),
             TypeInfo::Enum(_) => 8,
             TypeInfo::Pointer(_) => 8,
-            TypeInfo::Array(info, size) => info.sizeof() * size.unwrap_or(1),
+            TypeInfo::Array(info, size) => {
+                info.sizeof() * size.expect("sizeof: Array size is not defined")
+            }
             TypeInfo::Function(_, _) => panic!("sizeof(function) is invalid"),
             TypeInfo::Identifier(_) => panic!("sizeof(identifier) is invalid"),
         }

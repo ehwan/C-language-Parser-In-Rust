@@ -58,9 +58,10 @@ pub struct Cast {
 }
 impl Instruction for Cast {
     fn execute(&self, program: &mut VirtualProgram) {
-        let rhs = get_operand_value(program, &self.operand_from);
-        let casted = rhs.cast_to(&self.info).expect("Invalid cast");
-        *get_operand_value_mut(program, &self.operand_to) = casted;
+        let rhs_casted = get_operand_value(program, &self.operand_from)
+            .cast_to(&self.info)
+            .expect("Invalid cast");
+        *get_operand_value_mut(program, &self.operand_to) = rhs_casted;
     }
 }
 
@@ -154,13 +155,6 @@ impl Instruction for LogicalNot {
                     0
                 }
             }
-            VariableData::Pointer(value) => {
-                if *value == 0 {
-                    1
-                } else {
-                    0
-                }
-            }
             _ => panic!("Invalid type for logical not"),
         };
         *var = VariableData::UInt8(res as u8);
@@ -190,27 +184,16 @@ impl Instruction for BitwiseNot {
 }
 
 #[derive(Debug)]
-pub struct AddressOf {
-    pub operand_from: Operand,
-    pub operand_to: Operand,
-}
-impl Instruction for AddressOf {
-    fn execute(&self, program: &mut VirtualProgram) {
-        let rhs = get_operand_value(program, &self.operand_from).to_u64() as usize;
-        *get_operand_value_mut(program, &self.operand_to) = VariableData::Pointer(rhs);
-    }
-}
-
-#[derive(Debug)]
-pub struct Dereference {
+pub struct Bracket {
     pub operand_from: Operand, // register that have value of stack index
+    pub operand_idx: Operand,
     pub operand_to: Operand,
 }
-impl Instruction for Dereference {
+impl Instruction for Bracket {
     fn execute(&self, program: &mut VirtualProgram) {
-        let ptr = get_operand_value(program, &self.operand_from).clone();
-        if let VariableData::Pointer(ptr) = ptr {
-            *get_operand_value_mut(program, &self.operand_to) = VariableData::UInt64(ptr as u64);
-        }
+        let ptr = get_operand_value(program, &self.operand_from).to_i64();
+        let idx = get_operand_value(program, &self.operand_idx).to_i64();
+        *get_operand_value_mut(program, &self.operand_to) =
+            VariableData::UInt64((ptr + idx) as u64);
     }
 }

@@ -88,10 +88,10 @@ impl InstructionGenerator {
     }
     /// make new named variable on current scope
     /// this allocates stack space
-    pub fn declare_variable(&mut self, name: &str, type_info: &TypeInfo) {
+    pub fn declare_variable(&mut self, name: &str, type_info: &TypeInfo, count: usize) {
         let (offset, scope) = if let Some(func_scope) = &mut self.function_scope {
             let offset = func_scope.declared_variable_count;
-            func_scope.declared_variable_count += 1;
+            func_scope.declared_variable_count += count;
 
             func_scope.max_variable_count = func_scope
                 .max_variable_count
@@ -109,7 +109,7 @@ impl InstructionGenerator {
         if let Some(_) = old {
             panic!("variable {} is already declared", name);
         }
-        scope.declared_variable_count += 1;
+        scope.declared_variable_count += count;
     }
     // if variable's data is already in stack (e.g. function arguments)
     pub fn link_variable(&mut self, name: &str, type_info: &TypeInfo, offset: isize) {

@@ -1,3 +1,4 @@
+use super::expression::InitializerListExpression;
 use super::{expression::Expression, typename::TypeInfo};
 use crate::virtualmachine::instruction::binary::*;
 use crate::virtualmachine::instruction::generation::FunctionInfo;
@@ -118,7 +119,7 @@ impl Statement for SwitchStatement {
 
         // push target to stack
         self.target.emit(instructions);
-        if self.target.is_return_reference() {
+        if self.target.is_return_reference(instructions) {
             instructions.push(PushStack {
                 operand: Operand::Derefed(0, 0),
             });
@@ -189,7 +190,7 @@ impl Statement for CaseStatement {
         // evaluate value
         self.value.emit(instructions);
         // register1 = value
-        if self.value.is_return_reference() {
+        if self.value.is_return_reference(instructions) {
             instructions.push(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(1),
@@ -310,7 +311,7 @@ impl Statement for WhileStatement {
 
         instructions.set_label(&start_label);
         self.cond.emit(instructions);
-        if self.cond.is_return_reference() {
+        if self.cond.is_return_reference(instructions) {
             instructions.push(JumpZero {
                 label: end_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
@@ -363,7 +364,7 @@ impl Statement for DoWhileStatement {
 
         instructions.set_label(&continue_label);
         self.cond.emit(instructions);
-        if self.cond.is_return_reference() {
+        if self.cond.is_return_reference(instructions) {
             instructions.push(JumpNonZero {
                 label: start_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
@@ -414,7 +415,7 @@ impl Statement for ForStatement {
         self.init.emit(instructions);
         instructions.set_label(&cond_label);
         self.cond.emit(instructions);
-        if self.cond.is_return_reference() {
+        if self.cond.is_return_reference(instructions) {
             instructions.push(JumpZero {
                 label: end_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
@@ -469,7 +470,7 @@ impl Statement for ReturnStatement {
         if let Some(expr) = &self.expr {
             expr.emit(instructions);
             // force return as value
-            if expr.is_return_reference() {
+            if expr.is_return_reference(instructions) {
                 instructions.push(MoveRegister {
                     operand_from: Operand::Derefed(0, 0),
                     operand_to: Operand::Register(0),
@@ -539,57 +540,227 @@ impl Statement for DeclarationStatement {
                 panic!("Anonymous variable is not allowed in declaration statement");
             } else {
                 // variable declaration
-                instructions.declare_variable(declaration.0.as_ref().unwrap(), &declaration.1);
+
                 if let Some(initial_value) = &declaration.2 {
-                    // register0 = initial value
-                    initial_value.emit(instructions);
+                    // variable with initial value
 
-                    // register1 = (type-casting) register0
-                    if initial_value.is_return_reference() {
-                        instructions.push(Assign {
-                            lhs_type: declaration.1.clone(),
-                            lhs: Operand::Register(1),
-                            rhs: Operand::Derefed(0, 0),
-                        });
-                    } else {
-                        instructions.push(Assign {
-                            lhs_type: declaration.1.clone(),
-                            lhs: Operand::Register(1),
-                            rhs: Operand::Register(0),
-                        });
-                    }
-                    // push register1 to stack
-                    instructions.push(PushStack {
-                        operand: Operand::Register(1),
-                    });
-                } else {
-                    // it is function declaration
-                    if let TypeInfo::Function(ret, args) = &declaration.1 {
-                        let function_data = FunctionInfo {
-                            return_type: *ret.clone(),
-                            params: args
-                                .iter()
-                                .map(|typeinfo| (None, typeinfo.clone()))
-                                .collect(),
-                            is_defined: false,
-                        };
-                        let _old = instructions
-                            .functions
-                            .insert(declaration.0.as_ref().unwrap().clone(), function_data);
-                    } else {
-                        // variable with default value
+                    // check type
+                    match &declaration.1 {
+                        TypeInfo::Function(_, _) => {
+                            panic!( "Function declaration cannot have initial value; something went wrong");
+                        }
+                        TypeInfo::Struct(_sinfo) => {
+                            panic!(
+                                "Struct declaration in declaration statement is not implemented"
+                            );
+                        }
+                        TypeInfo::Union(_uinfo) => {
+                            panic!("Union declaration in declaration statement is not implemented");
+                        }
 
-                        // register1 = default value
-                        instructions.push(MoveRegister {
-                            operand_from: Operand::Value(VariableData::init_default(
+                        // array
+                        TypeInfo::Array(type_, size) => {
+                            // initializer must be initializer list
+                            let initial_value = initial_value
+                                .as_any()
+                                .downcast_ref::<InitializerListExpression>()
+                                .expect("Array initializer must be initializer list");
+
+                            let size = match size {
+                                Some(size) => {
+                                    if initial_value.initializers.len() > *size {
+                                        panic!("Too many initializers for array");
+                                    }
+                                    *size
+                                }
+                                None => initial_value.initializers.len(),
+                            };
+                            if size == 0 {
+                                panic!("Array size must be greater than 0");
+                            }
+                            let init_with_default = size - initial_value.initializers.len();
+
+                            // link name to stack
+                            instructions.declare_variable(
+                                declaration.0.as_ref().unwrap(),
+                                &TypeInfo::Array(type_.clone(), Some(size)),
+                                size,
+                            );
+
+                            // init with initializer
+                            for initializer in initial_value.initializers.iter() {
+                                // register0 = initial value
+                                initializer.emit(instructions);
+
+                                // register1 = (type-casting) register0
+                                if initializer.is_return_reference(instructions) {
+                                    instructions.push(Assign {
+                                        lhs_type: *type_.clone(),
+                                        lhs: Operand::Register(1),
+                                        rhs: Operand::Derefed(0, 0),
+                                    });
+                                } else {
+                                    instructions.push(Assign {
+                                        lhs_type: *type_.clone(),
+                                        lhs: Operand::Register(1),
+                                        rhs: Operand::Register(0),
+                                    });
+                                }
+                                // push to stack
+                                instructions.push(PushStack {
+                                    operand: Operand::Register(1),
+                                });
+                            }
+                            for _ in 0..init_with_default {
+                                // push to stack
+                                instructions.push(PushStack {
+                                    operand: Operand::Value(VariableData::init_default(type_)),
+                                });
+                            }
+                        }
+
+                        // primitive types + pointer
+                        TypeInfo::UInt8
+                        | TypeInfo::UInt16
+                        | TypeInfo::UInt32
+                        | TypeInfo::UInt64
+                        | TypeInfo::Int8
+                        | TypeInfo::Int16
+                        | TypeInfo::Int32
+                        | TypeInfo::Int64
+                        | TypeInfo::Float32
+                        | TypeInfo::Float64
+                        | TypeInfo::Pointer(_) => {
+                            // link name to stack
+                            instructions.declare_variable(
+                                declaration.0.as_ref().unwrap(),
                                 &declaration.1,
-                            )),
-                            operand_to: Operand::Register(1),
-                        });
-                        // push register1 to stack
-                        instructions.push(PushStack {
-                            operand: Operand::Register(1),
-                        });
+                                1,
+                            );
+
+                            // register0 = initial value
+                            initial_value.emit(instructions);
+
+                            // register1 = (type-casting) register0
+                            if initial_value.is_return_reference(instructions) {
+                                instructions.push(Assign {
+                                    lhs_type: declaration.1.clone(),
+                                    lhs: Operand::Register(1),
+                                    rhs: Operand::Derefed(0, 0),
+                                });
+                            } else {
+                                instructions.push(Assign {
+                                    lhs_type: declaration.1.clone(),
+                                    lhs: Operand::Register(1),
+                                    rhs: Operand::Register(0),
+                                });
+                            }
+                            // push register1 to stack
+                            instructions.push(PushStack {
+                                operand: Operand::Register(1),
+                            });
+                        }
+                        _ => panic!("Invalid type for variable declaration"),
+                    }
+                } else {
+                    // variable without initial value
+
+                    match &declaration.1 {
+                        TypeInfo::Function(return_type, params) => {
+                            // check if its already declared
+                            let old = instructions.functions.get(declaration.0.as_ref().unwrap());
+                            if let Some(old) = old {
+                                // function is declared
+
+                                // check parameter types are same
+                                let param_equal =
+                                    old.params.iter().map(|(_, type_)| type_).eq(params.iter());
+                                if param_equal == false {
+                                    panic!(
+                                        "Function {} is already declared with different parameter types",
+                                        declaration.0.as_ref().unwrap()
+                                    );
+                                }
+
+                                // check return type is same
+                                if &old.return_type != return_type.as_ref() {
+                                    panic!(
+                                        "Function {} is already declared with different return type",
+                                        declaration.0.as_ref().unwrap()
+                                    );
+                                }
+                            } else {
+                                // function is not declared
+                                let params: Vec<_> = params
+                                    .iter()
+                                    .map(|typeinfo| (None, typeinfo.clone()))
+                                    .collect();
+                                let function_data = FunctionInfo {
+                                    return_type: *return_type.clone(),
+                                    params,
+                                    is_defined: false,
+                                };
+                                instructions
+                                    .functions
+                                    .insert(declaration.0.as_ref().unwrap().clone(), function_data);
+                            }
+                        }
+                        TypeInfo::Struct(_sinfo) => {
+                            panic!(
+                                "Struct declaration in declaration statement is not implemented"
+                            );
+                        }
+                        TypeInfo::Union(_uinfo) => {
+                            panic!("Union declaration in declaration statement is not implemented");
+                        }
+
+                        TypeInfo::Array(type_, size) => {
+                            let size =
+                                size.expect("Array declaration without initializer must have size");
+                            if size == 0 {
+                                panic!("Array size must be greater than 0");
+                            }
+
+                            // link name to stack
+                            instructions.declare_variable(
+                                declaration.0.as_ref().unwrap(),
+                                &TypeInfo::Array(type_.clone(), Some(size)),
+                                size,
+                            );
+
+                            for _ in 0..size {
+                                // push to stack
+                                instructions.push(PushStack {
+                                    operand: Operand::Value(VariableData::init_default(type_)),
+                                });
+                            }
+                        }
+
+                        // primitive types + pointer
+                        TypeInfo::UInt8
+                        | TypeInfo::UInt16
+                        | TypeInfo::UInt32
+                        | TypeInfo::UInt64
+                        | TypeInfo::Int8
+                        | TypeInfo::Int16
+                        | TypeInfo::Int32
+                        | TypeInfo::Int64
+                        | TypeInfo::Float32
+                        | TypeInfo::Float64
+                        | TypeInfo::Pointer(_) => {
+                            // link name to stack
+                            instructions.declare_variable(
+                                declaration.0.as_ref().unwrap(),
+                                &declaration.1,
+                                1,
+                            );
+
+                            // push default value to stack
+                            instructions.push(PushStack {
+                                operand: Operand::Value(VariableData::init_default(&declaration.1)),
+                            });
+                        }
+                        _ => {}
                     }
                 }
             }

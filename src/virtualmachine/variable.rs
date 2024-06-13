@@ -13,7 +13,6 @@ pub enum VariableData {
     UInt64(u64),
     Float32(f32),
     Float64(f64),
-    Pointer(usize),
 }
 
 impl Default for VariableData {
@@ -36,7 +35,7 @@ impl VariableData {
             TypeInfo::UInt64 => VariableData::UInt64(0),
             TypeInfo::Float32 => VariableData::Float32(0.0),
             TypeInfo::Float64 => VariableData::Float64(0.0),
-            TypeInfo::Pointer(_) => VariableData::Pointer(0),
+            TypeInfo::Pointer(_) => VariableData::UInt64(0),
             _ => panic!("VariableData::init_default: {:?}", typeinfo),
         }
     }
@@ -53,7 +52,7 @@ impl VariableData {
                 TypeInfo::Int64 => Some(VariableData::Int64(*lu8 as i64)),
                 TypeInfo::Float32 => Some(VariableData::Float32(*lu8 as f32)),
                 TypeInfo::Float64 => Some(VariableData::Float64(*lu8 as f64)),
-                TypeInfo::Pointer(_) => Some(VariableData::Pointer(*lu8 as usize)),
+                TypeInfo::Pointer(_) => Some(VariableData::UInt64(*lu8 as u64)),
                 _ => None,
             },
             VariableData::UInt16(lu16) => match typeinfo {
@@ -67,7 +66,7 @@ impl VariableData {
                 TypeInfo::Int64 => Some(VariableData::Int64(*lu16 as i64)),
                 TypeInfo::Float32 => Some(VariableData::Float32(*lu16 as f32)),
                 TypeInfo::Float64 => Some(VariableData::Float64(*lu16 as f64)),
-                TypeInfo::Pointer(_) => Some(VariableData::Pointer(*lu16 as usize)),
+                TypeInfo::Pointer(_) => Some(VariableData::UInt64(*lu16 as u64)),
                 _ => None,
             },
             VariableData::UInt32(lu32) => match typeinfo {
@@ -81,7 +80,7 @@ impl VariableData {
                 TypeInfo::Int64 => Some(VariableData::Int64(*lu32 as i64)),
                 TypeInfo::Float32 => Some(VariableData::Float32(*lu32 as f32)),
                 TypeInfo::Float64 => Some(VariableData::Float64(*lu32 as f64)),
-                TypeInfo::Pointer(_) => Some(VariableData::Pointer(*lu32 as usize)),
+                TypeInfo::Pointer(_) => Some(VariableData::UInt64(*lu32 as u64)),
                 _ => None,
             },
             VariableData::UInt64(lu64) => match typeinfo {
@@ -95,7 +94,7 @@ impl VariableData {
                 TypeInfo::Int64 => Some(VariableData::Int64(*lu64 as i64)),
                 TypeInfo::Float32 => Some(VariableData::Float32(*lu64 as f32)),
                 TypeInfo::Float64 => Some(VariableData::Float64(*lu64 as f64)),
-                TypeInfo::Pointer(_) => Some(VariableData::Pointer(*lu64 as usize)),
+                TypeInfo::Pointer(_) => Some(VariableData::UInt64(*lu64 as u64)),
                 _ => None,
             },
             VariableData::Int8(li8) => match typeinfo {
@@ -109,7 +108,7 @@ impl VariableData {
                 TypeInfo::Int64 => Some(VariableData::Int64(*li8 as i64)),
                 TypeInfo::Float32 => Some(VariableData::Float32(*li8 as f32)),
                 TypeInfo::Float64 => Some(VariableData::Float64(*li8 as f64)),
-                TypeInfo::Pointer(_) => Some(VariableData::Pointer(*li8 as usize)),
+                TypeInfo::Pointer(_) => Some(VariableData::UInt64(*li8 as u64)),
                 _ => None,
             },
             VariableData::Int16(li16) => match typeinfo {
@@ -123,7 +122,7 @@ impl VariableData {
                 TypeInfo::Int64 => Some(VariableData::Int64(*li16 as i64)),
                 TypeInfo::Float32 => Some(VariableData::Float32(*li16 as f32)),
                 TypeInfo::Float64 => Some(VariableData::Float64(*li16 as f64)),
-                TypeInfo::Pointer(_) => Some(VariableData::Pointer(*li16 as usize)),
+                TypeInfo::Pointer(_) => Some(VariableData::UInt64(*li16 as u64)),
                 _ => None,
             },
             VariableData::Int32(li32) => match typeinfo {
@@ -137,7 +136,7 @@ impl VariableData {
                 TypeInfo::Int64 => Some(VariableData::Int64(*li32 as i64)),
                 TypeInfo::Float32 => Some(VariableData::Float32(*li32 as f32)),
                 TypeInfo::Float64 => Some(VariableData::Float64(*li32 as f64)),
-                TypeInfo::Pointer(_) => Some(VariableData::Pointer(*li32 as usize)),
+                TypeInfo::Pointer(_) => Some(VariableData::UInt64(*li32 as u64)),
                 _ => None,
             },
             VariableData::Int64(li64) => match typeinfo {
@@ -151,7 +150,7 @@ impl VariableData {
                 TypeInfo::Int64 => Some(VariableData::Int64(*li64)),
                 TypeInfo::Float32 => Some(VariableData::Float32(*li64 as f32)),
                 TypeInfo::Float64 => Some(VariableData::Float64(*li64 as f64)),
-                TypeInfo::Pointer(_) => Some(VariableData::Pointer(*li64 as usize)),
+                TypeInfo::Pointer(_) => Some(VariableData::UInt64(*li64 as u64)),
                 _ => None,
             },
             VariableData::Float32(lf32) => match typeinfo {
@@ -180,20 +179,6 @@ impl VariableData {
                 TypeInfo::Float64 => Some(VariableData::Float64(*lf64)),
                 _ => None,
             },
-            VariableData::Pointer(lptr) => match typeinfo {
-                TypeInfo::UInt8 => Some(VariableData::UInt8(*lptr as u8)),
-                TypeInfo::UInt16 => Some(VariableData::UInt16(*lptr as u16)),
-                TypeInfo::UInt32 => Some(VariableData::UInt32(*lptr as u32)),
-                TypeInfo::UInt64 => Some(VariableData::UInt64(*lptr as u64)),
-                TypeInfo::Int8 => Some(VariableData::Int8(*lptr as i8)),
-                TypeInfo::Int16 => Some(VariableData::Int16(*lptr as i16)),
-                TypeInfo::Int32 => Some(VariableData::Int32(*lptr as i32)),
-                TypeInfo::Int64 => Some(VariableData::Int64(*lptr as i64)),
-                TypeInfo::Float32 => Some(VariableData::Float32(*lptr as f32)),
-                TypeInfo::Float64 => Some(VariableData::Float64(*lptr as f64)),
-                TypeInfo::Pointer(_) => Some(VariableData::Pointer(*lptr as usize)),
-                _ => None,
-            },
             _ => None,
         }
     }
@@ -208,7 +193,7 @@ impl VariableData {
             TypeInfo::UInt16 => VariableData::UInt16(i as u16),
             TypeInfo::UInt32 => VariableData::UInt32(i as u32),
             TypeInfo::UInt64 => VariableData::UInt64(i as u64),
-            TypeInfo::Pointer(_) => VariableData::Pointer(i as usize),
+            TypeInfo::Pointer(_) => VariableData::UInt64(i as u64),
             _ => panic!("VariableData::from_i64: {:?}", typeinfo),
         }
     }
@@ -222,7 +207,7 @@ impl VariableData {
             TypeInfo::UInt16 => VariableData::UInt16(i as u16),
             TypeInfo::UInt32 => VariableData::UInt32(i as u32),
             TypeInfo::UInt64 => VariableData::UInt64(i),
-            TypeInfo::Pointer(_) => VariableData::Pointer(i as usize),
+            TypeInfo::Pointer(_) => VariableData::UInt64(i as u64),
             _ => panic!("VariableData::from_u64: {:?}", typeinfo),
         }
     }
@@ -243,7 +228,6 @@ impl VariableData {
             VariableData::UInt16(i) => *i as i64,
             VariableData::UInt32(i) => *i as i64,
             VariableData::UInt64(i) => *i as i64,
-            VariableData::Pointer(ptr) => *ptr as i64,
             _ => panic!("VariableData::to_i64: {:?}", self),
         }
     }
@@ -257,7 +241,6 @@ impl VariableData {
             VariableData::UInt16(i) => *i as u64,
             VariableData::UInt32(i) => *i as u64,
             VariableData::UInt64(i) => *i,
-            VariableData::Pointer(ptr) => *ptr as u64,
             _ => panic!("VariableData::to_u64: {:?}", self),
         }
     }
@@ -273,7 +256,6 @@ impl VariableData {
             VariableData::UInt64(i) => *i as f64,
             VariableData::Float32(f) => *f as f64,
             VariableData::Float64(f) => *f,
-            VariableData::Pointer(i) => *i as f64,
             _ => panic!("VariableData::to_f64: {:?}", self),
         }
     }
@@ -293,7 +275,6 @@ impl VariableData {
             VariableData::UInt16(_) => true,
             VariableData::UInt32(_) => true,
             VariableData::UInt64(_) => true,
-            VariableData::Pointer(_) => true,
             _ => false,
         }
     }
