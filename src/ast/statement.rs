@@ -10,7 +10,6 @@ use crate::virtualmachine::scope::FunctionScope;
 use crate::virtualmachine::variable::VariableData;
 
 use std::any::Any;
-use std::cell::RefCell;
 
 pub trait Statement: core::fmt::Debug + Any {
     fn emit(&self, instructions: &mut InstructionGenerator);
@@ -81,9 +80,10 @@ pub struct IfStatement {
 }
 impl Statement for IfStatement {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        self.cond.emit(instructions);
         let else_label = instructions.get_unique_label();
         let end_label = instructions.get_unique_label();
+
+        self.cond.emit(instructions);
         instructions.push(JumpZero {
             label: else_label.clone(),
             operand_cond: Operand::Register(0),
@@ -120,7 +120,7 @@ impl Statement for SwitchStatement {
         self.target.emit(instructions);
         if self.target.is_return_reference() {
             instructions.push(PushStack {
-                operand: Operand::Derefed(0),
+                operand: Operand::Derefed(0, 0),
             });
         } else {
             instructions.push(PushStack {
@@ -135,32 +135,24 @@ impl Statement for SwitchStatement {
         // body
         self.statement.emit(instructions);
         // check if the pattern matched and default is defined
-        instructions.push(PopStack {
-            operand: Operand::Register(0),
-        });
         if instructions.labels.get(&default_label).is_some() {
             // if not matched, set pattern matched to true and goto default
-            instructions.push(PushStack {
-                operand: Operand::Value(VariableData::UInt8(1)),
+            instructions.push(MoveRegister {
+                operand_from: Operand::Derefed(STACK_POINTER_REGISTER, -1),
+                operand_to: Operand::Register(0),
             });
             instructions.push(JumpZero {
                 label: default_label.clone(),
                 operand_cond: Operand::Register(0),
-            });
-        } else {
-            instructions.push(PushStack {
-                operand: Operand::Register(0),
             });
         }
 
         // end label here, cleanup
         instructions.set_label(&end_label);
         // pop pattern-matched state and target from stack
-        instructions.push(PopStack {
-            operand: Operand::Register(0),
-        });
-        instructions.push(PopStack {
-            operand: Operand::Register(0),
+        instructions.push(SubAssign {
+            lhs: Operand::Register(STACK_POINTER_REGISTER),
+            rhs: Operand::Value(VariableData::UInt64(2)),
         });
 
         instructions
@@ -183,11 +175,9 @@ impl Statement for CaseStatement {
         let comparison_skip_label = instructions.get_unique_label();
 
         // copy state from stack
-        instructions.push(PopStack {
-            operand: Operand::Register(0),
-        });
-        instructions.push(PushStack {
-            operand: Operand::Register(0),
+        instructions.push(MoveRegister {
+            operand_from: Operand::Derefed(STACK_POINTER_REGISTER, -1),
+            operand_to: Operand::Register(0),
         });
         // if the pattern matched already, skip comparison
         instructions.push(JumpNonZero {
@@ -201,7 +191,7 @@ impl Statement for CaseStatement {
         // register1 = value
         if self.value.is_return_reference() {
             instructions.push(MoveRegister {
-                operand_from: Operand::Derefed(0),
+                operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(1),
             });
         } else {
@@ -210,21 +200,12 @@ impl Statement for CaseStatement {
                 operand_to: Operand::Register(1),
             });
         }
-        // register2 = already matched?
-        instructions.push(PopStack {
-            operand: Operand::Register(2),
-        });
         // register0 = target
-        instructions.push(PopStack {
-            operand: Operand::Register(0),
+        instructions.push(MoveRegister {
+            operand_from: Operand::Derefed(STACK_POINTER_REGISTER, -2),
+            operand_to: Operand::Register(0),
         });
-        instructions.push(PushStack {
-            operand: Operand::Register(0),
-        });
-        instructions.push(PushStack {
-            operand: Operand::Register(2),
-        });
-        // register3 = result of comparison
+        // register2 = result of comparison
         instructions.push(Equal {
             lhs: Operand::Register(0),
             rhs: Operand::Register(1),
@@ -235,11 +216,9 @@ impl Statement for CaseStatement {
             operand_cond: Operand::Register(2),
         });
 
-        instructions.push(PopStack {
-            operand: Operand::Register(0),
-        });
-        instructions.push(PushStack {
-            operand: Operand::Value(VariableData::UInt8(1)),
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::UInt8(1)),
+            operand_to: Operand::Derefed(STACK_POINTER_REGISTER, -1),
         });
 
         instructions.set_label(&comparison_skip_label);
@@ -268,6 +247,11 @@ impl Statement for DefaultStatement {
             label: default_end_label.clone(),
         });
         instructions.set_label(&default_label);
+        // set pattern matched
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::UInt8(1)),
+            operand_to: Operand::Derefed(STACK_POINTER_REGISTER, -1),
+        });
         self.statement.emit(instructions);
         instructions.set_label(&default_end_label);
     }
@@ -329,7 +313,7 @@ impl Statement for WhileStatement {
         if self.cond.is_return_reference() {
             instructions.push(JumpZero {
                 label: end_label.clone(),
-                operand_cond: Operand::Derefed(0),
+                operand_cond: Operand::Derefed(0, 0),
             });
         } else {
             instructions.push(JumpZero {
@@ -382,7 +366,7 @@ impl Statement for DoWhileStatement {
         if self.cond.is_return_reference() {
             instructions.push(JumpNonZero {
                 label: start_label.clone(),
-                operand_cond: Operand::Derefed(0),
+                operand_cond: Operand::Derefed(0, 0),
             });
         } else {
             instructions.push(JumpNonZero {
@@ -433,7 +417,7 @@ impl Statement for ForStatement {
         if self.cond.is_return_reference() {
             instructions.push(JumpZero {
                 label: end_label.clone(),
-                operand_cond: Operand::Derefed(0),
+                operand_cond: Operand::Derefed(0, 0),
             });
         } else {
             instructions.push(JumpZero {
@@ -487,14 +471,9 @@ impl Statement for ReturnStatement {
             // force return as value
             if expr.is_return_reference() {
                 instructions.push(MoveRegister {
-                    operand_from: Operand::Derefed(0),
-                    operand_to: Operand::Register(1),
-                });
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
+                    operand_from: Operand::Derefed(0, 0),
                     operand_to: Operand::Register(0),
                 });
-            } else {
             }
         }
         instructions.push(Return {});
@@ -570,7 +549,7 @@ impl Statement for DeclarationStatement {
                         instructions.push(Assign {
                             lhs_type: declaration.1.clone(),
                             lhs: Operand::Register(1),
-                            rhs: Operand::Derefed(0),
+                            rhs: Operand::Derefed(0, 0),
                         });
                     } else {
                         instructions.push(Assign {

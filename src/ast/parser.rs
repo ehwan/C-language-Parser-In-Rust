@@ -943,7 +943,7 @@ impl ASTParser {
                  op: BinaryOperator,
                  rhs: Box<dyn Expression>|
                  -> Box<dyn Expression> {
-                    Box::new(BinaryExpression { op, lhs, rhs })
+                    Box::new(ComparisonExpression { op, lhs, rhs })
                 },
             );
             relational_expression.borrow_mut().assign(relational);
@@ -966,7 +966,7 @@ impl ASTParser {
                  op: BinaryOperator,
                  rhs: Box<dyn Expression>|
                  -> Box<dyn Expression> {
-                    Box::new(BinaryExpression { op, lhs, rhs })
+                    Box::new(ComparisonExpression { op, lhs, rhs })
                 },
             );
             equality_expression.borrow_mut().assign(equality);
@@ -978,7 +978,7 @@ impl ASTParser {
             | and_expression '&' equality_expression
             ;
             */
-            let op = rp::one(Token::AndOp).output(BinaryOperator::BitwiseAnd);
+            let op = rp::one(Token::Ampersand).output(BinaryOperator::BitwiseAnd);
             let and = equality_expression.clone().reduce_left(
                 rp::seq!(op, equality_expression.clone()),
                 |lhs: Box<dyn Expression>,
@@ -1042,7 +1042,7 @@ impl ASTParser {
                  op: BinaryOperator,
                  rhs: Box<dyn Expression>|
                  -> Box<dyn Expression> {
-                    Box::new(BinaryExpression { op, lhs, rhs })
+                    Box::new(LogicalBinaryExpression { op, lhs, rhs })
                 },
             );
             logical_and_expression.borrow_mut().assign(logical_and);
@@ -1062,7 +1062,7 @@ impl ASTParser {
                  op: BinaryOperator,
                  rhs: Box<dyn Expression>|
                  -> Box<dyn Expression> {
-                    Box::new(BinaryExpression { op, lhs, rhs })
+                    Box::new(LogicalBinaryExpression { op, lhs, rhs })
                 },
             );
             logical_or_expression.borrow_mut().assign(logical_or);

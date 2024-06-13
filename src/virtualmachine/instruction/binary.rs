@@ -17,120 +17,48 @@ impl Instruction for LessThan {
             let rhs = get_operand_value(program, &self.rhs);
 
             if lhs.is_signed_integer() {
-                let lhs = lhs.to_i64();
                 if rhs.is_signed_integer() {
+                    let lhs = lhs.to_i64();
                     let rhs = rhs.to_i64();
                     lhs < rhs
-                } else {
+                } else if rhs.is_unsigned_integer() {
+                    let lhs = lhs.to_i64();
                     let rhs = rhs.to_u64();
                     if lhs < 0 {
                         true
                     } else {
                         (lhs as u64) < rhs
                     }
+                } else if rhs.is_float() {
+                    lhs.to_f64() < rhs.to_f64()
+                } else {
+                    panic!("Invalid type for less than");
                 }
-            } else {
-                let lhs = lhs.to_u64();
+            } else if lhs.is_unsigned_integer() {
                 if rhs.is_signed_integer() {
+                    let lhs = lhs.to_u64();
                     let rhs = rhs.to_i64();
                     if rhs < 0 {
                         false
                     } else {
                         lhs < rhs as u64
                     }
-                } else {
+                } else if rhs.is_unsigned_integer() {
+                    let lhs = lhs.to_u64();
                     let rhs = rhs.to_u64();
                     lhs < rhs
-                }
-            }
-        };
-        *get_operand_value_mut(program, &self.to) = VariableData::UInt8(if ret { 1 } else { 0 });
-    }
-}
-
-#[derive(Debug)]
-pub struct LessThanOrEqual {
-    pub lhs: Operand,
-    pub rhs: Operand,
-    pub to: Operand,
-}
-impl Instruction for LessThanOrEqual {
-    fn execute(&self, program: &mut VirtualProgram) {
-        let ret: bool = {
-            let lhs = get_operand_value(program, &self.lhs);
-            let rhs = get_operand_value(program, &self.rhs);
-
-            if lhs.is_signed_integer() {
-                let lhs = lhs.to_i64();
-                if rhs.is_signed_integer() {
-                    let rhs = rhs.to_i64();
-                    lhs <= rhs
+                } else if rhs.is_float() {
+                    lhs.to_f64() < rhs.to_f64()
                 } else {
-                    let rhs = rhs.to_u64();
-                    if lhs < 0 {
-                        true
-                    } else {
-                        (lhs as u64) <= rhs
-                    }
+                    panic!("Invalid type for less than");
                 }
+            } else if lhs.is_float() {
+                lhs.to_f64() < rhs.to_f64()
             } else {
-                let lhs = lhs.to_u64();
-                if rhs.is_signed_integer() {
-                    let rhs = rhs.to_i64();
-                    if rhs < 0 {
-                        false
-                    } else {
-                        lhs <= rhs as u64
-                    }
-                } else {
-                    let rhs = rhs.to_u64();
-                    lhs <= rhs
-                }
+                panic!("Invalid type for less than");
             }
         };
         *get_operand_value_mut(program, &self.to) = VariableData::UInt8(if ret { 1 } else { 0 });
-    }
-}
-
-#[derive(Debug)]
-pub struct GreaterThan {
-    pub lhs: Operand,
-    pub rhs: Operand,
-    pub to: Operand,
-}
-impl Instruction for GreaterThan {
-    fn execute(&self, program: &mut VirtualProgram) {
-        LessThanOrEqual {
-            lhs: self.rhs.clone(),
-            rhs: self.lhs.clone(),
-            to: self.to.clone(),
-        }
-        .execute(program);
-        crate::virtualmachine::instruction::unary::LogicalNot {
-            operand: self.to.clone(),
-        }
-        .execute(program);
-    }
-}
-
-#[derive(Debug)]
-pub struct GreaterThanOrEqual {
-    pub lhs: Operand,
-    pub rhs: Operand,
-    pub to: Operand,
-}
-impl Instruction for GreaterThanOrEqual {
-    fn execute(&self, program: &mut VirtualProgram) {
-        LessThan {
-            lhs: self.rhs.clone(),
-            rhs: self.lhs.clone(),
-            to: self.to.clone(),
-        }
-        .execute(program);
-        crate::virtualmachine::instruction::unary::LogicalNot {
-            operand: self.to.clone(),
-        }
-        .execute(program);
     }
 }
 
@@ -151,15 +79,19 @@ impl Instruction for Equal {
                 if rhs.is_signed_integer() {
                     let rhs = rhs.to_i64();
                     lhs == rhs
-                } else {
+                } else if rhs.is_unsigned_integer() {
                     let rhs = rhs.to_u64();
                     if lhs < 0 {
                         false
                     } else {
                         (lhs as u64) == rhs
                     }
+                } else if rhs.is_float() {
+                    panic!("floating point variables are not equal-comparable");
+                } else {
+                    panic!("Invalid type for equal");
                 }
-            } else {
+            } else if lhs.is_unsigned_integer() {
                 let lhs = lhs.to_u64();
                 if rhs.is_signed_integer() {
                     let rhs = rhs.to_i64();
@@ -168,34 +100,21 @@ impl Instruction for Equal {
                     } else {
                         lhs == rhs as u64
                     }
-                } else {
+                } else if rhs.is_unsigned_integer() {
                     let rhs = rhs.to_u64();
                     lhs == rhs
+                } else if rhs.is_float() {
+                    panic!("floating point variables are not equal-comparable");
+                } else {
+                    panic!("Invalid type for equal");
                 }
+            } else if lhs.is_float() {
+                panic!("floating point variables are not equal-comparable");
+            } else {
+                panic!("Invalid type for equal");
             }
         };
         *get_operand_value_mut(program, &self.to) = VariableData::UInt8(if ret { 1 } else { 0 });
-    }
-}
-
-#[derive(Debug)]
-pub struct NotEqual {
-    pub lhs: Operand,
-    pub rhs: Operand,
-    pub to: Operand,
-}
-impl Instruction for NotEqual {
-    fn execute(&self, program: &mut VirtualProgram) {
-        Equal {
-            lhs: self.rhs.clone(),
-            rhs: self.lhs.clone(),
-            to: self.to.clone(),
-        }
-        .execute(program);
-        crate::virtualmachine::instruction::unary::LogicalNot {
-            operand: self.to.clone(),
-        }
-        .execute(program);
     }
 }
 
@@ -649,33 +568,6 @@ impl Instruction for ShiftRightAssign {
                 _ => panic!("Invalid type for right shift assign"),
             };
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct LogicalAnd {
-    pub lhs: Operand,
-    pub rhs: Operand,
-    pub to: Operand,
-}
-impl Instruction for LogicalAnd {
-    fn execute(&self, program: &mut VirtualProgram) {
-        let ret = (get_operand_value(program, &self.lhs).to_i64() != 0)
-            && (get_operand_value(program, &self.rhs).to_i64() != 0);
-        *get_operand_value_mut(program, &self.to) = VariableData::UInt8(if ret { 1 } else { 0 });
-    }
-}
-#[derive(Debug)]
-pub struct LogicalOr {
-    pub lhs: Operand,
-    pub rhs: Operand,
-    pub to: Operand,
-}
-impl Instruction for LogicalOr {
-    fn execute(&self, program: &mut VirtualProgram) {
-        let ret = (get_operand_value(program, &self.lhs).to_i64() != 0)
-            || (get_operand_value(program, &self.rhs).to_i64() != 0);
-        *get_operand_value_mut(program, &self.to) = VariableData::UInt8(if ret { 1 } else { 0 });
     }
 }
 
