@@ -685,10 +685,49 @@ impl Statement for DeclarationStatement {
                                     .insert(declaration.0.as_ref().unwrap().clone(), function_data);
                             }
                         }
-                        TypeInfo::Struct(_sinfo) => {
-                            panic!(
-                                "Struct declaration in declaration statement is not implemented"
+                        TypeInfo::Struct(sinfo) => {
+                            // get struct info
+                            let sinfo = if sinfo.fields.is_none() {
+                                instructions
+                                    .search_type(
+                                        sinfo.name.as_ref().expect("Struct name is not defined"),
+                                    )
+                                    .expect("Struct is not defined")
+                                    .clone()
+                            } else {
+                                TypeInfo::Struct(sinfo.clone())
+                            };
+                            let size = sinfo.number_of_primitives();
+                            if size == 0 {
+                                panic!("Struct size must be greater than 0");
+                            }
+                            // link name to stack
+                            instructions.declare_variable(
+                                declaration.0.as_ref().unwrap(),
+                                &sinfo,
+                                size,
                             );
+
+                            if let TypeInfo::Struct(sinfo) = sinfo {
+                                for i in 0..size {
+                                    // push to stack
+                                    // search for i-th field
+                                    for (field_type, field_idx) in
+                                        sinfo.fields.as_ref().unwrap().values()
+                                    {
+                                        if field_idx == &i {
+                                            instructions.push(PushStack {
+                                                operand: Operand::Value(
+                                                    VariableData::init_default(field_type),
+                                                ),
+                                            });
+                                            break;
+                                        }
+                                    }
+                                }
+                            } else {
+                                panic!("Struct is not defined");
+                            }
                         }
                         TypeInfo::Union(_uinfo) => {
                             panic!("Union declaration in declaration statement is not implemented");
