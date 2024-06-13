@@ -32,13 +32,17 @@ int main()
   // int arr4[2] = { 1, 2, 3 };
 
   int* arr_ptr = arr3;
-  arr_ptr[4] = 100;
+  *arr_ptr = 10;
+  ++arr_ptr;
+  *arr_ptr = 20;
+  *(arr_ptr + (unsigned long)1) = 30;
+  arr_ptr[2] = 40;
   arr_ptr[3] = 50;
   for (i = 0; i < 5; i++)
   {
     print(arr3[i]);
   }
-  // 1, 2, 3, 50, 100
+  // 10, 20, 30, 40, 50
 
   return 0;
 }

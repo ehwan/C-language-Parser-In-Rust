@@ -767,7 +767,8 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int32
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
-                    | TypeInfo::UInt64 => {
+                    | TypeInfo::UInt64
+                    | TypeInfo::Pointer(_) => {
                         if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Register(0),
@@ -784,9 +785,6 @@ impl Expression for UnaryExpression {
                             panic!("Increment on non-reference");
                         }
                     }
-                    TypeInfo::Pointer(t) => {
-                        panic!("Increment not implemented for pointer type");
-                    }
                     _ => panic!(
                         "Unary Increment not implemented for {:?}",
                         self.src.get_typeinfo(instructions)
@@ -802,7 +800,8 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int32
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
-                    | TypeInfo::UInt64 => {
+                    | TypeInfo::UInt64
+                    | TypeInfo::Pointer(_) => {
                         if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Register(0),
@@ -818,9 +817,6 @@ impl Expression for UnaryExpression {
                         } else {
                             panic!("Decrement on non-reference");
                         }
-                    }
-                    TypeInfo::Pointer(t) => {
-                        panic!("Decrement not implemented for pointer type");
                     }
                     _ => panic!(
                         "Unary Decrement not implemented for {:?}",
@@ -926,7 +922,8 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::UInt32
             | TypeInfo::Int32
             | TypeInfo::UInt64
-            | TypeInfo::Int64 => {}
+            | TypeInfo::Int64
+            | TypeInfo::Pointer(_) => {}
             _ => panic!("LogicalBinaryExpression on non-int type (LHS)"),
         }
         match self.rhs.get_typeinfo(instructions) {
@@ -937,7 +934,8 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::UInt32
             | TypeInfo::Int32
             | TypeInfo::UInt64
-            | TypeInfo::Int64 => {}
+            | TypeInfo::Int64
+            | TypeInfo::Pointer(_) => {}
             _ => panic!("LogicalBinaryExpression on non-int type (RHS)"),
         }
 
@@ -1044,7 +1042,8 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::UInt32
             | TypeInfo::Int32
             | TypeInfo::UInt64
-            | TypeInfo::Int64 => {}
+            | TypeInfo::Int64
+            | TypeInfo::Pointer(_) => {}
             _ => panic!("LogicalBinaryExpression on non-int type (LHS)"),
         }
         match self.rhs.get_typeinfo(instructions) {
@@ -1055,7 +1054,8 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::UInt32
             | TypeInfo::Int32
             | TypeInfo::UInt64
-            | TypeInfo::Int64 => {}
+            | TypeInfo::Int64
+            | TypeInfo::Pointer(_) => {}
             _ => panic!("LogicalBinaryExpression on non-int type (RHS)"),
         }
 
