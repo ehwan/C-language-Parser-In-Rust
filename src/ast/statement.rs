@@ -119,7 +119,7 @@ impl Statement for SwitchStatement {
 
         // push target to stack
         self.target.emit(instructions);
-        if self.target.is_return_reference() {
+        if self.target.is_return_reference(instructions) {
             instructions.push(PushStack {
                 operand: Operand::Derefed(0, 0),
             });
@@ -190,7 +190,7 @@ impl Statement for CaseStatement {
         // evaluate value
         self.value.emit(instructions);
         // register1 = value
-        if self.value.is_return_reference() {
+        if self.value.is_return_reference(instructions) {
             instructions.push(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(1),
@@ -311,7 +311,7 @@ impl Statement for WhileStatement {
 
         instructions.set_label(&start_label);
         self.cond.emit(instructions);
-        if self.cond.is_return_reference() {
+        if self.cond.is_return_reference(instructions) {
             instructions.push(JumpZero {
                 label: end_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
@@ -364,7 +364,7 @@ impl Statement for DoWhileStatement {
 
         instructions.set_label(&continue_label);
         self.cond.emit(instructions);
-        if self.cond.is_return_reference() {
+        if self.cond.is_return_reference(instructions) {
             instructions.push(JumpNonZero {
                 label: start_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
@@ -415,7 +415,7 @@ impl Statement for ForStatement {
         self.init.emit(instructions);
         instructions.set_label(&cond_label);
         self.cond.emit(instructions);
-        if self.cond.is_return_reference() {
+        if self.cond.is_return_reference(instructions) {
             instructions.push(JumpZero {
                 label: end_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
@@ -470,7 +470,7 @@ impl Statement for ReturnStatement {
         if let Some(expr) = &self.expr {
             expr.emit(instructions);
             // force return as value
-            if expr.is_return_reference() {
+            if expr.is_return_reference(instructions) {
                 instructions.push(MoveRegister {
                     operand_from: Operand::Derefed(0, 0),
                     operand_to: Operand::Register(0),
@@ -593,7 +593,7 @@ impl Statement for DeclarationStatement {
                                 initializer.emit(instructions);
 
                                 // register1 = (type-casting) register0
-                                if initializer.is_return_reference() {
+                                if initializer.is_return_reference(instructions) {
                                     instructions.push(Assign {
                                         lhs_type: *type_.clone(),
                                         lhs: Operand::Register(1),
@@ -642,7 +642,7 @@ impl Statement for DeclarationStatement {
                             initial_value.emit(instructions);
 
                             // register1 = (type-casting) register0
-                            if initial_value.is_return_reference() {
+                            if initial_value.is_return_reference(instructions) {
                                 instructions.push(Assign {
                                     lhs_type: declaration.1.clone(),
                                     lhs: Operand::Register(1),

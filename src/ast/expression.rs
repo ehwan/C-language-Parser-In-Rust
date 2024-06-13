@@ -18,7 +18,7 @@ pub trait Expression: std::fmt::Debug + Any {
 
     fn as_any(&self) -> &dyn Any;
 
-    fn is_return_reference(&self) -> bool;
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool;
 
     fn get_constant_i64(&self) -> Result<i64, String> {
         Err(format!("get_constant_i64 not implemented for {:?}", self))
@@ -42,7 +42,7 @@ impl Expression for VoidExpression {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int32
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -77,8 +77,11 @@ impl Expression for PrimaryIdentifier {
             }
         }
     }
-    fn is_return_reference(&self) -> bool {
-        true
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        match self.get_typeinfo(instructions) {
+            TypeInfo::Array(_, _) => false,
+            _ => true,
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -112,7 +115,7 @@ impl Expression for ConstantInteger {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int32
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -136,7 +139,7 @@ impl Expression for ConstantUnsignedInteger {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt32
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -161,7 +164,7 @@ impl Expression for ConstantCharacter {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int8
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -186,7 +189,7 @@ impl Expression for ConstantLong {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int64
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -210,7 +213,7 @@ impl Expression for ConstantUnsignedLong {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt64
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -232,7 +235,7 @@ impl Expression for ConstantFloat {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Float32
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -254,7 +257,7 @@ impl Expression for ConstantDouble {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Float64
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -274,7 +277,7 @@ impl Expression for StringLiteral {
         // len+1 for null-terminator
         TypeInfo::Array(Box::new(TypeInfo::Int8), Some(self.value.len() + 1))
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -292,7 +295,7 @@ impl Expression for PostBracket {
             _ => panic!("Bracket is only available at array or pointer type"),
         }
         self.index.emit(instructions);
-        if self.index.is_return_reference() {
+        if self.index.is_return_reference(instructions) {
             instructions.push(PushStack {
                 operand: Operand::Derefed(0, 0),
             });
@@ -302,9 +305,19 @@ impl Expression for PostBracket {
             });
         }
         self.src.emit(instructions);
+        if self.src.is_return_reference(instructions) {
+            instructions.push(MoveRegister {
+                operand_from: Operand::Derefed(0, 0),
+                operand_to: Operand::Register(0),
+            });
+        }
         instructions.push(PopStack {
             operand: Operand::Register(1),
         });
+        // instructions.push( AddAssign(
+        //     Operand::Register(0),
+        //     Operand::Register(1),
+        // ));
         instructions.push(Bracket {
             operand_from: Operand::Register(0),
             operand_idx: Operand::Register(1),
@@ -321,7 +334,7 @@ impl Expression for PostBracket {
             _ => panic!("Bracket is only available at array or pointer type"),
         }
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         true
     }
 }
@@ -345,7 +358,7 @@ impl Expression for PostParen {
         if &name == "print" {
             for arg in self.args.iter().rev() {
                 arg.emit(instructions);
-                if arg.is_return_reference() {
+                if arg.is_return_reference(instructions) {
                     instructions.push(PushStack {
                         operand: Operand::Derefed(0, 0),
                     });
@@ -377,7 +390,7 @@ impl Expression for PostParen {
             // push arguments to stack
             for param in self.args.iter().rev() {
                 param.emit(instructions);
-                if param.is_return_reference() {
+                if param.is_return_reference(instructions) {
                     instructions.push(PushStack {
                         operand: Operand::Derefed(0, 0),
                     });
@@ -417,7 +430,7 @@ impl Expression for PostParen {
             .expect(format!("Function not found : {}", &name).as_str());
         funcdata.return_type.clone()
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -437,7 +450,7 @@ impl Expression for PostMember {
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         panic!("PostMember.get_typeinfo not implemented");
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         panic!("PostMember.is_return_reference not implemented");
     }
 }
@@ -448,7 +461,7 @@ pub struct PostIncrement {
 }
 impl Expression for PostIncrement {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        if self.src.is_return_reference() == false {
+        if self.src.is_return_reference(instructions) == false {
             panic!("PostIncrement on non-lhs");
         }
         self.src.emit(instructions);
@@ -470,7 +483,7 @@ impl Expression for PostIncrement {
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.src.get_typeinfo(instructions)
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -481,7 +494,7 @@ pub struct PostDecrement {
 }
 impl Expression for PostDecrement {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        if self.src.is_return_reference() == false {
+        if self.src.is_return_reference(instructions) == false {
             panic!("PostDecrement on non-lhs");
         }
         self.src.emit(instructions);
@@ -503,7 +516,7 @@ impl Expression for PostDecrement {
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.src.get_typeinfo(instructions)
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -520,7 +533,7 @@ impl Expression for CastExpression {
             operand_from: Operand::Register(0),
             operand_to: Operand::Register(1),
         });
-        if self.src.is_return_reference() {
+        if self.src.is_return_reference(instructions) {
             instructions.push(Cast {
                 info: self.typeinfo.clone(),
                 operand_from: Operand::Derefed(1, 0),
@@ -540,7 +553,7 @@ impl Expression for CastExpression {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         self.typeinfo.clone()
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -565,7 +578,7 @@ impl Expression for SizeofType {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt64
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -589,7 +602,7 @@ impl Expression for SizeofExpr {
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt64
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -628,7 +641,7 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Float32
                     | TypeInfo::Float64
                     | TypeInfo::Pointer(_) => {
-                        if self.src.is_return_reference() {
+                        if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
@@ -652,7 +665,7 @@ impl Expression for UnaryExpression {
                 | TypeInfo::UInt64
                 | TypeInfo::Float32
                 | TypeInfo::Float64 => {
-                    if self.src.is_return_reference() {
+                    if self.src.is_return_reference(instructions) {
                         instructions.push(MoveRegister {
                             operand_from: Operand::Derefed(0, 0),
                             operand_to: Operand::Register(0),
@@ -678,7 +691,7 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int64
                     | TypeInfo::UInt64
                     | TypeInfo::Pointer(_) => {
-                        if self.src.is_return_reference() {
+                        if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
@@ -704,7 +717,7 @@ impl Expression for UnaryExpression {
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
                     | TypeInfo::UInt64 => {
-                        if self.src.is_return_reference() {
+                        if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
@@ -722,13 +735,13 @@ impl Expression for UnaryExpression {
             }
             UnaryOperator::Dereference => {
                 if let TypeInfo::Pointer(_) = self.src.get_typeinfo(instructions) {
-                    if self.src.is_return_reference() {
-                        instructions.push(Dereference {
+                    if self.src.is_return_reference(instructions) {
+                        instructions.push(MoveRegister {
                             operand_from: Operand::Derefed(0, 0),
                             operand_to: Operand::Register(0),
                         });
                     } else {
-                        instructions.push(Dereference {
+                        instructions.push(MoveRegister {
                             operand_from: Operand::Register(0),
                             operand_to: Operand::Register(0),
                         });
@@ -741,13 +754,9 @@ impl Expression for UnaryExpression {
                 }
             }
             UnaryOperator::AddressOf => {
-                if self.src.is_return_reference() == false {
+                if self.src.is_return_reference(instructions) == false {
                     panic!("AddressOf on non-reference");
                 }
-                instructions.push(AddressOf {
-                    operand_from: Operand::Register(0),
-                    operand_to: Operand::Register(0),
-                });
             }
             UnaryOperator::Increment => {
                 match self.src.get_typeinfo(instructions) {
@@ -759,7 +768,7 @@ impl Expression for UnaryExpression {
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
                     | TypeInfo::UInt64 => {
-                        if self.src.is_return_reference() {
+                        if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Register(0),
                                 operand_to: Operand::Register(1),
@@ -794,7 +803,7 @@ impl Expression for UnaryExpression {
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
                     | TypeInfo::UInt64 => {
-                        if self.src.is_return_reference() {
+                        if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Register(0),
                                 operand_to: Operand::Register(1),
@@ -851,7 +860,7 @@ impl Expression for UnaryExpression {
                 }
             }
             UnaryOperator::AddressOf => {
-                if self.src.is_return_reference() == false {
+                if self.src.is_return_reference(instructions) == false {
                     panic!("AddressOf on non-reference");
                 }
                 TypeInfo::Pointer(Box::new(srctype))
@@ -859,7 +868,7 @@ impl Expression for UnaryExpression {
             UnaryOperator::Increment | UnaryOperator::Decrement => srctype,
         }
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         match self.op {
             UnaryOperator::Dereference => true,
             _ => false,
@@ -933,7 +942,7 @@ impl Expression for LogicalBinaryExpression {
         }
 
         self.lhs.emit(instructions);
-        if self.lhs.is_return_reference() {
+        if self.lhs.is_return_reference(instructions) {
             instructions.push(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
@@ -951,7 +960,7 @@ impl Expression for LogicalBinaryExpression {
                 // lhs is true here
                 // eval rhs
                 self.rhs.emit(instructions);
-                if self.rhs.is_return_reference() {
+                if self.rhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(0),
@@ -987,7 +996,7 @@ impl Expression for LogicalBinaryExpression {
                 // lhs is false here
                 // eval rhs
                 self.rhs.emit(instructions);
-                if self.rhs.is_return_reference() {
+                if self.rhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(0),
@@ -1023,7 +1032,7 @@ impl Expression for LogicalBinaryExpression {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
@@ -1093,7 +1102,7 @@ impl Expression for ComparisonExpression {
 
         // eval lhs and push to stack
         self.lhs.emit(instructions);
-        if self.lhs.is_return_reference() {
+        if self.lhs.is_return_reference(instructions) {
             instructions.push(PushStack {
                 operand: Operand::Derefed(0, 0),
             });
@@ -1105,7 +1114,7 @@ impl Expression for ComparisonExpression {
 
         // eval rhs
         self.rhs.emit(instructions);
-        if self.rhs.is_return_reference() {
+        if self.rhs.is_return_reference(instructions) {
             instructions.push(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
@@ -1218,7 +1227,7 @@ impl Expression for ComparisonExpression {
 
         TypeInfo::UInt8
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -1232,7 +1241,7 @@ pub struct BinaryExpression {
 impl Expression for BinaryExpression {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         self.rhs.emit(instructions);
-        if self.rhs.is_return_reference() {
+        if self.rhs.is_return_reference(instructions) {
             instructions.push(PushStack {
                 operand: Operand::Derefed(0, 0),
             });
@@ -1253,7 +1262,7 @@ impl Expression for BinaryExpression {
         match self.op {
             BinaryOperator::Add => {
                 // register1 = value of lhs
-                if self.lhs.is_return_reference() {
+                if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(1),
@@ -1277,7 +1286,7 @@ impl Expression for BinaryExpression {
             }
             BinaryOperator::Sub => {
                 // register1 = value of lhs
-                if self.lhs.is_return_reference() {
+                if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(1),
@@ -1301,7 +1310,7 @@ impl Expression for BinaryExpression {
             }
             BinaryOperator::Mul => {
                 // register1 = value of lhs
-                if self.lhs.is_return_reference() {
+                if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(1),
@@ -1325,7 +1334,7 @@ impl Expression for BinaryExpression {
             }
             BinaryOperator::Div => {
                 // register1 = value of lhs
-                if self.lhs.is_return_reference() {
+                if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(1),
@@ -1349,7 +1358,7 @@ impl Expression for BinaryExpression {
             }
             BinaryOperator::Mod => {
                 // register1 = value of lhs
-                if self.lhs.is_return_reference() {
+                if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(1),
@@ -1373,7 +1382,7 @@ impl Expression for BinaryExpression {
             }
             BinaryOperator::BitwiseAnd => {
                 // register1 = value of lhs
-                if self.lhs.is_return_reference() {
+                if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(1),
@@ -1397,7 +1406,7 @@ impl Expression for BinaryExpression {
             }
             BinaryOperator::BitwiseOr => {
                 // register1 = value of lhs
-                if self.lhs.is_return_reference() {
+                if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(1),
@@ -1421,7 +1430,7 @@ impl Expression for BinaryExpression {
             }
             BinaryOperator::BitwiseXor => {
                 // register1 = value of lhs
-                if self.lhs.is_return_reference() {
+                if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(1),
@@ -1445,7 +1454,7 @@ impl Expression for BinaryExpression {
             }
             BinaryOperator::ShiftLeft => {
                 // register1 = value of lhs
-                if self.lhs.is_return_reference() {
+                if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(1),
@@ -1469,7 +1478,7 @@ impl Expression for BinaryExpression {
             }
             BinaryOperator::ShiftRight => {
                 // register1 = value of lhs
-                if self.lhs.is_return_reference() {
+                if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(1),
@@ -1492,7 +1501,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::Assign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(Assign {
@@ -1502,7 +1511,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::AddAssign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(AddAssign {
@@ -1511,7 +1520,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::SubAssign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(SubAssign {
@@ -1520,7 +1529,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::MulAssign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(MulAssign {
@@ -1529,7 +1538,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::DivAssign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(DivAssign {
@@ -1538,7 +1547,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::ModAssign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(ModAssign {
@@ -1547,7 +1556,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::BitwiseAndAssign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(BitwiseAndAssign {
@@ -1556,7 +1565,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::BitwiseOrAssign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(BitwiseOrAssign {
@@ -1565,7 +1574,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::BitwiseXorAssign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(BitwiseXorAssign {
@@ -1574,7 +1583,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::ShiftLeftAssign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(ShiftLeftAssign {
@@ -1583,7 +1592,7 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::ShiftRightAssign => {
-                if self.lhs.is_return_reference() == false {
+                if self.lhs.is_return_reference(instructions) == false {
                     panic!("Assign on non-lhs");
                 }
                 instructions.push(ShiftRightAssign {
@@ -1623,7 +1632,7 @@ impl Expression for BinaryExpression {
             _ => panic!("invalid operator for BinaryOperator: {:?}", self.op),
         }
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -1643,7 +1652,7 @@ impl Expression for PostArrow {
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         panic!("PostArrow.get_typeinfo not implemented");
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         panic!("PostArrow.is_return_reference not implemented");
     }
 }
@@ -1660,7 +1669,7 @@ impl Expression for ConditionalExpression {
         let end_label = instructions.get_unique_label();
 
         self.cond.emit(instructions);
-        if self.cond.is_return_reference() {
+        if self.cond.is_return_reference(instructions) {
             instructions.push(JumpZero {
                 label: else_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
@@ -1673,7 +1682,7 @@ impl Expression for ConditionalExpression {
         }
 
         self.then_expr.emit(instructions);
-        if self.then_expr.is_return_reference() {
+        if self.then_expr.is_return_reference(instructions) {
             instructions.push(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(1),
@@ -1688,7 +1697,7 @@ impl Expression for ConditionalExpression {
         });
         instructions.set_label(&else_label);
         self.else_expr.emit(instructions);
-        if self.else_expr.is_return_reference() {
+        if self.else_expr.is_return_reference(instructions) {
             instructions.push(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(1),
@@ -1706,7 +1715,7 @@ impl Expression for ConditionalExpression {
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.then_expr.get_typeinfo(instructions)
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -1724,8 +1733,8 @@ impl Expression for CommaExpression {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn is_return_reference(&self) -> bool {
-        self.rhs.is_return_reference()
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        self.rhs.is_return_reference(instructions)
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.rhs.get_typeinfo(instructions)
@@ -1746,7 +1755,7 @@ impl Expression for InitializerListExpression {
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         panic!("InitializerListExpression.get_typeinfo not implemented");
     }
-    fn is_return_reference(&self) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         panic!("InitializerListExpression.is_return_reference not implemented");
     }
 }

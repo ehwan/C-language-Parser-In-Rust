@@ -31,5 +31,14 @@ int main()
   // this will panic
   // int arr4[2] = { 1, 2, 3 };
 
+  int* arr_ptr = arr3;
+  arr_ptr[4] = 100;
+  arr_ptr[3] = 50;
+  for (i = 0; i < 5; i++)
+  {
+    print(arr3[i]);
+  }
+  // 1, 2, 3, 50, 100
+
   return 0;
 }
