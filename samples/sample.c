@@ -1,17 +1,38 @@
+// fibonacci sequence using recursion
+int fibonacci(int);
+
 int main()
 {
-  unsigned int ma = (int)10;
-  unsigned long long mb = 20;
-  int mc = (unsigned long long)ma
-           + mb; // WARNING: binary opeartion must be between same types
-  print(ma, mb, mc); // SPECIAL built-in function for printing
-  ++ma;
-  print(ma, mb);
-  int i = 0;
+  int var = 10; // Declare an integer variable and initialize it
+  int* ptr; // Declare a pointer to an integer
 
-  for (i = 0; i < 10; ++i)
+  ptr = &var; // Store the address of var in the pointer ptr
+
+  // Print the value of var
+  print(var); // special built in function 'print'
+
+  // Print the address of var using the pointer
+  print(ptr); // this will print stack index (address of var)
+
+  // Print the value stored at the address pointed to by ptr
+  *ptr = 100;
+  print(var); // this will print 100
+
+  // print fibonacci sequence
+  int i;
+  for (i = 1; i <= 10; i++)
   {
-    print(i);
+    print(i, fibonacci(i));
   }
-  return mc;
+
+  return 0;
+}
+
+// fibonacci sequence using recursion
+int fibonacci(int n)
+{
+  if (n <= 2)
+    return 1;
+  else
+    return fibonacci(n - 1) + fibonacci(n - 2);
 }

@@ -706,8 +706,18 @@ impl Expression for UnaryExpression {
                 };
             }
             UnaryOperator::Dereference => {
-                if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
-                    panic!("Dereference not implemented");
+                if let TypeInfo::Pointer(_) = self.src.get_typeinfo(instructions) {
+                    if self.src.is_return_reference() {
+                        instructions.push(Dereference {
+                            operand_from: Operand::Derefed(0, 0),
+                            operand_to: Operand::Register(0),
+                        });
+                    } else {
+                        instructions.push(Dereference {
+                            operand_from: Operand::Register(0),
+                            operand_to: Operand::Register(0),
+                        });
+                    }
                 } else {
                     panic!(
                         "Dereference on non-pointer type :{:?}",
@@ -719,6 +729,10 @@ impl Expression for UnaryExpression {
                 if self.src.is_return_reference() == false {
                     panic!("AddressOf on non-reference");
                 }
+                instructions.push(AddressOf {
+                    operand_from: Operand::Register(0),
+                    operand_to: Operand::Register(0),
+                });
             }
             UnaryOperator::Increment => {
                 match self.src.get_typeinfo(instructions) {
@@ -821,12 +835,20 @@ impl Expression for UnaryExpression {
                     panic!("Dereference on non-pointer type");
                 }
             }
-            UnaryOperator::AddressOf => TypeInfo::Pointer(Box::new(srctype)),
+            UnaryOperator::AddressOf => {
+                if self.src.is_return_reference() == false {
+                    panic!("AddressOf on non-reference");
+                }
+                TypeInfo::Pointer(Box::new(srctype))
+            }
             UnaryOperator::Increment | UnaryOperator::Decrement => srctype,
         }
     }
     fn is_return_reference(&self) -> bool {
-        false
+        match self.op {
+            UnaryOperator::Dereference => true,
+            _ => false,
+        }
     }
 }
 

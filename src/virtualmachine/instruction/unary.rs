@@ -189,24 +189,28 @@ impl Instruction for BitwiseNot {
     }
 }
 
-/*
-/// dereference register N
 #[derive(Debug)]
-pub struct Dereference {
-    pub register_address: usize, // register that have value of stack index
-    pub register_to: usize,
+pub struct AddressOf {
+    pub operand_from: Operand,
+    pub operand_to: Operand,
 }
-impl Instruction for Dereference {
-    fn execute(&self, program: &mut crate::program::program::Program) {
-        let ptr = &program.registers[self.register_address];
-        if let VariableData::Pointer(ptr) = ptr {
-            program.registers[self.register_to] = program.stack[*ptr].clone();
-        } else if let VariableData::UInt64(ptr) = ptr {
-            program.registers[self.register_to] = program.stack[*ptr as usize].clone();
-        } else {
-            panic!("Invalid type for dereference");
-        }
+impl Instruction for AddressOf {
+    fn execute(&self, program: &mut VirtualProgram) {
+        let rhs = get_operand_value(program, &self.operand_from).to_u64() as usize;
+        *get_operand_value_mut(program, &self.operand_to) = VariableData::Pointer(rhs);
     }
 }
 
-*/
+#[derive(Debug)]
+pub struct Dereference {
+    pub operand_from: Operand, // register that have value of stack index
+    pub operand_to: Operand,
+}
+impl Instruction for Dereference {
+    fn execute(&self, program: &mut VirtualProgram) {
+        let ptr = get_operand_value(program, &self.operand_from).clone();
+        if let VariableData::Pointer(ptr) = ptr {
+            *get_operand_value_mut(program, &self.operand_to) = VariableData::UInt64(ptr as u64);
+        }
+    }
+}

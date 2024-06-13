@@ -36,6 +36,7 @@ impl VariableData {
             TypeInfo::UInt64 => VariableData::UInt64(0),
             TypeInfo::Float32 => VariableData::Float32(0.0),
             TypeInfo::Float64 => VariableData::Float64(0.0),
+            TypeInfo::Pointer(_) => VariableData::Pointer(0),
             _ => panic!("VariableData::init_default: {:?}", typeinfo),
         }
     }
