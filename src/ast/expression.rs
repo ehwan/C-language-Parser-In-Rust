@@ -7,6 +7,7 @@ use crate::virtualmachine::instruction::unary::*;
 use crate::virtualmachine::instruction::*;
 use crate::virtualmachine::program::STACK_POINTER_BASE_REGISTER;
 use crate::virtualmachine::program::STACK_POINTER_REGISTER;
+use crate::virtualmachine::program::TEXT_SIZE_REGISTER;
 use crate::virtualmachine::variable::VariableData;
 
 use core::panic;
@@ -63,6 +64,10 @@ impl Expression for PrimaryIdentifier {
                 instructions.push(MoveRegister {
                     operand_from: Operand::Value(VariableData::UInt64(absolute_offset as u64)),
                     operand_to: Operand::Register(0),
+                });
+                instructions.push(AddAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(TEXT_SIZE_REGISTER),
                 });
             }
             VariableOffset::Local(relative_offset) => {
@@ -323,14 +328,24 @@ pub struct StringLiteral {
 }
 impl Expression for StringLiteral {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        panic!("StringLiteral.eval not implemented");
+        // store string to global text section
+        let offset = instructions.text_section.len(); // <-- this will be absolute address
+
+        let mut null_terminated = self.value.clone();
+        null_terminated.push('\0');
+        instructions
+            .text_section
+            .append(&mut null_terminated.as_bytes().to_vec());
+        instructions.push(MoveRegister {
+            operand_from: Operand::Value(VariableData::UInt64(offset as u64)),
+            operand_to: Operand::Register(0),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
-        // len+1 for null-terminator
-        TypeInfo::Array(Box::new(TypeInfo::Int8), Some(self.value.len() + 1))
+        TypeInfo::Pointer(Box::new(TypeInfo::Int8))
     }
     fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
@@ -409,7 +424,7 @@ impl Expression for PostParen {
             .expect("FunctionCall must be called on `Identifier`");
         let name = identifier.name.clone();
 
-        // check if it is a built-in function, print
+        // check if it is a built-in function, print or print_str
         if &name == "print" {
             for arg in self.args.iter().rev() {
                 arg.emit(instructions);
@@ -427,6 +442,23 @@ impl Expression for PostParen {
                 operand: Operand::Value(VariableData::UInt64(self.args.len() as u64)),
             });
             instructions.push(Print {});
+        } else if &name == "print_str" {
+            if self.args.len() != 1 {
+                panic!(
+                    "print_str expects 1 argument, but {} were provided",
+                    self.args.len()
+                );
+            }
+            self.args[0].emit(instructions);
+            if self.args[0].is_return_reference(instructions) {
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Derefed(0, 0),
+                    operand_to: Operand::Register(0),
+                });
+            }
+            instructions.push(PrintStr {
+                str: Operand::Register(0),
+            });
         } else {
             let funcdata = instructions
                 .functions

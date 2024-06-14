@@ -45,6 +45,14 @@ pub struct InstructionGenerator {
 
     /// start address of program
     pub start_address: usize,
+
+    /// where constant data is stored
+    /// for same-address system with stack data, it will be merged upon program execution
+    ///
+    /// commonly, this is used for read-only data
+    /// but we don't have `const` qualifier yet
+    /// so it is mutable ...
+    pub text_section: Vec<u8>,
 }
 impl InstructionGenerator {
     pub fn new() -> Self {
@@ -58,6 +66,7 @@ impl InstructionGenerator {
             function_scope: None,
             global_scope: Scope::new(),
             label_stack: Vec::new(),
+            text_section: Vec::new(),
         }
     }
     /// push new instruction

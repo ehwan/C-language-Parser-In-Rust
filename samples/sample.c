@@ -1,24 +1,17 @@
-// fibonacci sequence using recursion
+// fibonacci sequence using recursion declaration
 int fibonacci(int);
 
+// main function
 int main()
 {
-  int var = 10; // Declare an integer variable and initialize it
-  int* ptr; // Declare a pointer to an integer
-
-  ptr = &var; // Store the address of var in the pointer ptr
-
-  // Print the value of var
-  print(var); // special built in function 'print'
-
-  // Print the address of var using the pointer
-  print(ptr); // this will print stack index (address of var)
-
-  // Print the value stored at the address pointed to by ptr
+  print_str("Hello, World!"); // built in function 'print_str'
+  int var = 10;
+  int* ptr = &var;
   *ptr = 100;
-  print(var); // this will print 100
+  print(ptr, *ptr, var); // built in function 'print'
 
   // print fibonacci sequence
+  print_str("Fibonacci sequence:");
   int i;
   for (i = 1; i <= 10; i++)
   {
@@ -28,7 +21,7 @@ int main()
   return 0;
 }
 
-// fibonacci sequence using recursion
+// fibonacci sequence using recursion definition
 int fibonacci(int n)
 {
   if (n <= 2)
