@@ -1,5 +1,4 @@
 use crate::ast::typename::TypeInfo;
-use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub enum VariableData {

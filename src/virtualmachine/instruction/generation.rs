@@ -12,6 +12,7 @@ pub struct FunctionInfo {
     pub is_defined: bool,
 }
 
+/// return type for search_variable by name
 #[derive(Debug, Clone, Copy)]
 pub enum VariableOffset {
     Global(usize), // absolute address in stack
@@ -20,13 +21,14 @@ pub enum VariableOffset {
 
 #[derive(Debug)]
 pub struct InstructionGenerator {
+    /// generated instructions
     pub instructions: Vec<Box<dyn Instruction>>,
 
     /// function map
     pub functions: HashMap<String, FunctionInfo>,
     /// label map
     pub labels: HashMap<String, usize>,
-    /// label, anonymous name generation
+    /// for label, anonymous name generation
     pub unique_id: usize,
     /// label stack for continue, break
     ///                  default, break for switch statement
@@ -36,18 +38,18 @@ pub struct InstructionGenerator {
     /// local variables have relative address from rbp
     pub global_scope: Scope,
 
-    /// function can have multiple scopes;
+    /// function may have multiple scopes inside.
     /// we have to count the number of variable declaration
     /// for stack allocation
     pub function_scope: Option<FunctionScope>,
-    /// variable scopes
+    /// local variable scopes
     pub scopes: Vec<Scope>,
 
     /// start address of program
     pub start_address: usize,
 
     /// where constant data is stored
-    /// for same-address system with stack data, it will be merged upon program execution
+    /// for same-address system with stack data, it will be merged into stack upon program execution
     ///
     /// commonly, this is used for read-only data
     /// but we don't have `const` qualifier yet
@@ -85,10 +87,11 @@ impl InstructionGenerator {
         format!(".__L{}__", self.get_unique_id())
     }
 
-    /// variable scopes
+    /// make new variable scopes
     pub fn push_scope(&mut self) {
         self.scopes.push(Scope::default());
     }
+    /// pop variable scopes
     pub fn pop_scope(&mut self) {
         let scope = self.scopes.pop().expect("pop_scope: no scope");
         self.function_scope
@@ -96,9 +99,11 @@ impl InstructionGenerator {
             .expect("pop_scope: no function scope")
             .declared_variable_count -= scope.declared_variable_count;
     }
+
     /// make new named variable on current scope
-    /// this allocates stack space
+    /// this does not allocate stack memory, just for variable counting
     pub fn declare_variable(&mut self, name: &str, type_info: &TypeInfo, count: usize) {
+        // if there is function scope, it is local variable
         let (offset, scope) = if let Some(func_scope) = &mut self.function_scope {
             let offset = func_scope.declared_variable_count;
             func_scope.declared_variable_count += count;
@@ -121,16 +126,19 @@ impl InstructionGenerator {
         }
         scope.declared_variable_count += count;
     }
-    // if variable's data is already in stack (e.g. function arguments)
-    pub fn link_variable(&mut self, name: &str, type_info: &TypeInfo, offset: isize) {
+    /// if variable's data is already in stack (e.g. function arguments)
+    /// this deos not count up variable_count
+    /// only for stack address-variable mapping
+    pub fn link_variable(&mut self, name: &str, type_info: &TypeInfo, offset_from_rbp: isize) {
         let scope = self.scopes.last_mut().unwrap();
         let old = scope
             .variables
-            .insert(name.to_string(), (type_info.clone(), offset));
+            .insert(name.to_string(), (type_info.clone(), offset_from_rbp));
         if let Some(_) = old {
             panic!("variable {} is already declared", name);
         }
     }
+    /// search variable by name across scopes
     pub fn search_variable(&self, name: &str) -> Option<(&TypeInfo, VariableOffset)> {
         for scope in self.scopes.iter().rev() {
             if let Some((type_info, offset)) = scope.variables.get(name) {
@@ -142,6 +150,7 @@ impl InstructionGenerator {
         }
         None
     }
+    /// search typeinfo by name across scopes
     pub fn search_type(&self, name: &str) -> Option<&TypeInfo> {
         for scope in self.scopes.iter().rev() {
             if let Some(type_info) = scope.type_infos.get(name) {
@@ -153,6 +162,9 @@ impl InstructionGenerator {
         }
         None
     }
+    /// for struct type (and typedef-ed type in future)
+    /// there may be no field information in typeinfo ( `struct MyStruct a;` )
+    /// so we need to find the definition of struct
     pub fn get_struct_definition(&self, sinfo: &mut StructInfo) {
         if sinfo.fields.is_some() {
             return;
@@ -175,7 +187,7 @@ impl InstructionGenerator {
         }
     }
 
-    // link label name to current instruction address
+    /// link label name to current instruction address
     pub fn set_label(&mut self, label: &str) {
         let old = self
             .labels

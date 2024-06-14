@@ -728,8 +728,6 @@ pub struct FunctionDefinitionStatement {
 }
 impl Statement for FunctionDefinitionStatement {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        let address = instructions.instructions.len();
-
         if instructions.function_scope.is_some() {
             panic!("nested function is not allowed");
         }
@@ -816,7 +814,7 @@ impl Statement for TranslationUnit {
         }
 
         // find main function
-        let main = instructions
+        let _main = instructions
             .functions
             .get("main")
             .expect("main function not found");

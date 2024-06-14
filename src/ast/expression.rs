@@ -14,7 +14,7 @@ use core::panic;
 use std::any::Any;
 
 pub trait Expression: std::fmt::Debug + Any {
-    /// push instruction that eval expression and store result in register0
+    /// push instruction that eval expression and store result in rax (register0)
     fn emit(&self, instructions: &mut InstructionGenerator);
 
     fn as_any(&self) -> &dyn Any;
@@ -1700,7 +1700,7 @@ impl Expression for AdditiveExpression {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
@@ -1876,7 +1876,7 @@ impl Expression for MultiplicativeExpression {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {

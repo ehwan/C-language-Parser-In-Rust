@@ -8,9 +8,9 @@ use std::collections::HashMap;
 pub struct VirtualProgram {
     pub label_map: HashMap<String, usize>,
     pub stack: Vec<VariableData>,
+
     /// size of text section
     /// because we use front of stack for text section, we need offset for stack pointer
-    pub text_size: usize,
 
     /// each register is for single primitive type
     /// rax, rbx, rcx, rdx, rtx, rbp, rsp
@@ -25,18 +25,21 @@ pub const STACK_SIZE: usize = 10240; // stack size
 pub const STACK_POINTER_REGISTER: usize = 6; // index of register for use as stack pointer (rsp)
 pub const STACK_POINTER_BASE_REGISTER: usize = 5; // index of register for use as stack base pointer (rbp)
 pub const TEXT_SIZE_REGISTER: usize = 4; // index of register for use as text section size (rtx)
+pub const RAX: usize = 0; // index of register for use as rax
+pub const RBX: usize = 1; // index of register for use as rax
+pub const RCX: usize = 2; // index of register for use as rax
+pub const RDX: usize = 3; // index of register for use as rax
 impl VirtualProgram {
     pub fn new() -> VirtualProgram {
         let mut ret = VirtualProgram {
             label_map: HashMap::new(),
             stack: Vec::new(),
-            text_size: 0,
 
             registers: [
-                VariableData::UInt64(0),
-                VariableData::UInt64(0),
-                VariableData::UInt64(0),
-                VariableData::UInt64(0),
+                VariableData::UInt64(0), // rax
+                VariableData::UInt64(0), // rbx
+                VariableData::UInt64(0), // rcx
+                VariableData::UInt64(0), // rdx
                 VariableData::UInt64(0), // rtx
                 VariableData::UInt64(0), // rpb
                 VariableData::UInt64(0), // rsp

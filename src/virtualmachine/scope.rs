@@ -23,8 +23,9 @@ impl Scope {
 }
 
 /// scope for function
-/// this is for variable counting; allocating stack
-/// so need to need normal scopr for variable declaration
+/// this is not for variable mapping
+/// but for variable counting; to track the number of variables alive
+/// so need normal scope for variable declaration
 #[derive(Debug, Default)]
 pub struct FunctionScope {
     pub declared_variable_count: usize,
