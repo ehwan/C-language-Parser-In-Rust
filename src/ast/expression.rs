@@ -1026,7 +1026,11 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("LogicalBinaryExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-integral type (LHS:{:?})",
+                self.op,
+                self.lhs.get_typeinfo(instructions)
+            ),
         }
         match self.rhs.get_typeinfo(instructions) {
             TypeInfo::UInt8
@@ -1039,7 +1043,11 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("LogicalBinaryExpression on non-int type (RHS)"),
+            _ => panic!(
+                "{:?} on non-integral type (RHS:{:?})",
+                self.op,
+                self.rhs.get_typeinfo(instructions)
+            ),
         }
 
         self.lhs.emit(instructions);
@@ -1148,7 +1156,11 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("LogicalBinaryExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-integral type (LHS:{:?})",
+                self.op,
+                self.lhs.get_typeinfo(instructions)
+            ),
         }
         match self.rhs.get_typeinfo(instructions) {
             TypeInfo::UInt8
@@ -1161,7 +1173,11 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("LogicalBinaryExpression on non-int type (RHS)"),
+            _ => panic!(
+                "{:?} on non-integral type (RHS:{:?})",
+                self.op,
+                self.rhs.get_typeinfo(instructions)
+            ),
         }
 
         TypeInfo::UInt8
@@ -1189,7 +1205,11 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Float64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("ComparisonExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-numeric type (LHS:{:?})",
+                self.op,
+                self.lhs.get_typeinfo(instructions)
+            ),
         }
         match self.rhs.get_typeinfo(instructions) {
             TypeInfo::UInt8
@@ -1204,7 +1224,11 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Float64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("ComparisonExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-numeric type (RHS:{:?})",
+                self.op,
+                self.rhs.get_typeinfo(instructions)
+            ),
         }
 
         // eval lhs and push to stack
@@ -1316,7 +1340,11 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Float64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("ComparisonExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-int type (LHS:{:?})",
+                self.op,
+                self.lhs.get_typeinfo(instructions)
+            ),
         }
         match self.rhs.get_typeinfo(instructions) {
             TypeInfo::UInt8
@@ -1331,7 +1359,11 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Float64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("ComparisonExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-int type (RHS:{:?})",
+                self.op,
+                self.rhs.get_typeinfo(instructions)
+            ),
         }
 
         TypeInfo::UInt8
