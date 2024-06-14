@@ -1212,8 +1212,8 @@ impl ASTParser {
                 rp::seq!(
                     rp::one(Token::LeftBrace).void(),
                     initalizer_list,
-                    rp::one(Token::RightBrace).void(),
-                    rp::one(Token::Comma).optional().void()
+                    rp::one(Token::Comma).optional().void(),
+                    rp::one(Token::RightBrace).void()
                 ),
                 self.assignment_expression.clone()
             );
