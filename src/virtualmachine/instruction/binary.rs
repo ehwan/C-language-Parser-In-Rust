@@ -751,35 +751,99 @@ impl Instruction for BitwiseAndAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as u8,
+                VariableData::UInt16(rhs) => *lhs &= rhs as u8,
+                VariableData::UInt32(rhs) => *lhs &= rhs as u8,
+                VariableData::UInt64(rhs) => *lhs &= rhs as u8,
+                VariableData::Int8(rhs) => *lhs &= rhs as u8,
+                VariableData::Int16(rhs) => *lhs &= rhs as u8,
+                VariableData::Int32(rhs) => *lhs &= rhs as u8,
+                VariableData::Int64(rhs) => *lhs &= rhs as u8,
                 _ => panic!("Invalid type for bitwise and assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as u16,
+                VariableData::UInt16(rhs) => *lhs &= rhs as u16,
+                VariableData::UInt32(rhs) => *lhs &= rhs as u16,
+                VariableData::UInt64(rhs) => *lhs &= rhs as u16,
+                VariableData::Int8(rhs) => *lhs &= rhs as u16,
+                VariableData::Int16(rhs) => *lhs &= rhs as u16,
+                VariableData::Int32(rhs) => *lhs &= rhs as u16,
+                VariableData::Int64(rhs) => *lhs &= rhs as u16,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as u32,
+                VariableData::UInt16(rhs) => *lhs &= rhs as u32,
+                VariableData::UInt32(rhs) => *lhs &= rhs as u32,
+                VariableData::UInt64(rhs) => *lhs &= rhs as u32,
+                VariableData::Int8(rhs) => *lhs &= rhs as u32,
+                VariableData::Int16(rhs) => *lhs &= rhs as u32,
+                VariableData::Int32(rhs) => *lhs &= rhs as u32,
+                VariableData::Int64(rhs) => *lhs &= rhs as u32,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as u64,
+                VariableData::UInt16(rhs) => *lhs &= rhs as u64,
+                VariableData::UInt32(rhs) => *lhs &= rhs as u64,
+                VariableData::UInt64(rhs) => *lhs &= rhs as u64,
+                VariableData::Int8(rhs) => *lhs &= rhs as u64,
+                VariableData::Int16(rhs) => *lhs &= rhs as u64,
+                VariableData::Int32(rhs) => *lhs &= rhs as u64,
+                VariableData::Int64(rhs) => *lhs &= rhs as u64,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as i8,
+                VariableData::UInt16(rhs) => *lhs &= rhs as i8,
+                VariableData::UInt32(rhs) => *lhs &= rhs as i8,
+                VariableData::UInt64(rhs) => *lhs &= rhs as i8,
+                VariableData::Int8(rhs) => *lhs &= rhs as i8,
+                VariableData::Int16(rhs) => *lhs &= rhs as i8,
+                VariableData::Int32(rhs) => *lhs &= rhs as i8,
+                VariableData::Int64(rhs) => *lhs &= rhs as i8,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as i16,
+                VariableData::UInt16(rhs) => *lhs &= rhs as i16,
+                VariableData::UInt32(rhs) => *lhs &= rhs as i16,
+                VariableData::UInt64(rhs) => *lhs &= rhs as i16,
+                VariableData::Int8(rhs) => *lhs &= rhs as i16,
+                VariableData::Int16(rhs) => *lhs &= rhs as i16,
+                VariableData::Int32(rhs) => *lhs &= rhs as i16,
+                VariableData::Int64(rhs) => *lhs &= rhs as i16,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as i32,
+                VariableData::UInt16(rhs) => *lhs &= rhs as i32,
+                VariableData::UInt32(rhs) => *lhs &= rhs as i32,
+                VariableData::UInt64(rhs) => *lhs &= rhs as i32,
+                VariableData::Int8(rhs) => *lhs &= rhs as i32,
+                VariableData::Int16(rhs) => *lhs &= rhs as i32,
+                VariableData::Int32(rhs) => *lhs &= rhs as i32,
+                VariableData::Int64(rhs) => *lhs &= rhs as i32,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as i64,
+                VariableData::UInt16(rhs) => *lhs &= rhs as i64,
+                VariableData::UInt32(rhs) => *lhs &= rhs as i64,
+                VariableData::UInt64(rhs) => *lhs &= rhs as i64,
+                VariableData::Int8(rhs) => *lhs &= rhs as i64,
+                VariableData::Int16(rhs) => *lhs &= rhs as i64,
+                VariableData::Int32(rhs) => *lhs &= rhs as i64,
+                VariableData::Int64(rhs) => *lhs &= rhs as i64,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+
+            _ => panic!("Invalid type for bitwise and assign"),
         }
     }
 }
@@ -793,35 +857,99 @@ impl Instruction for BitwiseOrAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as u8,
+                VariableData::UInt16(rhs) => *lhs |= rhs as u8,
+                VariableData::UInt32(rhs) => *lhs |= rhs as u8,
+                VariableData::UInt64(rhs) => *lhs |= rhs as u8,
+                VariableData::Int8(rhs) => *lhs |= rhs as u8,
+                VariableData::Int16(rhs) => *lhs |= rhs as u8,
+                VariableData::Int32(rhs) => *lhs |= rhs as u8,
+                VariableData::Int64(rhs) => *lhs |= rhs as u8,
                 _ => panic!("Invalid type for bitwise or assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as u16,
+                VariableData::UInt16(rhs) => *lhs |= rhs as u16,
+                VariableData::UInt32(rhs) => *lhs |= rhs as u16,
+                VariableData::UInt64(rhs) => *lhs |= rhs as u16,
+                VariableData::Int8(rhs) => *lhs |= rhs as u16,
+                VariableData::Int16(rhs) => *lhs |= rhs as u16,
+                VariableData::Int32(rhs) => *lhs |= rhs as u16,
+                VariableData::Int64(rhs) => *lhs |= rhs as u16,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as u32,
+                VariableData::UInt16(rhs) => *lhs |= rhs as u32,
+                VariableData::UInt32(rhs) => *lhs |= rhs as u32,
+                VariableData::UInt64(rhs) => *lhs |= rhs as u32,
+                VariableData::Int8(rhs) => *lhs |= rhs as u32,
+                VariableData::Int16(rhs) => *lhs |= rhs as u32,
+                VariableData::Int32(rhs) => *lhs |= rhs as u32,
+                VariableData::Int64(rhs) => *lhs |= rhs as u32,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as u64,
+                VariableData::UInt16(rhs) => *lhs |= rhs as u64,
+                VariableData::UInt32(rhs) => *lhs |= rhs as u64,
+                VariableData::UInt64(rhs) => *lhs |= rhs as u64,
+                VariableData::Int8(rhs) => *lhs |= rhs as u64,
+                VariableData::Int16(rhs) => *lhs |= rhs as u64,
+                VariableData::Int32(rhs) => *lhs |= rhs as u64,
+                VariableData::Int64(rhs) => *lhs |= rhs as u64,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as i8,
+                VariableData::UInt16(rhs) => *lhs |= rhs as i8,
+                VariableData::UInt32(rhs) => *lhs |= rhs as i8,
+                VariableData::UInt64(rhs) => *lhs |= rhs as i8,
+                VariableData::Int8(rhs) => *lhs |= rhs as i8,
+                VariableData::Int16(rhs) => *lhs |= rhs as i8,
+                VariableData::Int32(rhs) => *lhs |= rhs as i8,
+                VariableData::Int64(rhs) => *lhs |= rhs as i8,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as i16,
+                VariableData::UInt16(rhs) => *lhs |= rhs as i16,
+                VariableData::UInt32(rhs) => *lhs |= rhs as i16,
+                VariableData::UInt64(rhs) => *lhs |= rhs as i16,
+                VariableData::Int8(rhs) => *lhs |= rhs as i16,
+                VariableData::Int16(rhs) => *lhs |= rhs as i16,
+                VariableData::Int32(rhs) => *lhs |= rhs as i16,
+                VariableData::Int64(rhs) => *lhs |= rhs as i16,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as i32,
+                VariableData::UInt16(rhs) => *lhs |= rhs as i32,
+                VariableData::UInt32(rhs) => *lhs |= rhs as i32,
+                VariableData::UInt64(rhs) => *lhs |= rhs as i32,
+                VariableData::Int8(rhs) => *lhs |= rhs as i32,
+                VariableData::Int16(rhs) => *lhs |= rhs as i32,
+                VariableData::Int32(rhs) => *lhs |= rhs as i32,
+                VariableData::Int64(rhs) => *lhs |= rhs as i32,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as i64,
+                VariableData::UInt16(rhs) => *lhs |= rhs as i64,
+                VariableData::UInt32(rhs) => *lhs |= rhs as i64,
+                VariableData::UInt64(rhs) => *lhs |= rhs as i64,
+                VariableData::Int8(rhs) => *lhs |= rhs as i64,
+                VariableData::Int16(rhs) => *lhs |= rhs as i64,
+                VariableData::Int32(rhs) => *lhs |= rhs as i64,
+                VariableData::Int64(rhs) => *lhs |= rhs as i64,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+
+            _ => panic!("Invalid type for bitwise or assign"),
         }
     }
 }
@@ -835,35 +963,99 @@ impl Instruction for BitwiseXorAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as u8,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as u8,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as u8,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as u8,
+                VariableData::Int8(rhs) => *lhs ^= rhs as u8,
+                VariableData::Int16(rhs) => *lhs ^= rhs as u8,
+                VariableData::Int32(rhs) => *lhs ^= rhs as u8,
+                VariableData::Int64(rhs) => *lhs ^= rhs as u8,
                 _ => panic!("Invalid type for bitwise xor assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as u16,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as u16,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as u16,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as u16,
+                VariableData::Int8(rhs) => *lhs ^= rhs as u16,
+                VariableData::Int16(rhs) => *lhs ^= rhs as u16,
+                VariableData::Int32(rhs) => *lhs ^= rhs as u16,
+                VariableData::Int64(rhs) => *lhs ^= rhs as u16,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as u32,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as u32,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as u32,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as u32,
+                VariableData::Int8(rhs) => *lhs ^= rhs as u32,
+                VariableData::Int16(rhs) => *lhs ^= rhs as u32,
+                VariableData::Int32(rhs) => *lhs ^= rhs as u32,
+                VariableData::Int64(rhs) => *lhs ^= rhs as u32,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as u64,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as u64,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as u64,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as u64,
+                VariableData::Int8(rhs) => *lhs ^= rhs as u64,
+                VariableData::Int16(rhs) => *lhs ^= rhs as u64,
+                VariableData::Int32(rhs) => *lhs ^= rhs as u64,
+                VariableData::Int64(rhs) => *lhs ^= rhs as u64,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as i8,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as i8,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as i8,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as i8,
+                VariableData::Int8(rhs) => *lhs ^= rhs as i8,
+                VariableData::Int16(rhs) => *lhs ^= rhs as i8,
+                VariableData::Int32(rhs) => *lhs ^= rhs as i8,
+                VariableData::Int64(rhs) => *lhs ^= rhs as i8,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as i16,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as i16,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as i16,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as i16,
+                VariableData::Int8(rhs) => *lhs ^= rhs as i16,
+                VariableData::Int16(rhs) => *lhs ^= rhs as i16,
+                VariableData::Int32(rhs) => *lhs ^= rhs as i16,
+                VariableData::Int64(rhs) => *lhs ^= rhs as i16,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as i32,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as i32,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as i32,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as i32,
+                VariableData::Int8(rhs) => *lhs ^= rhs as i32,
+                VariableData::Int16(rhs) => *lhs ^= rhs as i32,
+                VariableData::Int32(rhs) => *lhs ^= rhs as i32,
+                VariableData::Int64(rhs) => *lhs ^= rhs as i32,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as i64,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as i64,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as i64,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as i64,
+                VariableData::Int8(rhs) => *lhs ^= rhs as i64,
+                VariableData::Int16(rhs) => *lhs ^= rhs as i64,
+                VariableData::Int32(rhs) => *lhs ^= rhs as i64,
+                VariableData::Int64(rhs) => *lhs ^= rhs as i64,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+
+            _ => panic!("Invalid type for bitwise xor assign"),
         }
     }
 }
