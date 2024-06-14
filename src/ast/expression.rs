@@ -80,6 +80,7 @@ impl Expression for PrimaryIdentifier {
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         match self.get_typeinfo(instructions) {
             TypeInfo::Array(_, _) => false,
+            TypeInfo::Struct(_) => false,
             _ => true,
         }
     }
@@ -92,6 +93,85 @@ impl Expression for PrimaryIdentifier {
             .expect(format!("Variable {} not found", self.name).as_str())
             .0
             .clone()
+    }
+}
+#[derive(Debug)]
+pub struct PostMember {
+    pub src: Box<dyn Expression>,
+    pub member: String,
+}
+impl Expression for PostMember {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        let member_offset = match self.src.get_typeinfo(instructions) {
+            TypeInfo::Struct(s) => {
+                let sinfo = if s.fields.is_some() {
+                    s
+                } else {
+                    let tt = instructions
+                        .search_type(s.name.as_ref().unwrap())
+                        .expect(format!("Struct {} not found", s.name.as_ref().unwrap()).as_str());
+                    if let TypeInfo::Struct(sinfo) = tt {
+                        sinfo.clone()
+                    } else {
+                        panic!("PostMember on non-struct type");
+                    }
+                };
+
+                let mut member_offset: Option<usize> = None;
+                for (t, name, offset) in sinfo.fields.as_ref().unwrap() {
+                    if name == &self.member {
+                        member_offset = Some(*offset);
+                        break;
+                    }
+                }
+                member_offset.expect(format!("Field {} not found", self.member).as_str())
+            }
+            _ => panic!("PostMember on non-struct type"),
+        };
+        println!("PostMember: member_offset: {}", member_offset);
+        self.src.emit(instructions);
+        instructions.push(AddAssign {
+            lhs: Operand::Register(0),
+            rhs: Operand::Value(VariableData::UInt64(member_offset as u64)),
+        });
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        match self.src.get_typeinfo(instructions) {
+            TypeInfo::Struct(s) => {
+                let sinfo = if s.fields.is_some() {
+                    s
+                } else {
+                    let tt = instructions
+                        .search_type(s.name.as_ref().unwrap())
+                        .expect(format!("Struct {} not found", s.name.as_ref().unwrap()).as_str());
+                    if let TypeInfo::Struct(sinfo) = tt {
+                        sinfo.clone()
+                    } else {
+                        panic!("PostMember on non-struct type");
+                    }
+                };
+
+                let mut member_type: Option<TypeInfo> = None;
+                for (t, name, offset) in sinfo.fields.as_ref().unwrap() {
+                    if name == &self.member {
+                        member_type = Some(t.clone());
+                        break;
+                    }
+                }
+                member_type.expect(format!("Field {} not found", self.member).as_str())
+            }
+            _ => panic!("PostMember on non-struct type"),
+        }
+    }
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        match self.get_typeinfo(instructions) {
+            TypeInfo::Array(_, _) => false,
+            TypeInfo::Struct(_) => false,
+            _ => true,
+        }
     }
 }
 
@@ -431,54 +511,6 @@ impl Expression for PostParen {
     }
     fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
-    }
-}
-
-#[derive(Debug)]
-pub struct PostMember {
-    pub src: Box<dyn Expression>,
-    pub member: String,
-}
-impl Expression for PostMember {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        let member_offset = if let TypeInfo::Struct(sinfo) = self.src.get_typeinfo(instructions) {
-            sinfo
-                .fields
-                .expect("struct fields not defined")
-                .get(&self.member)
-                .expect(format!("Field {} not found", self.member).as_str())
-                .1
-        } else {
-            panic!("PostMember on non-struct type");
-        };
-        self.src.emit(instructions);
-        instructions.push(AddAssign {
-            lhs: Operand::Register(0),
-            rhs: Operand::Value(VariableData::UInt64(member_offset as u64)),
-        });
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        if let TypeInfo::Struct(sinfo) = self.src.get_typeinfo(instructions) {
-            sinfo
-                .fields
-                .expect("PostMember on struct without fields")
-                .get(&self.member)
-                .expect(format!("Field {} not found", self.member).as_str())
-                .0
-                .clone()
-        } else {
-            panic!("PostMember on non-struct type");
-        }
-    }
-    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
-        if let TypeInfo::Struct(_) = self.src.get_typeinfo(instructions) {
-            true
-        } else {
-            panic!("PostMember on non-struct type");
-        }
     }
 }
 
