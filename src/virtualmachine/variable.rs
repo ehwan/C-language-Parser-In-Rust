@@ -22,23 +22,6 @@ impl Default for VariableData {
 }
 
 impl VariableData {
-    // pub fn assign(&mut self, rhs: VariableData) {}
-    pub fn init_default(typeinfo: &TypeInfo) -> VariableData {
-        match typeinfo {
-            TypeInfo::Int8 => VariableData::Int8(0),
-            TypeInfo::Int16 => VariableData::Int16(0),
-            TypeInfo::Int32 => VariableData::Int32(0),
-            TypeInfo::Int64 => VariableData::Int64(0),
-            TypeInfo::UInt8 => VariableData::UInt8(0),
-            TypeInfo::UInt16 => VariableData::UInt16(0),
-            TypeInfo::UInt32 => VariableData::UInt32(0),
-            TypeInfo::UInt64 => VariableData::UInt64(0),
-            TypeInfo::Float32 => VariableData::Float32(0.0),
-            TypeInfo::Float64 => VariableData::Float64(0.0),
-            TypeInfo::Pointer(_) => VariableData::UInt64(0),
-            _ => panic!("VariableData::init_default: {:?}", typeinfo),
-        }
-    }
     pub fn cast_to(&self, typeinfo: &TypeInfo) -> Option<VariableData> {
         match self {
             VariableData::UInt8(lu8) => match typeinfo {

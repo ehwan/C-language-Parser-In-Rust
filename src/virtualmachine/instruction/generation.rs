@@ -132,6 +132,17 @@ impl InstructionGenerator {
         }
         None
     }
+    pub fn search_type(&self, name: &str) -> Option<&TypeInfo> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(type_info) = scope.type_infos.get(name) {
+                return Some(type_info);
+            }
+        }
+        if let Some(type_info) = self.global_scope.type_infos.get(name) {
+            return Some(type_info);
+        }
+        None
+    }
 
     // link label name to current instruction address
     pub fn set_label(&mut self, label: &str) {

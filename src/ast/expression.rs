@@ -80,6 +80,7 @@ impl Expression for PrimaryIdentifier {
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         match self.get_typeinfo(instructions) {
             TypeInfo::Array(_, _) => false,
+            TypeInfo::Struct(_) => false,
             _ => true,
         }
     }
@@ -92,6 +93,72 @@ impl Expression for PrimaryIdentifier {
             .expect(format!("Variable {} not found", self.name).as_str())
             .0
             .clone()
+    }
+}
+#[derive(Debug)]
+pub struct PostMember {
+    pub src: Box<dyn Expression>,
+    pub member: String,
+}
+impl Expression for PostMember {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        let member_offset = match self.src.get_typeinfo(instructions) {
+            TypeInfo::Struct(sinfo) => {
+                let mut member_offset: Option<usize> = None;
+                for (_, name, offset) in sinfo.fields.as_ref().unwrap() {
+                    if name == &self.member {
+                        member_offset = Some(*offset);
+                        break;
+                    }
+                }
+                member_offset.expect(format!("Field {} not found", self.member).as_str())
+            }
+            _ => panic!("PostMember on non-struct type"),
+        };
+        println!("PostMember: member_offset: {}", member_offset);
+        self.src.emit(instructions);
+        instructions.push(AddAssign {
+            lhs: Operand::Register(0),
+            rhs: Operand::Value(VariableData::UInt64(member_offset as u64)),
+        });
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        match self.src.get_typeinfo(instructions) {
+            TypeInfo::Struct(s) => {
+                let sinfo = if s.fields.is_some() {
+                    s
+                } else {
+                    let tt = instructions
+                        .search_type(s.name.as_ref().unwrap())
+                        .expect(format!("Struct {} not found", s.name.as_ref().unwrap()).as_str());
+                    if let TypeInfo::Struct(sinfo) = tt {
+                        sinfo.clone()
+                    } else {
+                        panic!("PostMember on non-struct type");
+                    }
+                };
+
+                let mut member_type: Option<TypeInfo> = None;
+                for (t, name, offset) in sinfo.fields.as_ref().unwrap() {
+                    if name == &self.member {
+                        member_type = Some(t.clone());
+                        break;
+                    }
+                }
+                member_type.expect(format!("Field {} not found", self.member).as_str())
+            }
+            _ => panic!("PostMember on non-struct type"),
+        }
+    }
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        match self.get_typeinfo(instructions) {
+            TypeInfo::Array(_, _) => false,
+            TypeInfo::Struct(_) => false,
+            _ => true,
+        }
     }
 }
 
@@ -435,26 +502,6 @@ impl Expression for PostParen {
 }
 
 #[derive(Debug)]
-pub struct PostMember {
-    pub src: Box<dyn Expression>,
-    pub member: String,
-}
-impl Expression for PostMember {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        panic!("PostMember.eval not implemented");
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        panic!("PostMember.get_typeinfo not implemented");
-    }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
-        panic!("PostMember.is_return_reference not implemented");
-    }
-}
-
-#[derive(Debug)]
 pub struct PostIncrement {
     pub src: Box<dyn Expression>,
 }
@@ -472,9 +519,17 @@ impl Expression for PostIncrement {
             operand_from: Operand::Derefed(1, 0),
             operand_to: Operand::Register(0),
         });
-        instructions.push(Increment {
-            operand: Operand::Derefed(1, 0),
-        });
+        if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
+            let move_size = t.number_of_primitives();
+            instructions.push(AddAssign {
+                lhs: Operand::Derefed(1, 0),
+                rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
+            });
+        } else {
+            instructions.push(Increment {
+                operand: Operand::Derefed(1, 0),
+            });
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -505,9 +560,18 @@ impl Expression for PostDecrement {
             operand_from: Operand::Derefed(1, 0),
             operand_to: Operand::Register(0),
         });
-        instructions.push(Decrement {
-            operand: Operand::Derefed(1, 0),
-        });
+
+        if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
+            let move_size = t.number_of_primitives();
+            instructions.push(SubAssign {
+                lhs: Operand::Derefed(1, 0),
+                rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
+            });
+        } else {
+            instructions.push(Decrement {
+                operand: Operand::Derefed(1, 0),
+            });
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -768,18 +832,28 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int32
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
-                    | TypeInfo::UInt64
-                    | TypeInfo::Pointer(_) => {
+                    | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(MoveRegister {
-                                operand_from: Operand::Register(0),
-                                operand_to: Operand::Register(1),
-                            });
                             instructions.push(Increment {
-                                operand: Operand::Derefed(1, 0),
+                                operand: Operand::Derefed(0, 0),
                             });
                             instructions.push(MoveRegister {
-                                operand_from: Operand::Derefed(1, 0),
+                                operand_from: Operand::Derefed(0, 0),
+                                operand_to: Operand::Register(0),
+                            });
+                        } else {
+                            panic!("Increment on non-reference");
+                        }
+                    }
+                    TypeInfo::Pointer(t) => {
+                        let move_size = t.number_of_primitives();
+                        if self.src.is_return_reference(instructions) {
+                            instructions.push(AddAssign {
+                                lhs: Operand::Derefed(0, 0),
+                                rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
+                            });
+                            instructions.push(MoveRegister {
+                                operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
                             });
                         } else {
@@ -801,18 +875,28 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int32
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
-                    | TypeInfo::UInt64
-                    | TypeInfo::Pointer(_) => {
+                    | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(MoveRegister {
-                                operand_from: Operand::Register(0),
-                                operand_to: Operand::Register(1),
-                            });
                             instructions.push(Decrement {
-                                operand: Operand::Derefed(1, 0),
+                                operand: Operand::Derefed(0, 0),
                             });
                             instructions.push(MoveRegister {
-                                operand_from: Operand::Derefed(1, 0),
+                                operand_from: Operand::Derefed(0, 0),
+                                operand_to: Operand::Register(0),
+                            });
+                        } else {
+                            panic!("Decrement on non-reference");
+                        }
+                    }
+                    TypeInfo::Pointer(t) => {
+                        let move_size = t.number_of_primitives();
+                        if self.src.is_return_reference(instructions) {
+                            instructions.push(SubAssign {
+                                lhs: Operand::Derefed(0, 0),
+                                rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
+                            });
+                            instructions.push(MoveRegister {
+                                operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
                             });
                         } else {
@@ -1286,6 +1370,11 @@ impl Expression for BinaryExpression {
 
         match self.op {
             BinaryOperator::Add => {
+                /* TODO: implement for different types */
+                // for pointer + int,
+                // the value of address must increase by n*type.number_of_primitives()
+                // currently the value of address increase by the number as it is
+
                 // register1 = value of lhs
                 if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
@@ -1310,6 +1399,11 @@ impl Expression for BinaryExpression {
                 });
             }
             BinaryOperator::Sub => {
+                /* TODO: implement for different types */
+                // for pointer + int,
+                // the value of address must increase by n*type.number_of_primitives()
+                // currently the value of address increase by the number as it is
+
                 // register1 = value of lhs
                 if self.lhs.is_return_reference(instructions) {
                     instructions.push(MoveRegister {
