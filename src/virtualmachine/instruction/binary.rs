@@ -1,3 +1,5 @@
+use std::ops::Shl;
+
 use super::operand::*;
 use super::Instruction;
 use crate::ast::typename::TypeInfo;
@@ -127,50 +129,124 @@ impl Instruction for AddAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        let lc = lhs.clone();
-        let rc = rhs.clone();
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs += *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs += *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs += *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs += *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    if *rhs < 0 {
-                        *lhs -= (-*rhs) as u64;
-                    } else {
-                        *lhs += *rhs as u64;
-                    }
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs += *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs += *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs += *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs += *rhs;
-                }
-                (VariableData::Float32(ref mut lhs), VariableData::Float32(ref rhs)) => {
-                    *lhs += *rhs;
-                }
-                (VariableData::Float64(ref mut lhs), VariableData::Float64(ref rhs)) => {
-                    *lhs += *rhs;
-                }
-                _ => panic!("Invalid type for add assign : {:?} {:?}", lc, rc),
-            };
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_add(rhs).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_add(rhs as u8).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_add(rhs as u8).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_add(rhs as u8).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_add_signed(rhs).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i8).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i8).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i8).0,
+                _ => panic!("Invalid type for add assign"),
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_add(rhs as u16).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_add(rhs as u16).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_add(rhs as u16).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_add(rhs as u16).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i16).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i16).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i16).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i16).0,
+                _ => panic!("Invalid type for add assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_add(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_add(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_add(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_add(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i32).0,
+                _ => panic!("Invalid type for add assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_add(rhs as u64).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_add(rhs as u64).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_add(rhs as u64).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_add(rhs as u64).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i64).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i64).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i64).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_add_signed(rhs as i64).0,
+                _ => panic!("Invalid type for add assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u8).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u8).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u8).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u8).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_add(rhs as i8).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_add(rhs as i8).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_add(rhs as i8).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_add(rhs as i8).0,
+                _ => panic!("Invalid type for add assign"),
+            },
+
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u16).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u16).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u16).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u16).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_add(rhs as i16).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_add(rhs as i16).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_add(rhs as i16).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_add(rhs as i16).0,
+                _ => panic!("Invalid type for add assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_add(rhs as i32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_add(rhs as i32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_add(rhs as i32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_add(rhs as i32).0,
+                _ => panic!("Invalid type for add assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u64).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u64).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u64).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_add_unsigned(rhs as u64).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_add(rhs as i64).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_add(rhs as i64).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_add(rhs as i64).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_add(rhs as i64).0,
+                _ => panic!("Invalid type for add assign"),
+            },
+
+            VariableData::Float32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs += rhs as f32,
+                VariableData::UInt16(rhs) => *lhs += rhs as f32,
+                VariableData::UInt32(rhs) => *lhs += rhs as f32,
+                VariableData::UInt64(rhs) => *lhs += rhs as f32,
+                VariableData::Int8(rhs) => *lhs += rhs as f32,
+                VariableData::Int16(rhs) => *lhs += rhs as f32,
+                VariableData::Int32(rhs) => *lhs += rhs as f32,
+                VariableData::Int64(rhs) => *lhs += rhs as f32,
+                VariableData::Float32(rhs) => *lhs += rhs as f32,
+                VariableData::Float64(rhs) => *lhs += rhs as f32,
+                _ => panic!("Invalid type for add assign"),
+            },
+            VariableData::Float64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs += rhs as f64,
+                VariableData::UInt16(rhs) => *lhs += rhs as f64,
+                VariableData::UInt32(rhs) => *lhs += rhs as f64,
+                VariableData::UInt64(rhs) => *lhs += rhs as f64,
+                VariableData::Int8(rhs) => *lhs += rhs as f64,
+                VariableData::Int16(rhs) => *lhs += rhs as f64,
+                VariableData::Int32(rhs) => *lhs += rhs as f64,
+                VariableData::Int64(rhs) => *lhs += rhs as f64,
+                VariableData::Float32(rhs) => *lhs += rhs as f64,
+                VariableData::Float64(rhs) => *lhs += rhs as f64,
+                _ => panic!("Invalid type for add assign"),
+            },
         }
     }
 }
@@ -184,41 +260,124 @@ impl Instruction for SubAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs -= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs -= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs -= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs -= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs -= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs -= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs -= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs -= *rhs;
-                }
-                (VariableData::Float32(ref mut lhs), VariableData::Float32(ref rhs)) => {
-                    *lhs -= *rhs;
-                }
-                (VariableData::Float64(ref mut lhs), VariableData::Float64(ref rhs)) => {
-                    *lhs -= *rhs;
-                }
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_sub(rhs).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_sub(rhs as u8).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_sub(rhs as u8).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_sub(rhs as u8).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_sub(rhs as u8).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_sub(rhs as u8).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_sub(rhs as u8).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_sub(rhs as u8).0,
                 _ => panic!("Invalid type for sub assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_sub(rhs as u16).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_sub(rhs as u16).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_sub(rhs as u16).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_sub(rhs as u16).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_sub(rhs as u16).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_sub(rhs as u16).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_sub(rhs as u16).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_sub(rhs as u16).0,
+                _ => panic!("Invalid type for sub assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_sub(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_sub(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_sub(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_sub(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_sub(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_sub(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_sub(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_sub(rhs as u32).0,
+                _ => panic!("Invalid type for sub assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_sub(rhs as u64).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_sub(rhs as u64).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_sub(rhs as u64).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_sub(rhs as u64).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_sub(rhs as u64).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_sub(rhs as u64).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_sub(rhs as u64).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_sub(rhs as u64).0,
+                _ => panic!("Invalid type for sub assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u8).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u8).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u8).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u8).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_sub(rhs as i8).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_sub(rhs as i8).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_sub(rhs as i8).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_sub(rhs as i8).0,
+                _ => panic!("Invalid type for sub assign"),
+            },
+
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u16).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u16).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u16).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u16).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_sub(rhs as i16).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_sub(rhs as i16).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_sub(rhs as i16).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_sub(rhs as i16).0,
+                _ => panic!("Invalid type for sub assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_sub(rhs as i32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_sub(rhs as i32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_sub(rhs as i32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_sub(rhs as i32).0,
+                _ => panic!("Invalid type for sub assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u64).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u64).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u64).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_sub_unsigned(rhs as u64).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_sub(rhs as i64).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_sub(rhs as i64).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_sub(rhs as i64).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_sub(rhs as i64).0,
+                _ => panic!("Invalid type for sub assign"),
+            },
+
+            VariableData::Float32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs -= rhs as f32,
+                VariableData::UInt16(rhs) => *lhs -= rhs as f32,
+                VariableData::UInt32(rhs) => *lhs -= rhs as f32,
+                VariableData::UInt64(rhs) => *lhs -= rhs as f32,
+                VariableData::Int8(rhs) => *lhs -= rhs as f32,
+                VariableData::Int16(rhs) => *lhs -= rhs as f32,
+                VariableData::Int32(rhs) => *lhs -= rhs as f32,
+                VariableData::Int64(rhs) => *lhs -= rhs as f32,
+                VariableData::Float32(rhs) => *lhs -= rhs as f32,
+                VariableData::Float64(rhs) => *lhs -= rhs as f32,
+                _ => panic!("Invalid type for sub assign"),
+            },
+            VariableData::Float64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs -= rhs as f64,
+                VariableData::UInt16(rhs) => *lhs -= rhs as f64,
+                VariableData::UInt32(rhs) => *lhs -= rhs as f64,
+                VariableData::UInt64(rhs) => *lhs -= rhs as f64,
+                VariableData::Int8(rhs) => *lhs -= rhs as f64,
+                VariableData::Int16(rhs) => *lhs -= rhs as f64,
+                VariableData::Int32(rhs) => *lhs -= rhs as f64,
+                VariableData::Int64(rhs) => *lhs -= rhs as f64,
+                VariableData::Float32(rhs) => *lhs -= rhs as f64,
+                VariableData::Float64(rhs) => *lhs -= rhs as f64,
+                _ => panic!("Invalid type for sub assign"),
+            },
         }
     }
 }
@@ -232,41 +391,122 @@ impl Instruction for MulAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs *= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs *= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs *= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs *= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs *= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs *= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs *= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs *= *rhs;
-                }
-                (VariableData::Float32(ref mut lhs), VariableData::Float32(ref rhs)) => {
-                    *lhs *= *rhs;
-                }
-                (VariableData::Float64(ref mut lhs), VariableData::Float64(ref rhs)) => {
-                    *lhs *= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_mul(rhs as u8).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_mul(rhs as u8).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_mul(rhs as u8).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_mul(rhs as u8).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_mul(rhs as u8).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_mul(rhs as u8).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_mul(rhs as u8).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_mul(rhs as u8).0,
                 _ => panic!("Invalid type for mul assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_mul(rhs as u16).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_mul(rhs as u16).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_mul(rhs as u16).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_mul(rhs as u16).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_mul(rhs as u16).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_mul(rhs as u16).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_mul(rhs as u16).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_mul(rhs as u16).0,
+                _ => panic!("Invalid type for mul assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_mul(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_mul(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_mul(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_mul(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_mul(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_mul(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_mul(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_mul(rhs as u32).0,
+                _ => panic!("Invalid type for mul assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_mul(rhs as u64).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_mul(rhs as u64).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_mul(rhs as u64).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_mul(rhs as u64).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_mul(rhs as u64).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_mul(rhs as u64).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_mul(rhs as u64).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_mul(rhs as u64).0,
+                _ => panic!("Invalid type for mul assign"),
+            },
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_mul(rhs as i8).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_mul(rhs as i8).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_mul(rhs as i8).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_mul(rhs as i8).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_mul(rhs as i8).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_mul(rhs as i8).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_mul(rhs as i8).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_mul(rhs as i8).0,
+                _ => panic!("Invalid type for mul assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_mul(rhs as i16).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_mul(rhs as i16).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_mul(rhs as i16).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_mul(rhs as i16).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_mul(rhs as i16).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_mul(rhs as i16).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_mul(rhs as i16).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_mul(rhs as i16).0,
+                _ => panic!("Invalid type for mul assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_mul(rhs as i32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_mul(rhs as i32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_mul(rhs as i32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_mul(rhs as i32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_mul(rhs as i32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_mul(rhs as i32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_mul(rhs as i32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_mul(rhs as i32).0,
+                _ => panic!("Invalid type for mul assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_mul(rhs as i64).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_mul(rhs as i64).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_mul(rhs as i64).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_mul(rhs as i64).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_mul(rhs as i64).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_mul(rhs as i64).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_mul(rhs as i64).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_mul(rhs as i64).0,
+                _ => panic!("Invalid type for mul assign"),
+            },
+            VariableData::Float32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs *= rhs as f32,
+                VariableData::UInt16(rhs) => *lhs *= rhs as f32,
+                VariableData::UInt32(rhs) => *lhs *= rhs as f32,
+                VariableData::UInt64(rhs) => *lhs *= rhs as f32,
+                VariableData::Int8(rhs) => *lhs *= rhs as f32,
+                VariableData::Int16(rhs) => *lhs *= rhs as f32,
+                VariableData::Int32(rhs) => *lhs *= rhs as f32,
+                VariableData::Int64(rhs) => *lhs *= rhs as f32,
+                VariableData::Float32(rhs) => *lhs *= rhs as f32,
+                VariableData::Float64(rhs) => *lhs *= rhs as f32,
+                _ => panic!("Invalid type for mul assign"),
+            },
+            VariableData::Float64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs *= rhs as f64,
+                VariableData::UInt16(rhs) => *lhs *= rhs as f64,
+                VariableData::UInt32(rhs) => *lhs *= rhs as f64,
+                VariableData::UInt64(rhs) => *lhs *= rhs as f64,
+                VariableData::Int8(rhs) => *lhs *= rhs as f64,
+                VariableData::Int16(rhs) => *lhs *= rhs as f64,
+                VariableData::Int32(rhs) => *lhs *= rhs as f64,
+                VariableData::Int64(rhs) => *lhs *= rhs as f64,
+                VariableData::Float32(rhs) => *lhs *= rhs as f64,
+                VariableData::Float64(rhs) => *lhs *= rhs as f64,
+                _ => panic!("Invalid type for mul assign"),
+            },
         }
     }
 }
@@ -280,41 +520,122 @@ impl Instruction for DivAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs /= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs /= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs /= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs /= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs /= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs /= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs /= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs /= *rhs;
-                }
-                (VariableData::Float32(ref mut lhs), VariableData::Float32(ref rhs)) => {
-                    *lhs /= *rhs;
-                }
-                (VariableData::Float64(ref mut lhs), VariableData::Float64(ref rhs)) => {
-                    *lhs /= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_div(rhs as u8).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_div(rhs as u8).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_div(rhs as u8).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_div(rhs as u8).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_div(rhs as u8).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_div(rhs as u8).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_div(rhs as u8).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_div(rhs as u8).0,
                 _ => panic!("Invalid type for div assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_div(rhs as u16).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_div(rhs as u16).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_div(rhs as u16).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_div(rhs as u16).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_div(rhs as u16).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_div(rhs as u16).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_div(rhs as u16).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_div(rhs as u16).0,
+                _ => panic!("Invalid type for div assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_div(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_div(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_div(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_div(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_div(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_div(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_div(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_div(rhs as u32).0,
+                _ => panic!("Invalid type for div assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_div(rhs as u64).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_div(rhs as u64).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_div(rhs as u64).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_div(rhs as u64).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_div(rhs as u64).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_div(rhs as u64).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_div(rhs as u64).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_div(rhs as u64).0,
+                _ => panic!("Invalid type for div assign"),
+            },
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_div(rhs as i8).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_div(rhs as i8).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_div(rhs as i8).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_div(rhs as i8).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_div(rhs as i8).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_div(rhs as i8).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_div(rhs as i8).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_div(rhs as i8).0,
+                _ => panic!("Invalid type for div assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_div(rhs as i16).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_div(rhs as i16).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_div(rhs as i16).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_div(rhs as i16).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_div(rhs as i16).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_div(rhs as i16).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_div(rhs as i16).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_div(rhs as i16).0,
+                _ => panic!("Invalid type for div assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_div(rhs as i32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_div(rhs as i32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_div(rhs as i32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_div(rhs as i32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_div(rhs as i32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_div(rhs as i32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_div(rhs as i32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_div(rhs as i32).0,
+                _ => panic!("Invalid type for div assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_div(rhs as i64).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_div(rhs as i64).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_div(rhs as i64).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_div(rhs as i64).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_div(rhs as i64).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_div(rhs as i64).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_div(rhs as i64).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_div(rhs as i64).0,
+                _ => panic!("Invalid type for div assign"),
+            },
+            VariableData::Float32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs /= rhs as f32,
+                VariableData::UInt16(rhs) => *lhs /= rhs as f32,
+                VariableData::UInt32(rhs) => *lhs /= rhs as f32,
+                VariableData::UInt64(rhs) => *lhs /= rhs as f32,
+                VariableData::Int8(rhs) => *lhs /= rhs as f32,
+                VariableData::Int16(rhs) => *lhs /= rhs as f32,
+                VariableData::Int32(rhs) => *lhs /= rhs as f32,
+                VariableData::Int64(rhs) => *lhs /= rhs as f32,
+                VariableData::Float32(rhs) => *lhs /= rhs as f32,
+                VariableData::Float64(rhs) => *lhs /= rhs as f32,
+                _ => panic!("Invalid type for div assign"),
+            },
+            VariableData::Float64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs /= rhs as f64,
+                VariableData::UInt16(rhs) => *lhs /= rhs as f64,
+                VariableData::UInt32(rhs) => *lhs /= rhs as f64,
+                VariableData::UInt64(rhs) => *lhs /= rhs as f64,
+                VariableData::Int8(rhs) => *lhs /= rhs as f64,
+                VariableData::Int16(rhs) => *lhs /= rhs as f64,
+                VariableData::Int32(rhs) => *lhs /= rhs as f64,
+                VariableData::Int64(rhs) => *lhs /= rhs as f64,
+                VariableData::Float32(rhs) => *lhs /= rhs as f64,
+                VariableData::Float64(rhs) => *lhs /= rhs as f64,
+                _ => panic!("Invalid type for div assign"),
+            },
         }
     }
 }
@@ -328,35 +649,97 @@ impl Instruction for ModAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs %= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs %= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs %= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs %= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs %= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs %= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs %= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs %= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_rem(rhs as u8).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_rem(rhs as u8).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_rem(rhs as u8).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_rem(rhs as u8).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_rem(rhs as u8).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_rem(rhs as u8).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_rem(rhs as u8).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_rem(rhs as u8).0,
                 _ => panic!("Invalid type for mod assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_rem(rhs as u16).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_rem(rhs as u16).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_rem(rhs as u16).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_rem(rhs as u16).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_rem(rhs as u16).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_rem(rhs as u16).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_rem(rhs as u16).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_rem(rhs as u16).0,
+                _ => panic!("Invalid type for mod assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_rem(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_rem(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_rem(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_rem(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_rem(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_rem(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_rem(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_rem(rhs as u32).0,
+                _ => panic!("Invalid type for mod assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_rem(rhs as u64).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_rem(rhs as u64).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_rem(rhs as u64).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_rem(rhs as u64).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_rem(rhs as u64).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_rem(rhs as u64).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_rem(rhs as u64).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_rem(rhs as u64).0,
+                _ => panic!("Invalid type for mod assign"),
+            },
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_rem(rhs as i8).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_rem(rhs as i8).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_rem(rhs as i8).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_rem(rhs as i8).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_rem(rhs as i8).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_rem(rhs as i8).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_rem(rhs as i8).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_rem(rhs as i8).0,
+                _ => panic!("Invalid type for mod assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_rem(rhs as i16).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_rem(rhs as i16).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_rem(rhs as i16).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_rem(rhs as i16).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_rem(rhs as i16).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_rem(rhs as i16).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_rem(rhs as i16).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_rem(rhs as i16).0,
+                _ => panic!("Invalid type for mod assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_rem(rhs as i32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_rem(rhs as i32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_rem(rhs as i32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_rem(rhs as i32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_rem(rhs as i32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_rem(rhs as i32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_rem(rhs as i32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_rem(rhs as i32).0,
+                _ => panic!("Invalid type for mod assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_rem(rhs as i64).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_rem(rhs as i64).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_rem(rhs as i64).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_rem(rhs as i64).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_rem(rhs as i64).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_rem(rhs as i64).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_rem(rhs as i64).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_rem(rhs as i64).0,
+                _ => panic!("Invalid type for mod assign"),
+            },
+            _ => panic!("Invalid type for mod assign"),
         }
     }
 }
@@ -370,35 +753,99 @@ impl Instruction for BitwiseAndAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs &= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as u8,
+                VariableData::UInt16(rhs) => *lhs &= rhs as u8,
+                VariableData::UInt32(rhs) => *lhs &= rhs as u8,
+                VariableData::UInt64(rhs) => *lhs &= rhs as u8,
+                VariableData::Int8(rhs) => *lhs &= rhs as u8,
+                VariableData::Int16(rhs) => *lhs &= rhs as u8,
+                VariableData::Int32(rhs) => *lhs &= rhs as u8,
+                VariableData::Int64(rhs) => *lhs &= rhs as u8,
                 _ => panic!("Invalid type for bitwise and assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as u16,
+                VariableData::UInt16(rhs) => *lhs &= rhs as u16,
+                VariableData::UInt32(rhs) => *lhs &= rhs as u16,
+                VariableData::UInt64(rhs) => *lhs &= rhs as u16,
+                VariableData::Int8(rhs) => *lhs &= rhs as u16,
+                VariableData::Int16(rhs) => *lhs &= rhs as u16,
+                VariableData::Int32(rhs) => *lhs &= rhs as u16,
+                VariableData::Int64(rhs) => *lhs &= rhs as u16,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as u32,
+                VariableData::UInt16(rhs) => *lhs &= rhs as u32,
+                VariableData::UInt32(rhs) => *lhs &= rhs as u32,
+                VariableData::UInt64(rhs) => *lhs &= rhs as u32,
+                VariableData::Int8(rhs) => *lhs &= rhs as u32,
+                VariableData::Int16(rhs) => *lhs &= rhs as u32,
+                VariableData::Int32(rhs) => *lhs &= rhs as u32,
+                VariableData::Int64(rhs) => *lhs &= rhs as u32,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as u64,
+                VariableData::UInt16(rhs) => *lhs &= rhs as u64,
+                VariableData::UInt32(rhs) => *lhs &= rhs as u64,
+                VariableData::UInt64(rhs) => *lhs &= rhs as u64,
+                VariableData::Int8(rhs) => *lhs &= rhs as u64,
+                VariableData::Int16(rhs) => *lhs &= rhs as u64,
+                VariableData::Int32(rhs) => *lhs &= rhs as u64,
+                VariableData::Int64(rhs) => *lhs &= rhs as u64,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as i8,
+                VariableData::UInt16(rhs) => *lhs &= rhs as i8,
+                VariableData::UInt32(rhs) => *lhs &= rhs as i8,
+                VariableData::UInt64(rhs) => *lhs &= rhs as i8,
+                VariableData::Int8(rhs) => *lhs &= rhs as i8,
+                VariableData::Int16(rhs) => *lhs &= rhs as i8,
+                VariableData::Int32(rhs) => *lhs &= rhs as i8,
+                VariableData::Int64(rhs) => *lhs &= rhs as i8,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as i16,
+                VariableData::UInt16(rhs) => *lhs &= rhs as i16,
+                VariableData::UInt32(rhs) => *lhs &= rhs as i16,
+                VariableData::UInt64(rhs) => *lhs &= rhs as i16,
+                VariableData::Int8(rhs) => *lhs &= rhs as i16,
+                VariableData::Int16(rhs) => *lhs &= rhs as i16,
+                VariableData::Int32(rhs) => *lhs &= rhs as i16,
+                VariableData::Int64(rhs) => *lhs &= rhs as i16,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as i32,
+                VariableData::UInt16(rhs) => *lhs &= rhs as i32,
+                VariableData::UInt32(rhs) => *lhs &= rhs as i32,
+                VariableData::UInt64(rhs) => *lhs &= rhs as i32,
+                VariableData::Int8(rhs) => *lhs &= rhs as i32,
+                VariableData::Int16(rhs) => *lhs &= rhs as i32,
+                VariableData::Int32(rhs) => *lhs &= rhs as i32,
+                VariableData::Int64(rhs) => *lhs &= rhs as i32,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs &= rhs as i64,
+                VariableData::UInt16(rhs) => *lhs &= rhs as i64,
+                VariableData::UInt32(rhs) => *lhs &= rhs as i64,
+                VariableData::UInt64(rhs) => *lhs &= rhs as i64,
+                VariableData::Int8(rhs) => *lhs &= rhs as i64,
+                VariableData::Int16(rhs) => *lhs &= rhs as i64,
+                VariableData::Int32(rhs) => *lhs &= rhs as i64,
+                VariableData::Int64(rhs) => *lhs &= rhs as i64,
+                _ => panic!("Invalid type for bitwise and assign"),
+            },
+
+            _ => panic!("Invalid type for bitwise and assign"),
         }
     }
 }
@@ -412,35 +859,99 @@ impl Instruction for BitwiseOrAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs |= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as u8,
+                VariableData::UInt16(rhs) => *lhs |= rhs as u8,
+                VariableData::UInt32(rhs) => *lhs |= rhs as u8,
+                VariableData::UInt64(rhs) => *lhs |= rhs as u8,
+                VariableData::Int8(rhs) => *lhs |= rhs as u8,
+                VariableData::Int16(rhs) => *lhs |= rhs as u8,
+                VariableData::Int32(rhs) => *lhs |= rhs as u8,
+                VariableData::Int64(rhs) => *lhs |= rhs as u8,
                 _ => panic!("Invalid type for bitwise or assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as u16,
+                VariableData::UInt16(rhs) => *lhs |= rhs as u16,
+                VariableData::UInt32(rhs) => *lhs |= rhs as u16,
+                VariableData::UInt64(rhs) => *lhs |= rhs as u16,
+                VariableData::Int8(rhs) => *lhs |= rhs as u16,
+                VariableData::Int16(rhs) => *lhs |= rhs as u16,
+                VariableData::Int32(rhs) => *lhs |= rhs as u16,
+                VariableData::Int64(rhs) => *lhs |= rhs as u16,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as u32,
+                VariableData::UInt16(rhs) => *lhs |= rhs as u32,
+                VariableData::UInt32(rhs) => *lhs |= rhs as u32,
+                VariableData::UInt64(rhs) => *lhs |= rhs as u32,
+                VariableData::Int8(rhs) => *lhs |= rhs as u32,
+                VariableData::Int16(rhs) => *lhs |= rhs as u32,
+                VariableData::Int32(rhs) => *lhs |= rhs as u32,
+                VariableData::Int64(rhs) => *lhs |= rhs as u32,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as u64,
+                VariableData::UInt16(rhs) => *lhs |= rhs as u64,
+                VariableData::UInt32(rhs) => *lhs |= rhs as u64,
+                VariableData::UInt64(rhs) => *lhs |= rhs as u64,
+                VariableData::Int8(rhs) => *lhs |= rhs as u64,
+                VariableData::Int16(rhs) => *lhs |= rhs as u64,
+                VariableData::Int32(rhs) => *lhs |= rhs as u64,
+                VariableData::Int64(rhs) => *lhs |= rhs as u64,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as i8,
+                VariableData::UInt16(rhs) => *lhs |= rhs as i8,
+                VariableData::UInt32(rhs) => *lhs |= rhs as i8,
+                VariableData::UInt64(rhs) => *lhs |= rhs as i8,
+                VariableData::Int8(rhs) => *lhs |= rhs as i8,
+                VariableData::Int16(rhs) => *lhs |= rhs as i8,
+                VariableData::Int32(rhs) => *lhs |= rhs as i8,
+                VariableData::Int64(rhs) => *lhs |= rhs as i8,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as i16,
+                VariableData::UInt16(rhs) => *lhs |= rhs as i16,
+                VariableData::UInt32(rhs) => *lhs |= rhs as i16,
+                VariableData::UInt64(rhs) => *lhs |= rhs as i16,
+                VariableData::Int8(rhs) => *lhs |= rhs as i16,
+                VariableData::Int16(rhs) => *lhs |= rhs as i16,
+                VariableData::Int32(rhs) => *lhs |= rhs as i16,
+                VariableData::Int64(rhs) => *lhs |= rhs as i16,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as i32,
+                VariableData::UInt16(rhs) => *lhs |= rhs as i32,
+                VariableData::UInt32(rhs) => *lhs |= rhs as i32,
+                VariableData::UInt64(rhs) => *lhs |= rhs as i32,
+                VariableData::Int8(rhs) => *lhs |= rhs as i32,
+                VariableData::Int16(rhs) => *lhs |= rhs as i32,
+                VariableData::Int32(rhs) => *lhs |= rhs as i32,
+                VariableData::Int64(rhs) => *lhs |= rhs as i32,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs |= rhs as i64,
+                VariableData::UInt16(rhs) => *lhs |= rhs as i64,
+                VariableData::UInt32(rhs) => *lhs |= rhs as i64,
+                VariableData::UInt64(rhs) => *lhs |= rhs as i64,
+                VariableData::Int8(rhs) => *lhs |= rhs as i64,
+                VariableData::Int16(rhs) => *lhs |= rhs as i64,
+                VariableData::Int32(rhs) => *lhs |= rhs as i64,
+                VariableData::Int64(rhs) => *lhs |= rhs as i64,
+                _ => panic!("Invalid type for bitwise or assign"),
+            },
+
+            _ => panic!("Invalid type for bitwise or assign"),
         }
     }
 }
@@ -454,35 +965,99 @@ impl Instruction for BitwiseXorAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs ^= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as u8,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as u8,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as u8,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as u8,
+                VariableData::Int8(rhs) => *lhs ^= rhs as u8,
+                VariableData::Int16(rhs) => *lhs ^= rhs as u8,
+                VariableData::Int32(rhs) => *lhs ^= rhs as u8,
+                VariableData::Int64(rhs) => *lhs ^= rhs as u8,
                 _ => panic!("Invalid type for bitwise xor assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as u16,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as u16,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as u16,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as u16,
+                VariableData::Int8(rhs) => *lhs ^= rhs as u16,
+                VariableData::Int16(rhs) => *lhs ^= rhs as u16,
+                VariableData::Int32(rhs) => *lhs ^= rhs as u16,
+                VariableData::Int64(rhs) => *lhs ^= rhs as u16,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as u32,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as u32,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as u32,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as u32,
+                VariableData::Int8(rhs) => *lhs ^= rhs as u32,
+                VariableData::Int16(rhs) => *lhs ^= rhs as u32,
+                VariableData::Int32(rhs) => *lhs ^= rhs as u32,
+                VariableData::Int64(rhs) => *lhs ^= rhs as u32,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as u64,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as u64,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as u64,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as u64,
+                VariableData::Int8(rhs) => *lhs ^= rhs as u64,
+                VariableData::Int16(rhs) => *lhs ^= rhs as u64,
+                VariableData::Int32(rhs) => *lhs ^= rhs as u64,
+                VariableData::Int64(rhs) => *lhs ^= rhs as u64,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as i8,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as i8,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as i8,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as i8,
+                VariableData::Int8(rhs) => *lhs ^= rhs as i8,
+                VariableData::Int16(rhs) => *lhs ^= rhs as i8,
+                VariableData::Int32(rhs) => *lhs ^= rhs as i8,
+                VariableData::Int64(rhs) => *lhs ^= rhs as i8,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as i16,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as i16,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as i16,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as i16,
+                VariableData::Int8(rhs) => *lhs ^= rhs as i16,
+                VariableData::Int16(rhs) => *lhs ^= rhs as i16,
+                VariableData::Int32(rhs) => *lhs ^= rhs as i16,
+                VariableData::Int64(rhs) => *lhs ^= rhs as i16,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as i32,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as i32,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as i32,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as i32,
+                VariableData::Int8(rhs) => *lhs ^= rhs as i32,
+                VariableData::Int16(rhs) => *lhs ^= rhs as i32,
+                VariableData::Int32(rhs) => *lhs ^= rhs as i32,
+                VariableData::Int64(rhs) => *lhs ^= rhs as i32,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs ^= rhs as i64,
+                VariableData::UInt16(rhs) => *lhs ^= rhs as i64,
+                VariableData::UInt32(rhs) => *lhs ^= rhs as i64,
+                VariableData::UInt64(rhs) => *lhs ^= rhs as i64,
+                VariableData::Int8(rhs) => *lhs ^= rhs as i64,
+                VariableData::Int16(rhs) => *lhs ^= rhs as i64,
+                VariableData::Int32(rhs) => *lhs ^= rhs as i64,
+                VariableData::Int64(rhs) => *lhs ^= rhs as i64,
+                _ => panic!("Invalid type for bitwise xor assign"),
+            },
+
+            _ => panic!("Invalid type for bitwise xor assign"),
         }
     }
 }
@@ -496,35 +1071,98 @@ impl Instruction for ShiftLeftAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
                 _ => panic!("Invalid type for left shift assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            _ => panic!("Invalid type for left shift assign"),
         }
     }
 }
@@ -538,35 +1176,98 @@ impl Instruction for ShiftRightAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
                 _ => panic!("Invalid type for right shift assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            _ => panic!("Invalid type for right shift assign"),
         }
     }
 }
@@ -579,8 +1280,7 @@ pub struct Assign {
 }
 impl Instruction for Assign {
     fn execute(&self, program: &mut VirtualProgram) {
-        let rhs = get_operand_value(program, &self.rhs).clone();
-        let rhs = rhs
+        let rhs = get_operand_value(program, &self.rhs)
             .cast_to(&self.lhs_type)
             .expect(format!("Invalid cast to {:?}", &self.lhs_type).as_str());
 

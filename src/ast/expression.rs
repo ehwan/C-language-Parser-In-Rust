@@ -11,6 +11,7 @@ use crate::virtualmachine::variable::VariableData;
 
 use core::panic;
 use std::any::Any;
+use std::ops::Mul;
 
 pub trait Expression: std::fmt::Debug + Any {
     /// push instruction that eval expression and store result in register0
@@ -526,8 +527,9 @@ impl Expression for PostIncrement {
                 rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
             });
         } else {
-            instructions.push(Increment {
-                operand: Operand::Derefed(1, 0),
+            instructions.push(AddAssign {
+                lhs: Operand::Derefed(1, 0),
+                rhs: Operand::Value(VariableData::UInt8(1)),
             });
         }
     }
@@ -568,8 +570,9 @@ impl Expression for PostDecrement {
                 rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
             });
         } else {
-            instructions.push(Decrement {
-                operand: Operand::Derefed(1, 0),
+            instructions.push(SubAssign {
+                lhs: Operand::Derefed(1, 0),
+                rhs: Operand::Value(VariableData::UInt8(1)),
             });
         }
     }
@@ -834,8 +837,9 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int64
                     | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(Increment {
-                                operand: Operand::Derefed(0, 0),
+                            instructions.push(AddAssign {
+                                lhs: Operand::Derefed(0, 0),
+                                rhs: Operand::Value(VariableData::UInt8(1)),
                             });
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
@@ -877,8 +881,9 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int64
                     | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(Decrement {
-                                operand: Operand::Derefed(0, 0),
+                            instructions.push(SubAssign {
+                                lhs: Operand::Derefed(0, 0),
+                                rhs: Operand::Value(VariableData::UInt8(1)),
                             });
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
@@ -1026,7 +1031,11 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("LogicalBinaryExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-integral type (LHS:{:?})",
+                self.op,
+                self.lhs.get_typeinfo(instructions)
+            ),
         }
         match self.rhs.get_typeinfo(instructions) {
             TypeInfo::UInt8
@@ -1039,7 +1048,11 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("LogicalBinaryExpression on non-int type (RHS)"),
+            _ => panic!(
+                "{:?} on non-integral type (RHS:{:?})",
+                self.op,
+                self.rhs.get_typeinfo(instructions)
+            ),
         }
 
         self.lhs.emit(instructions);
@@ -1148,7 +1161,11 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("LogicalBinaryExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-integral type (LHS:{:?})",
+                self.op,
+                self.lhs.get_typeinfo(instructions)
+            ),
         }
         match self.rhs.get_typeinfo(instructions) {
             TypeInfo::UInt8
@@ -1161,7 +1178,11 @@ impl Expression for LogicalBinaryExpression {
             | TypeInfo::Int64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("LogicalBinaryExpression on non-int type (RHS)"),
+            _ => panic!(
+                "{:?} on non-integral type (RHS:{:?})",
+                self.op,
+                self.rhs.get_typeinfo(instructions)
+            ),
         }
 
         TypeInfo::UInt8
@@ -1189,7 +1210,11 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Float64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("ComparisonExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-numeric type (LHS:{:?})",
+                self.op,
+                self.lhs.get_typeinfo(instructions)
+            ),
         }
         match self.rhs.get_typeinfo(instructions) {
             TypeInfo::UInt8
@@ -1204,7 +1229,11 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Float64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("ComparisonExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-numeric type (RHS:{:?})",
+                self.op,
+                self.rhs.get_typeinfo(instructions)
+            ),
         }
 
         // eval lhs and push to stack
@@ -1316,7 +1345,11 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Float64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("ComparisonExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-int type (LHS:{:?})",
+                self.op,
+                self.lhs.get_typeinfo(instructions)
+            ),
         }
         match self.rhs.get_typeinfo(instructions) {
             TypeInfo::UInt8
@@ -1331,7 +1364,11 @@ impl Expression for ComparisonExpression {
             | TypeInfo::Float64
             | TypeInfo::Pointer(_)
             | TypeInfo::Array(_, _) => {}
-            _ => panic!("ComparisonExpression on non-int type (LHS)"),
+            _ => panic!(
+                "{:?} on non-int type (RHS:{:?})",
+                self.op,
+                self.rhs.get_typeinfo(instructions)
+            ),
         }
 
         TypeInfo::UInt8
@@ -1341,13 +1378,353 @@ impl Expression for ComparisonExpression {
     }
 }
 
+// = += -= *= /= %=
+// <<= >>= &= |= ^=
 #[derive(Debug)]
-pub struct BinaryExpression {
+pub struct AssignExpression {
     pub op: BinaryOperator,
     pub lhs: Box<dyn Expression>,
     pub rhs: Box<dyn Expression>,
 }
-impl Expression for BinaryExpression {
+impl Expression for AssignExpression {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        if self.lhs.is_return_reference(instructions) == false {
+            panic!("{:?} on non-reference", self.op);
+        }
+        self.rhs.emit(instructions);
+        if self.rhs.is_return_reference(instructions) {
+            instructions.push(PushStack {
+                operand: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
+        self.lhs.emit(instructions);
+        instructions.push(PopStack {
+            operand: Operand::Register(1),
+        });
+        match self.op {
+            BinaryOperator::AddAssign => {
+                if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions) {
+                    let move_size = t.number_of_primitives();
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
+                        operand_to: Operand::Register(2),
+                    });
+                    instructions.push(MulAssign {
+                        lhs: Operand::Register(2),
+                        rhs: Operand::Register(1),
+                    });
+                    instructions.push(AddAssign {
+                        lhs: Operand::Derefed(0, 0),
+                        rhs: Operand::Register(2),
+                    });
+                } else {
+                    instructions.push(AddAssign {
+                        lhs: Operand::Derefed(0, 0),
+                        rhs: Operand::Register(1),
+                    });
+                }
+            }
+            BinaryOperator::SubAssign => {
+                if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions) {
+                    let move_size = t.number_of_primitives();
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
+                        operand_to: Operand::Register(2),
+                    });
+                    instructions.push(MulAssign {
+                        lhs: Operand::Register(2),
+                        rhs: Operand::Register(1),
+                    });
+                    instructions.push(SubAssign {
+                        lhs: Operand::Derefed(0, 0),
+                        rhs: Operand::Register(2),
+                    });
+                } else {
+                    instructions.push(SubAssign {
+                        lhs: Operand::Derefed(0, 0),
+                        rhs: Operand::Register(1),
+                    });
+                }
+            }
+            BinaryOperator::MulAssign => {
+                instructions.push(MulAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::DivAssign => {
+                instructions.push(DivAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::ModAssign => {
+                instructions.push(ModAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::ShiftLeftAssign => {
+                instructions.push(ShiftLeftAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::ShiftRightAssign => {
+                instructions.push(ShiftRightAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::BitwiseAndAssign => {
+                instructions.push(BitwiseAndAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::BitwiseOrAssign => {
+                instructions.push(BitwiseOrAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::BitwiseXorAssign => {
+                instructions.push(BitwiseXorAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::Assign => {
+                instructions.push(Assign {
+                    lhs_type: self.lhs.get_typeinfo(instructions),
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            } // TODO check if lhs rhs is struct, pointer, array in assign operation
+            _ => panic!("Invalid operator for AssignExpression: {:?}", self.op),
+        }
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        self.lhs.is_return_reference(instructions)
+    }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        self.lhs.get_typeinfo(instructions)
+    }
+}
+
+#[derive(Debug)]
+pub struct AdditiveExpression {
+    pub op: BinaryOperator,
+    pub lhs: Box<dyn Expression>,
+    pub rhs: Box<dyn Expression>,
+}
+impl Expression for AdditiveExpression {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        // for type-check panic
+        self.get_typeinfo(instructions);
+
+        self.rhs.emit(instructions);
+        if self.rhs.is_return_reference(instructions) {
+            instructions.push(PushStack {
+                operand: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
+
+        self.lhs.emit(instructions);
+        if self.lhs.is_return_reference(instructions) {
+            instructions.push(Assign {
+                lhs_type: self.get_typeinfo(instructions),
+                lhs: Operand::Register(0),
+                rhs: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(Assign {
+                lhs_type: self.get_typeinfo(instructions),
+                lhs: Operand::Register(0),
+                rhs: Operand::Register(0),
+            });
+        }
+        instructions.push(PopStack {
+            operand: Operand::Register(1),
+        });
+
+        // pointer arithmetic
+        if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions) {
+            let move_size = t.number_of_primitives();
+            instructions.push(MoveRegister {
+                operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
+                operand_to: Operand::Register(2),
+            });
+            instructions.push(MulAssign {
+                lhs: Operand::Register(2),
+                rhs: Operand::Register(1),
+            });
+
+            match self.op {
+                BinaryOperator::Add => {
+                    instructions.push(AddAssign {
+                        lhs: Operand::Register(0),
+                        rhs: Operand::Register(2),
+                    });
+                }
+                BinaryOperator::Sub => {
+                    instructions.push(SubAssign {
+                        lhs: Operand::Register(0),
+                        rhs: Operand::Register(2),
+                    });
+                }
+                _ => panic!("Invalid operator for AdditiveExpression: {:?}", self.op),
+            }
+        } else {
+            match self.op {
+                BinaryOperator::Add => {
+                    instructions.push(AddAssign {
+                        lhs: Operand::Register(0),
+                        rhs: Operand::Register(1),
+                    });
+                }
+                BinaryOperator::Sub => {
+                    instructions.push(SubAssign {
+                        lhs: Operand::Register(0),
+                        rhs: Operand::Register(1),
+                    });
+                }
+                _ => panic!("Invalid operator for AdditiveExpression: {:?}", self.op),
+            }
+        }
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        false
+    }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        // choose bigger-precision type
+        match self.lhs.get_typeinfo(instructions) {
+            TypeInfo::UInt8 | TypeInfo::Int8 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt8,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt16 | TypeInfo::Int16 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt16,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt32 | TypeInfo::Int32 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt32,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt32,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt64 | TypeInfo::Int64 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt64,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt64,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt64,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Float32 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float32,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float32,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Float32,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Float64 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float64,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float64,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float64,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Float64,
+                TypeInfo::Float32 => TypeInfo::Float64,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Pointer(t) => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Pointer(t),
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Pointer(t),
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Pointer(t),
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Pointer(t),
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            _ => panic!(
+                "{:?} not implemented between {:?} and {:?}",
+                self.op,
+                self.lhs.get_typeinfo(instructions),
+                self.rhs.get_typeinfo(instructions)
+            ),
+        }
+    }
+}
+#[derive(Debug)]
+pub struct MultiplicativeExpression {
+    pub op: BinaryOperator,
+    pub lhs: Box<dyn Expression>,
+    pub rhs: Box<dyn Expression>,
+}
+impl Expression for MultiplicativeExpression {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         self.rhs.emit(instructions);
         if self.rhs.is_return_reference(instructions) {
@@ -1360,399 +1737,331 @@ impl Expression for BinaryExpression {
             });
         }
 
-        // register0 = (value or address of) lhs
         self.lhs.emit(instructions);
-
-        // register2 = value of rhs
+        if self.lhs.is_return_reference(instructions) {
+            instructions.push(Assign {
+                lhs_type: self.get_typeinfo(instructions),
+                lhs: Operand::Register(0),
+                rhs: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(Assign {
+                lhs_type: self.get_typeinfo(instructions),
+                lhs: Operand::Register(0),
+                rhs: Operand::Register(0),
+            });
+        }
         instructions.push(PopStack {
-            operand: Operand::Register(2),
+            operand: Operand::Register(1),
         });
 
         match self.op {
-            BinaryOperator::Add => {
-                /* TODO: implement for different types */
-                // for pointer + int,
-                // the value of address must increase by n*type.number_of_primitives()
-                // currently the value of address increase by the number as it is
-
-                // register1 = value of lhs
-                if self.lhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Derefed(0, 0),
-                        operand_to: Operand::Register(1),
-                    });
-                } else {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Register(0),
-                        operand_to: Operand::Register(1),
-                    });
-                }
-                // register1 += register2
-                instructions.push(AddAssign {
-                    lhs: Operand::Register(1),
-                    rhs: Operand::Register(2),
-                });
-                // register0 = register1
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
-                    operand_to: Operand::Register(0),
-                });
-            }
-            BinaryOperator::Sub => {
-                /* TODO: implement for different types */
-                // for pointer + int,
-                // the value of address must increase by n*type.number_of_primitives()
-                // currently the value of address increase by the number as it is
-
-                // register1 = value of lhs
-                if self.lhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Derefed(0, 0),
-                        operand_to: Operand::Register(1),
-                    });
-                } else {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Register(0),
-                        operand_to: Operand::Register(1),
-                    });
-                }
-                // register1 -= register2
-                instructions.push(SubAssign {
-                    lhs: Operand::Register(1),
-                    rhs: Operand::Register(2),
-                });
-                // register0 = register1
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
-                    operand_to: Operand::Register(0),
-                });
-            }
             BinaryOperator::Mul => {
-                // register1 = value of lhs
-                if self.lhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Derefed(0, 0),
-                        operand_to: Operand::Register(1),
-                    });
-                } else {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Register(0),
-                        operand_to: Operand::Register(1),
-                    });
-                }
-                // register1 *= register2
                 instructions.push(MulAssign {
-                    lhs: Operand::Register(1),
-                    rhs: Operand::Register(2),
-                });
-                // register0 = register1
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
-                    operand_to: Operand::Register(0),
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
                 });
             }
             BinaryOperator::Div => {
-                // register1 = value of lhs
-                if self.lhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Derefed(0, 0),
-                        operand_to: Operand::Register(1),
-                    });
-                } else {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Register(0),
-                        operand_to: Operand::Register(1),
-                    });
-                }
-                // register1 /= register2
                 instructions.push(DivAssign {
-                    lhs: Operand::Register(1),
-                    rhs: Operand::Register(2),
-                });
-                // register0 = register1
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
-                    operand_to: Operand::Register(0),
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
                 });
             }
             BinaryOperator::Mod => {
-                // register1 = value of lhs
-                if self.lhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Derefed(0, 0),
-                        operand_to: Operand::Register(1),
-                    });
-                } else {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Register(0),
-                        operand_to: Operand::Register(1),
-                    });
-                }
-                // register1 %= register2
                 instructions.push(ModAssign {
-                    lhs: Operand::Register(1),
-                    rhs: Operand::Register(2),
-                });
-                // register0 = register1
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
-                    operand_to: Operand::Register(0),
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
                 });
             }
-            BinaryOperator::BitwiseAnd => {
-                // register1 = value of lhs
-                if self.lhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Derefed(0, 0),
-                        operand_to: Operand::Register(1),
-                    });
-                } else {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Register(0),
-                        operand_to: Operand::Register(1),
-                    });
-                }
-                // register1 &= register2
-                instructions.push(BitwiseAndAssign {
-                    lhs: Operand::Register(1),
-                    rhs: Operand::Register(2),
-                });
-                // register0 = register1
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
-                    operand_to: Operand::Register(0),
-                });
-            }
-            BinaryOperator::BitwiseOr => {
-                // register1 = value of lhs
-                if self.lhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Derefed(0, 0),
-                        operand_to: Operand::Register(1),
-                    });
-                } else {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Register(0),
-                        operand_to: Operand::Register(1),
-                    });
-                }
-                // register1 |= register2
-                instructions.push(BitwiseOrAssign {
-                    lhs: Operand::Register(1),
-                    rhs: Operand::Register(2),
-                });
-                // register0 = register1
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
-                    operand_to: Operand::Register(0),
-                });
-            }
-            BinaryOperator::BitwiseXor => {
-                // register1 = value of lhs
-                if self.lhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Derefed(0, 0),
-                        operand_to: Operand::Register(1),
-                    });
-                } else {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Register(0),
-                        operand_to: Operand::Register(1),
-                    });
-                }
-                // register1 ^= register2
-                instructions.push(BitwiseXorAssign {
-                    lhs: Operand::Register(1),
-                    rhs: Operand::Register(2),
-                });
-                // register0 = register1
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
-                    operand_to: Operand::Register(0),
-                });
-            }
-            BinaryOperator::ShiftLeft => {
-                // register1 = value of lhs
-                if self.lhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Derefed(0, 0),
-                        operand_to: Operand::Register(1),
-                    });
-                } else {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Register(0),
-                        operand_to: Operand::Register(1),
-                    });
-                }
-                // register1 <<= register2
-                instructions.push(ShiftLeftAssign {
-                    lhs: Operand::Register(1),
-                    rhs: Operand::Register(2),
-                });
-                // register0 = register1
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
-                    operand_to: Operand::Register(0),
-                });
-            }
-            BinaryOperator::ShiftRight => {
-                // register1 = value of lhs
-                if self.lhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Derefed(0, 0),
-                        operand_to: Operand::Register(1),
-                    });
-                } else {
-                    instructions.push(MoveRegister {
-                        operand_from: Operand::Register(0),
-                        operand_to: Operand::Register(1),
-                    });
-                }
-                // register1 >>= register2
-                instructions.push(ShiftRightAssign {
-                    lhs: Operand::Register(1),
-                    rhs: Operand::Register(2),
-                });
-                // register0 = register1
-                instructions.push(MoveRegister {
-                    operand_from: Operand::Register(1),
-                    operand_to: Operand::Register(0),
-                });
-            }
-            BinaryOperator::Assign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(Assign {
-                    lhs_type: self.lhs.get_typeinfo(instructions),
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::AddAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(AddAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::SubAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(SubAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::MulAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(MulAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::DivAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(DivAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::ModAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(ModAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::BitwiseAndAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(BitwiseAndAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::BitwiseOrAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(BitwiseOrAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::BitwiseXorAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(BitwiseXorAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::ShiftLeftAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(ShiftLeftAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::ShiftRightAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(ShiftRightAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            _ => panic!("invalid operator for BinaryOperator: {:?}", self.op),
+            _ => panic!(
+                "Invalid operator for MultiplicativeExpression: {:?}",
+                self.op
+            ),
         }
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        false
+    }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        match self.op {
-            BinaryOperator::Add
-            | BinaryOperator::Sub
-            | BinaryOperator::Mul
-            | BinaryOperator::Div
-            | BinaryOperator::Mod
-            | BinaryOperator::BitwiseAnd
-            | BinaryOperator::BitwiseOr
-            | BinaryOperator::BitwiseXor
-            | BinaryOperator::ShiftLeft
-            | BinaryOperator::ShiftRight => self.lhs.get_typeinfo(instructions),
-            BinaryOperator::Assign
-            | BinaryOperator::AddAssign
-            | BinaryOperator::SubAssign
-            | BinaryOperator::MulAssign
-            | BinaryOperator::DivAssign
-            | BinaryOperator::ModAssign
-            | BinaryOperator::BitwiseAndAssign
-            | BinaryOperator::BitwiseOrAssign
-            | BinaryOperator::BitwiseXorAssign
-            | BinaryOperator::ShiftLeftAssign
-            | BinaryOperator::ShiftRightAssign => self.lhs.get_typeinfo(instructions),
-            _ => panic!("invalid operator for BinaryOperator: {:?}", self.op),
+        // choose bigger-precision type
+        match self.lhs.get_typeinfo(instructions) {
+            TypeInfo::UInt8 | TypeInfo::Int8 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt8,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt16 | TypeInfo::Int16 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt16,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt32 | TypeInfo::Int32 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt32,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt32,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt64 | TypeInfo::Int64 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt64,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt64,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt64,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Float32 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float32,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float32,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Float32,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Float64 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float64,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float64,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float64,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Float64,
+                TypeInfo::Float32 => TypeInfo::Float64,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            _ => panic!(
+                "{:?} not implemented between {:?} and {:?}",
+                self.op,
+                self.lhs.get_typeinfo(instructions),
+                self.rhs.get_typeinfo(instructions)
+            ),
         }
+    }
+}
+#[derive(Debug)]
+pub struct ShiftExpression {
+    pub op: BinaryOperator,
+    pub lhs: Box<dyn Expression>,
+    pub rhs: Box<dyn Expression>,
+}
+impl Expression for ShiftExpression {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        self.rhs.emit(instructions);
+        if self.rhs.is_return_reference(instructions) {
+            instructions.push(PushStack {
+                operand: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
+
+        self.lhs.emit(instructions);
+        if self.lhs.is_return_reference(instructions) {
+            instructions.push(MoveRegister {
+                operand_from: Operand::Derefed(0, 0),
+                operand_to: Operand::Register(0),
+            });
+        }
+
+        instructions.push(PopStack {
+            operand: Operand::Register(1),
+        });
+
+        match self.op {
+            BinaryOperator::ShiftLeft => {
+                instructions.push(ShiftLeftAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::ShiftRight => {
+                instructions.push(ShiftRightAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            _ => panic!("Invalid operator for ShiftExpression: {:?}", self.op),
+        }
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
     }
     fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
+    }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        self.lhs.get_typeinfo(instructions)
+    }
+}
+#[derive(Debug)]
+pub struct BitwiseExpression {
+    pub op: BinaryOperator,
+    pub lhs: Box<dyn Expression>,
+    pub rhs: Box<dyn Expression>,
+}
+impl Expression for BitwiseExpression {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        self.rhs.emit(instructions);
+        if self.rhs.is_return_reference(instructions) {
+            instructions.push(PushStack {
+                operand: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
+
+        self.lhs.emit(instructions);
+        if self.lhs.is_return_reference(instructions) {
+            instructions.push(Assign {
+                lhs_type: self.get_typeinfo(instructions),
+                lhs: Operand::Register(0),
+                rhs: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(Assign {
+                lhs_type: self.get_typeinfo(instructions),
+                lhs: Operand::Register(0),
+                rhs: Operand::Register(0),
+            });
+        }
+        instructions.push(PopStack {
+            operand: Operand::Register(1),
+        });
+
+        match self.op {
+            BinaryOperator::BitwiseAnd => {
+                instructions.push(BitwiseAndAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::BitwiseOr => {
+                instructions.push(BitwiseOrAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::BitwiseXor => {
+                instructions.push(BitwiseXorAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            _ => panic!("Invalid operator for BitwiseExpression: {:?}", self.op),
+        }
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+        false
+    }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        // choose bigger-precision type
+        match self.lhs.get_typeinfo(instructions) {
+            TypeInfo::UInt8 | TypeInfo::Int8 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt8,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt16 | TypeInfo::Int16 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt16,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt32 | TypeInfo::Int32 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt32,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt32,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt64 | TypeInfo::Int64 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt64,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt64,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt64,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            _ => panic!(
+                "{:?} not implemented between {:?} and {:?}",
+                self.op,
+                self.lhs.get_typeinfo(instructions),
+                self.rhs.get_typeinfo(instructions)
+            ),
+        }
     }
 }
 
