@@ -1406,16 +1406,48 @@ impl Expression for AssignExpression {
         });
         match self.op {
             BinaryOperator::AddAssign => {
-                instructions.push(AddAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(1),
-                });
+                if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions) {
+                    let move_size = t.number_of_primitives();
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
+                        operand_to: Operand::Register(2),
+                    });
+                    instructions.push(MulAssign {
+                        lhs: Operand::Register(2),
+                        rhs: Operand::Register(1),
+                    });
+                    instructions.push(AddAssign {
+                        lhs: Operand::Derefed(0, 0),
+                        rhs: Operand::Register(2),
+                    });
+                } else {
+                    instructions.push(AddAssign {
+                        lhs: Operand::Derefed(0, 0),
+                        rhs: Operand::Register(1),
+                    });
+                }
             }
             BinaryOperator::SubAssign => {
-                instructions.push(SubAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(1),
-                });
+                if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions) {
+                    let move_size = t.number_of_primitives();
+                    instructions.push(MoveRegister {
+                        operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
+                        operand_to: Operand::Register(2),
+                    });
+                    instructions.push(MulAssign {
+                        lhs: Operand::Register(2),
+                        rhs: Operand::Register(1),
+                    });
+                    instructions.push(SubAssign {
+                        lhs: Operand::Derefed(0, 0),
+                        rhs: Operand::Register(2),
+                    });
+                } else {
+                    instructions.push(SubAssign {
+                        lhs: Operand::Derefed(0, 0),
+                        rhs: Operand::Register(1),
+                    });
+                }
             }
             BinaryOperator::MulAssign => {
                 instructions.push(MulAssign {
