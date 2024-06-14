@@ -1373,6 +1373,115 @@ impl Expression for ComparisonExpression {
     }
 }
 
+// = += -= *= /= %=
+// <<= >>= &= |= ^=
+#[derive(Debug)]
+pub struct AssignExpression {
+    pub op: BinaryOperator,
+    pub lhs: Box<dyn Expression>,
+    pub rhs: Box<dyn Expression>,
+}
+impl Expression for AssignExpression {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        if self.lhs.is_return_reference(instructions) == false {
+            panic!("{:?} on non-reference", self.op);
+        }
+        self.rhs.emit(instructions);
+        if self.rhs.is_return_reference(instructions) {
+            instructions.push(PushStack {
+                operand: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
+        self.lhs.emit(instructions);
+        instructions.push(PopStack {
+            operand: Operand::Register(1),
+        });
+        match self.op {
+            BinaryOperator::AddAssign => {
+                instructions.push(AddAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::SubAssign => {
+                instructions.push(SubAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::MulAssign => {
+                instructions.push(MulAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::DivAssign => {
+                instructions.push(DivAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::ModAssign => {
+                instructions.push(ModAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::ShiftLeftAssign => {
+                instructions.push(ShiftLeftAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::ShiftRightAssign => {
+                instructions.push(ShiftRightAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::BitwiseAndAssign => {
+                instructions.push(BitwiseAndAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::BitwiseOrAssign => {
+                instructions.push(BitwiseOrAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::BitwiseXorAssign => {
+                instructions.push(BitwiseXorAssign {
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::Assign => {
+                instructions.push(Assign {
+                    lhs_type: self.lhs.get_typeinfo(instructions),
+                    lhs: Operand::Derefed(0, 0),
+                    rhs: Operand::Register(1),
+                });
+            } // TODO check if lhs rhs is struct, pointer, array in assign operation
+            _ => panic!("Invalid operator for AssignExpression: {:?}", self.op),
+        }
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        self.lhs.is_return_reference(instructions)
+    }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        self.lhs.get_typeinfo(instructions)
+    }
+}
+
 #[derive(Debug)]
 pub struct BinaryExpression {
     pub op: BinaryOperator,
@@ -1649,106 +1758,6 @@ impl Expression for BinaryExpression {
                 instructions.push(MoveRegister {
                     operand_from: Operand::Register(1),
                     operand_to: Operand::Register(0),
-                });
-            }
-            BinaryOperator::Assign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(Assign {
-                    lhs_type: self.lhs.get_typeinfo(instructions),
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::AddAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(AddAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::SubAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(SubAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::MulAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(MulAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::DivAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(DivAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::ModAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(ModAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::BitwiseAndAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(BitwiseAndAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::BitwiseOrAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(BitwiseOrAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::BitwiseXorAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(BitwiseXorAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::ShiftLeftAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(ShiftLeftAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
-                });
-            }
-            BinaryOperator::ShiftRightAssign => {
-                if self.lhs.is_return_reference(instructions) == false {
-                    panic!("Assign on non-lhs");
-                }
-                instructions.push(ShiftRightAssign {
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(2),
                 });
             }
             _ => panic!("invalid operator for BinaryOperator: {:?}", self.op),
