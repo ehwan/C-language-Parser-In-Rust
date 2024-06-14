@@ -11,6 +11,7 @@ use crate::virtualmachine::variable::VariableData;
 
 use core::panic;
 use std::any::Any;
+use std::ops::Mul;
 
 pub trait Expression: std::fmt::Debug + Any {
     /// push instruction that eval expression and store result in register0
@@ -1525,14 +1526,197 @@ pub struct AdditiveExpression {
     pub rhs: Box<dyn Expression>,
 }
 impl Expression for AdditiveExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {}
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        // for type-check panic
+        self.get_typeinfo(instructions);
+
+        self.rhs.emit(instructions);
+        if self.rhs.is_return_reference(instructions) {
+            instructions.push(PushStack {
+                operand: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
+
+        self.lhs.emit(instructions);
+        if self.lhs.is_return_reference(instructions) {
+            instructions.push(Assign {
+                lhs_type: self.get_typeinfo(instructions),
+                lhs: Operand::Register(0),
+                rhs: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(Assign {
+                lhs_type: self.get_typeinfo(instructions),
+                lhs: Operand::Register(0),
+                rhs: Operand::Register(0),
+            });
+        }
+        instructions.push(PopStack {
+            operand: Operand::Register(1),
+        });
+
+        // pointer arithmetic
+        if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions) {
+            let move_size = t.number_of_primitives();
+            instructions.push(MoveRegister {
+                operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
+                operand_to: Operand::Register(2),
+            });
+            instructions.push(MulAssign {
+                lhs: Operand::Register(2),
+                rhs: Operand::Register(1),
+            });
+
+            match self.op {
+                BinaryOperator::Add => {
+                    instructions.push(AddAssign {
+                        lhs: Operand::Register(0),
+                        rhs: Operand::Register(2),
+                    });
+                }
+                BinaryOperator::Sub => {
+                    instructions.push(SubAssign {
+                        lhs: Operand::Register(0),
+                        rhs: Operand::Register(2),
+                    });
+                }
+                _ => panic!("Invalid operator for AdditiveExpression: {:?}", self.op),
+            }
+        } else {
+            match self.op {
+                BinaryOperator::Add => {
+                    instructions.push(AddAssign {
+                        lhs: Operand::Register(0),
+                        rhs: Operand::Register(1),
+                    });
+                }
+                BinaryOperator::Sub => {
+                    instructions.push(SubAssign {
+                        lhs: Operand::Register(0),
+                        rhs: Operand::Register(1),
+                    });
+                }
+                _ => panic!("Invalid operator for AdditiveExpression: {:?}", self.op),
+            }
+        }
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         false
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {}
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        // choose bigger-precision type
+        match self.lhs.get_typeinfo(instructions) {
+            TypeInfo::UInt8 | TypeInfo::Int8 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt8,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt16 | TypeInfo::Int16 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt16,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt32 | TypeInfo::Int32 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt32,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt32,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt64 | TypeInfo::Int64 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt64,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt64,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt64,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Float32 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float32,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float32,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Float32,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Float64 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float64,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float64,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float64,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Float64,
+                TypeInfo::Float32 => TypeInfo::Float64,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Pointer(t) => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Pointer(t),
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Pointer(t),
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Pointer(t),
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Pointer(t),
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            _ => panic!(
+                "{:?} not implemented between {:?} and {:?}",
+                self.op,
+                self.lhs.get_typeinfo(instructions),
+                self.rhs.get_typeinfo(instructions)
+            ),
+        }
+    }
 }
 #[derive(Debug)]
 pub struct MultiplicativeExpression {
@@ -1541,14 +1725,162 @@ pub struct MultiplicativeExpression {
     pub rhs: Box<dyn Expression>,
 }
 impl Expression for MultiplicativeExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {}
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        self.rhs.emit(instructions);
+        if self.rhs.is_return_reference(instructions) {
+            instructions.push(PushStack {
+                operand: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(PushStack {
+                operand: Operand::Register(0),
+            });
+        }
+
+        self.lhs.emit(instructions);
+        if self.lhs.is_return_reference(instructions) {
+            instructions.push(Assign {
+                lhs_type: self.get_typeinfo(instructions),
+                lhs: Operand::Register(0),
+                rhs: Operand::Derefed(0, 0),
+            });
+        } else {
+            instructions.push(Assign {
+                lhs_type: self.get_typeinfo(instructions),
+                lhs: Operand::Register(0),
+                rhs: Operand::Register(0),
+            });
+        }
+        instructions.push(PopStack {
+            operand: Operand::Register(1),
+        });
+
+        match self.op {
+            BinaryOperator::Mul => {
+                instructions.push(MulAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::Div => {
+                instructions.push(DivAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            BinaryOperator::Mod => {
+                instructions.push(ModAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            _ => panic!(
+                "Invalid operator for MultiplicativeExpression: {:?}",
+                self.op
+            ),
+        }
+    }
     fn as_any(&self) -> &dyn Any {
         self
     }
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         false
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {}
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        // choose bigger-precision type
+        match self.lhs.get_typeinfo(instructions) {
+            TypeInfo::UInt8 | TypeInfo::Int8 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt8,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt16 | TypeInfo::Int16 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt16,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt32 | TypeInfo::Int32 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt32,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt32,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::UInt64 | TypeInfo::Int64 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt64,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt64,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt64,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::UInt64,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Float32 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float32,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float32,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float32,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Float32,
+                TypeInfo::Float32 => TypeInfo::Float32,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Float64 => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float64,
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float64,
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float64,
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Float64,
+                TypeInfo::Float32 => TypeInfo::Float64,
+                TypeInfo::Float64 => TypeInfo::Float64,
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            _ => panic!(
+                "{:?} not implemented between {:?} and {:?}",
+                self.op,
+                self.lhs.get_typeinfo(instructions),
+                self.rhs.get_typeinfo(instructions)
+            ),
+        }
+    }
 }
 #[derive(Debug)]
 pub struct ShiftExpression {
@@ -1673,6 +2005,7 @@ impl Expression for BitwiseExpression {
         false
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        // choose bigger-precision type
         match self.lhs.get_typeinfo(instructions) {
             TypeInfo::UInt8 | TypeInfo::Int8 => match self.rhs.get_typeinfo(instructions) {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt8,
