@@ -103,22 +103,9 @@ pub struct PostMember {
 impl Expression for PostMember {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         let member_offset = match self.src.get_typeinfo(instructions) {
-            TypeInfo::Struct(s) => {
-                let sinfo = if s.fields.is_some() {
-                    s
-                } else {
-                    let tt = instructions
-                        .search_type(s.name.as_ref().unwrap())
-                        .expect(format!("Struct {} not found", s.name.as_ref().unwrap()).as_str());
-                    if let TypeInfo::Struct(sinfo) = tt {
-                        sinfo.clone()
-                    } else {
-                        panic!("PostMember on non-struct type");
-                    }
-                };
-
+            TypeInfo::Struct(sinfo) => {
                 let mut member_offset: Option<usize> = None;
-                for (t, name, offset) in sinfo.fields.as_ref().unwrap() {
+                for (_, name, offset) in sinfo.fields.as_ref().unwrap() {
                     if name == &self.member {
                         member_offset = Some(*offset);
                         break;
