@@ -529,9 +529,53 @@ impl Statement for DeclarationStatement {
                         TypeInfo::Function(_, _) => {
                             panic!( "Function declaration cannot have initial value; something went wrong");
                         }
-                        TypeInfo::Struct(_sinfo) => {
+                        TypeInfo::Struct(sinfo) => {
+                            // if sinfo is not direct definition of 'struct type', it does not have fields.
+                            // so we have to search on type definition map.
+                            let sinfo = if sinfo.fields.is_some() {
+                                sinfo.clone()
+                            } else {
+                                if let TypeInfo::Struct(s) = instructions
+                                    .search_type(
+                                        sinfo.name.as_ref().expect("Struct name is not defined"),
+                                    )
+                                    .expect("Struct is not defined")
+                                {
+                                    s.clone()
+                                } else {
+                                    panic!("Struct is not defined");
+                                }
+                            };
+                            // initializer must be initializer list
+                            let initial_value = initial_value
+                                .as_any()
+                                .downcast_ref::<InitializerListExpression>()
+                                .expect("Array initializer must be initializer list");
+
+                            if initial_value.initializers.len()
+                                != sinfo.fields.as_ref().unwrap().len()
+                            {
+                                panic!("Invalid number of initializers for struct");
+                            }
+
+                            // link name to stack
+                            instructions.declare_variable(
+                                declaration.0.as_ref().unwrap(),
+                                &TypeInfo::Struct(sinfo.clone()),
+                                sinfo.number_of_primitives(),
+                            );
+
+                            // allocate on stack
+                            instructions.push(AddAssign {
+                                lhs: Operand::Register(STACK_POINTER_REGISTER),
+                                rhs: Operand::Value(VariableData::UInt64(
+                                    sinfo.number_of_primitives() as u64,
+                                )),
+                            });
+
+                            // init with initializer
                             panic!(
-                                "Struct variable declaration in declaration statement is not implemented"
+                                "Struct initialization with initializer list is not implemented"
                             );
                         }
                         TypeInfo::Union(_uinfo) => {

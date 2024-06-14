@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
 use crate::virtualmachine::{
-    instruction::{generation::InstructionGenerator, operand::Operand, PushStack},
+    instruction::{binary::Assign, generation::InstructionGenerator, operand::Operand, PushStack},
     variable::VariableData,
 };
+
+use super::expression::{Expression, InitializerListExpression};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeInfo {
@@ -125,6 +127,86 @@ impl TypeInfo {
             _ => panic!("emit_default: unsupported type: {:?}", self),
         }
     }
+
+    // initialize this type with the given initializer
+    // and push to stack
+    pub fn emit_init(
+        &self,
+        instructions: &mut InstructionGenerator,
+        initializer: &Box<dyn Expression>,
+    ) {
+        match self {
+            TypeInfo::Array(t, Some(n)) => {
+                let initializer = initializer
+                    .as_any()
+                    .downcast_ref::<InitializerListExpression>()
+                    .expect("TypeInfo::emit_init: initializer is not InitializerListExpression");
+
+                if initializer.initializers.len() != *n {
+                    panic!(
+                        "TypeInfo::emit_init: initializer length mismatch: expected {}, got {}",
+                        n,
+                        initializer.initializers.len()
+                    );
+                }
+
+                for i in 0..initializer.initializers.len() {
+                    t.emit_init(instructions, &initializer.initializers[i]);
+                }
+            }
+
+            TypeInfo::Struct(info) => info.emit_init(instructions, &initializer),
+
+            TypeInfo::UInt8
+            | TypeInfo::Int8
+            | TypeInfo::UInt16
+            | TypeInfo::Int16
+            | TypeInfo::UInt32
+            | TypeInfo::Int32
+            | TypeInfo::UInt64
+            | TypeInfo::Int64
+            | TypeInfo::Float32
+            | TypeInfo::Float64
+            | TypeInfo::Pointer(_) => {
+                // check if it is initializer list
+                if let Some(initializer) = initializer
+                    .as_any()
+                    .downcast_ref::<InitializerListExpression>()
+                {
+                    if initializer.initializers.len() != 1 {
+                        panic!(
+                            "TypeInfo::emit_init: initializer length mismatch: expected 1, got {}",
+                            initializer.initializers.len()
+                        );
+                    }
+                    self.emit_init(instructions, &initializer.initializers[0]);
+                } else {
+                    // register0 = initial value
+                    initializer.emit(instructions);
+
+                    // register1 = (type-casting) register0
+                    if initializer.is_return_reference(instructions) {
+                        instructions.push(Assign {
+                            lhs_type: self.clone(),
+                            lhs: Operand::Register(1),
+                            rhs: Operand::Derefed(0, 0),
+                        });
+                    } else {
+                        instructions.push(Assign {
+                            lhs_type: self.clone(),
+                            lhs: Operand::Register(1),
+                            rhs: Operand::Register(0),
+                        });
+                    }
+                    // push register1 to stack
+                    instructions.push(PushStack {
+                        operand: Operand::Register(1),
+                    });
+                }
+            }
+            _ => panic!("emit_init: unsupported type: {:?}", self),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -150,6 +232,29 @@ impl StructInfo {
     pub fn emit_default(&self, instructions: &mut InstructionGenerator) {
         for (t, _, _) in self.fields.as_ref().unwrap() {
             t.emit_default(instructions);
+        }
+    }
+    pub fn emit_init(
+        &self,
+        instructions: &mut InstructionGenerator,
+        initializer: &Box<dyn Expression>,
+    ) {
+        let initializer = initializer
+            .as_any()
+            .downcast_ref::<InitializerListExpression>()
+            .expect("StructInfo::emit_init: initializer is not InitializerListExpression");
+
+        if initializer.initializers.len() != self.fields.as_ref().unwrap().len() {
+            panic!(
+                "StructInfo::emit_init: initializer length mismatch: expected {}, got {}",
+                self.fields.as_ref().unwrap().len(),
+                initializer.initializers.len()
+            );
+        }
+
+        for i in 0..initializer.initializers.len() {
+            let (t, _, _) = &self.fields.as_ref().unwrap()[i];
+            t.emit_init(instructions, &initializer.initializers[i]);
         }
     }
 }
