@@ -1,3 +1,5 @@
+use std::ops::Shl;
+
 use super::operand::*;
 use super::Instruction;
 use crate::ast::typename::TypeInfo;
@@ -1069,35 +1071,98 @@ impl Instruction for ShiftLeftAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs <<= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
                 _ => panic!("Invalid type for left shift assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shl(rhs as u32).0,
+                _ => panic!("Invalid type for left shift assign"),
+            },
+            _ => panic!("Invalid type for left shift assign"),
         }
     }
 }
@@ -1111,35 +1176,98 @@ impl Instruction for ShiftRightAssign {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs = get_operand_value(program, &self.rhs).clone();
         let lhs = get_operand_value_mut(program, &self.lhs);
-        {
-            // this `match` should be in emitting phase...
-            match (lhs, rhs) {
-                (VariableData::UInt8(ref mut lhs), VariableData::UInt8(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::UInt16(ref mut lhs), VariableData::UInt16(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::UInt32(ref mut lhs), VariableData::UInt32(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::UInt64(ref mut lhs), VariableData::UInt64(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::Int8(ref mut lhs), VariableData::Int8(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::Int16(ref mut lhs), VariableData::Int16(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::Int32(ref mut lhs), VariableData::Int32(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
-                (VariableData::Int64(ref mut lhs), VariableData::Int64(ref rhs)) => {
-                    *lhs >>= *rhs;
-                }
+
+        match lhs {
+            VariableData::UInt8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
                 _ => panic!("Invalid type for right shift assign"),
-            };
+            },
+            VariableData::UInt16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            VariableData::UInt32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            VariableData::UInt64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+
+            VariableData::Int8(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            VariableData::Int16(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            VariableData::Int32(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            VariableData::Int64(ref mut lhs) => match rhs {
+                VariableData::UInt8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::UInt64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int8(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int16(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int32(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                VariableData::Int64(rhs) => *lhs = lhs.overflowing_shr(rhs as u32).0,
+                _ => panic!("Invalid type for right shift assign"),
+            },
+            _ => panic!("Invalid type for right shift assign"),
         }
     }
 }
