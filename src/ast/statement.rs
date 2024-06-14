@@ -564,7 +564,7 @@ impl Statement for DeclarationStatement {
                             instructions.declare_variable(
                                 declaration.0.as_ref().unwrap(),
                                 &TypeInfo::Array(type_.clone(), Some(size)),
-                                size,
+                                size * type_.number_of_primitives(),
                             );
 
                             // init with initializer
@@ -723,7 +723,7 @@ impl Statement for DeclarationStatement {
                             instructions.declare_variable(
                                 declaration.0.as_ref().unwrap(),
                                 &TypeInfo::Array(type_.clone(), Some(size)),
-                                size,
+                                size * type_.number_of_primitives(),
                             );
 
                             for _ in 0..size {
