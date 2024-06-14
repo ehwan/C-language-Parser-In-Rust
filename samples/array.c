@@ -35,7 +35,7 @@ int main()
   *arr_ptr = 10;
   ++arr_ptr;
   *arr_ptr = 20;
-  *(arr_ptr + (unsigned long)1) = 30;
+  *(arr_ptr + 1) = 30;
   arr_ptr[2] = 40;
   arr_ptr[3] = 50;
   for (i = 0; i < 5; i++)
