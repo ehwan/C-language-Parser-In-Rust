@@ -1,5 +1,10 @@
 use std::collections::HashMap;
 
+use crate::virtualmachine::{
+    instruction::{generation::InstructionGenerator, operand::Operand, PushStack},
+    variable::VariableData,
+};
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeInfo {
     Void,
@@ -66,35 +71,86 @@ impl TypeInfo {
             _ => panic!("number_of_primitives: unsupported type: {:?}", self),
         }
     }
+    // push default value to the stack
+    pub fn emit_default(&self, instructions: &mut InstructionGenerator) {
+        match self {
+            TypeInfo::UInt8 => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::UInt8(0)),
+            }),
+            TypeInfo::Int8 => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::Int8(0)),
+            }),
+
+            TypeInfo::UInt16 => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::UInt16(0)),
+            }),
+            TypeInfo::Int16 => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::Int16(0)),
+            }),
+
+            TypeInfo::UInt32 => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::UInt32(0)),
+            }),
+            TypeInfo::Int32 => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::Int32(0)),
+            }),
+
+            TypeInfo::UInt64 => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::UInt64(0)),
+            }),
+            TypeInfo::Int64 => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::Int64(0)),
+            }),
+
+            TypeInfo::Float32 => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::Float32(0.0)),
+            }),
+
+            TypeInfo::Float64 => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::Float64(0.0)),
+            }),
+
+            TypeInfo::Pointer(_) => instructions.push(PushStack {
+                operand: Operand::Value(VariableData::UInt64(0)),
+            }),
+
+            TypeInfo::Array(t, Some(n)) => {
+                for _ in 0..*n {
+                    t.emit_default(instructions);
+                }
+            }
+
+            TypeInfo::Struct(info) => info.emit_default(instructions),
+
+            _ => panic!("emit_default: unsupported type: {:?}", self),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructInfo {
     pub name: Option<String>,
-    pub fields: Option<HashMap<String, (TypeInfo, usize)>>,
+    pub fields: Option<Vec<(TypeInfo, String, usize)>>,
 }
 impl StructInfo {
     pub fn sizeof(&self) -> usize {
         let mut size: usize = 0;
-        for (_, (fieldtype, _)) in self.fields.as_ref().unwrap() {
-            size += fieldtype.sizeof();
+        for (t, _, _) in self.fields.as_ref().unwrap() {
+            size += t.sizeof();
         }
         size
     }
     pub fn number_of_primitives(&self) -> usize {
         let mut count: usize = 0;
-        for (_, (fieldtype, _)) in self.fields.as_ref().unwrap() {
-            match fieldtype {
-                TypeInfo::UInt8 | TypeInfo::UInt16 | TypeInfo::UInt32 | TypeInfo::UInt64 => {
-                    count += 1
-                }
-                TypeInfo::Int8 | TypeInfo::Int16 | TypeInfo::Int32 | TypeInfo::Int64 => count += 1,
-                TypeInfo::Float32 | TypeInfo::Float64 => count += 1,
-                TypeInfo::Struct(structinfo) => count += structinfo.number_of_primitives(),
-                _ => panic!("number_of_primitives: unsupported type: {:?}", fieldtype),
-            }
+        for (t, _, _) in self.fields.as_ref().unwrap() {
+            count += t.number_of_primitives();
         }
         count
+    }
+    pub fn emit_default(&self, instructions: &mut InstructionGenerator) {
+        for (t, _, _) in self.fields.as_ref().unwrap() {
+            t.emit_default(instructions);
+        }
     }
 }
 #[derive(Debug, Clone, PartialEq)]

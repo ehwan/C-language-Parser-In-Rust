@@ -593,9 +593,7 @@ impl Statement for DeclarationStatement {
                             }
                             for _ in 0..init_with_default {
                                 // push to stack
-                                instructions.push(PushStack {
-                                    operand: Operand::Value(VariableData::init_default(type_)),
-                                });
+                                type_.emit_default(instructions);
                             }
                         }
 
@@ -708,26 +706,7 @@ impl Statement for DeclarationStatement {
                                 size,
                             );
 
-                            if let TypeInfo::Struct(sinfo) = sinfo {
-                                for i in 0..size {
-                                    // push to stack
-                                    // search for i-th field
-                                    for (field_type, field_idx) in
-                                        sinfo.fields.as_ref().unwrap().values()
-                                    {
-                                        if field_idx == &i {
-                                            instructions.push(PushStack {
-                                                operand: Operand::Value(
-                                                    VariableData::init_default(field_type),
-                                                ),
-                                            });
-                                            break;
-                                        }
-                                    }
-                                }
-                            } else {
-                                panic!("Struct is not defined");
-                            }
+                            sinfo.emit_default(instructions);
                         }
                         TypeInfo::Union(_uinfo) => {
                             panic!("Union declaration in declaration statement is not implemented");
@@ -749,9 +728,7 @@ impl Statement for DeclarationStatement {
 
                             for _ in 0..size {
                                 // push to stack
-                                instructions.push(PushStack {
-                                    operand: Operand::Value(VariableData::init_default(type_)),
-                                });
+                                type_.emit_default(instructions);
                             }
                         }
 
@@ -775,9 +752,7 @@ impl Statement for DeclarationStatement {
                             );
 
                             // push default value to stack
-                            instructions.push(PushStack {
-                                operand: Operand::Value(VariableData::init_default(&declaration.1)),
-                            });
+                            declaration.1.emit_default(instructions);
                         }
                         _ => {}
                     }
