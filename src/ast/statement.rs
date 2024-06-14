@@ -706,10 +706,7 @@ impl Statement for DeclarationStatement {
                                 size * type_.number_of_primitives(),
                             );
 
-                            for _ in 0..size {
-                                // push to stack
-                                type_.emit_default(instructions);
-                            }
+                            TypeInfo::Array(type_.clone(), Some(size)).emit_default(instructions);
                         }
 
                         // primitive types + pointer
