@@ -24,5 +24,9 @@ int main()
   print(x);
   x = 20;
   print(x);
+
+  struct MyStruct* sptr = &s;
+  sptr->b = 100;
+  print(s.b);
   return 0;
 }

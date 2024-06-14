@@ -81,7 +81,7 @@ impl Expression for PrimaryIdentifier {
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         match self.get_typeinfo(instructions) {
             TypeInfo::Array(_, _) => false,
-            TypeInfo::Struct(_) => false,
+            // TypeInfo::Struct(_) => false,
             _ => true,
         }
     }
@@ -116,7 +116,6 @@ impl Expression for PostMember {
             }
             _ => panic!("PostMember on non-struct type"),
         };
-        println!("PostMember: member_offset: {}", member_offset);
         self.src.emit(instructions);
         instructions.push(AddAssign {
             lhs: Operand::Register(0),
@@ -157,7 +156,7 @@ impl Expression for PostMember {
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         match self.get_typeinfo(instructions) {
             TypeInfo::Array(_, _) => false,
-            TypeInfo::Struct(_) => false,
+            // TypeInfo::Struct(_) => false,
             _ => true,
         }
     }
@@ -2072,16 +2071,94 @@ pub struct PostArrow {
 }
 impl Expression for PostArrow {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        panic!("PostArrow.eval not implemented");
+        let member_offset = match self.src.get_typeinfo(instructions) {
+            TypeInfo::Pointer(t) => match t.as_ref() {
+                TypeInfo::Struct(sinfo) => {
+                    let sinfo = if sinfo.fields.is_none() {
+                        let search_res = instructions
+                            .search_type(sinfo.name.as_ref().unwrap())
+                            .expect(format!("struct not defined1: {:?}", sinfo.name).as_str());
+                        if let TypeInfo::Struct(ss) = search_res {
+                            ss
+                        } else {
+                            panic!("struct not defined2: {:?}", sinfo.name);
+                        }
+                    } else {
+                        sinfo
+                    }
+                    .clone();
+                    let mut member_offset: Option<usize> = None;
+                    for (_, name, offset) in sinfo.fields.as_ref().unwrap() {
+                        if name == &self.member {
+                            member_offset = Some(*offset);
+                            break;
+                        }
+                    }
+                    member_offset.expect(format!("member not found: {:?}", self.member).as_str())
+                }
+                _ => panic!("-> operator on non-struct type: {:?}", t),
+            },
+            _ => panic!(
+                "-> operator on non-pointer type: {:?}",
+                self.src.get_typeinfo(instructions)
+            ),
+        };
+
+        self.src.emit(instructions);
+        if self.src.is_return_reference(instructions) {
+            instructions.push(MoveRegister {
+                operand_from: Operand::Derefed(0, 0),
+                operand_to: Operand::Register(0),
+            });
+        }
+        instructions.push(AddAssign {
+            lhs: Operand::Register(0),
+            rhs: Operand::Value(VariableData::UInt64(member_offset as u64)),
+        });
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        panic!("PostArrow.get_typeinfo not implemented");
+        match self.src.get_typeinfo(instructions) {
+            TypeInfo::Pointer(t) => match t.as_ref() {
+                TypeInfo::Struct(sinfo) => {
+                    let sinfo = if sinfo.fields.is_none() {
+                        let search_res = instructions
+                            .search_type(sinfo.name.as_ref().unwrap())
+                            .expect(format!("struct not defined1: {:?}", sinfo.name).as_str());
+                        if let TypeInfo::Struct(ss) = search_res {
+                            ss
+                        } else {
+                            panic!("struct not defined2: {:?}", sinfo.name);
+                        }
+                    } else {
+                        sinfo
+                    }
+                    .clone();
+                    let mut member_type: Option<TypeInfo> = None;
+                    for (type_, name, _) in sinfo.fields.as_ref().unwrap() {
+                        if name == &self.member {
+                            member_type = Some(type_.clone());
+                            break;
+                        }
+                    }
+                    member_type.expect(format!("member not found: {:?}", self.member).as_str())
+                }
+                _ => panic!("-> operator on non-struct type: {:?}", t),
+            },
+            _ => panic!(
+                "-> operator on non-pointer type: {:?}",
+                self.src.get_typeinfo(instructions)
+            ),
+        }
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
-        panic!("PostArrow.is_return_reference not implemented");
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        match self.get_typeinfo(instructions) {
+            TypeInfo::Array(_, _) => false,
+            // TypeInfo::Struct(_) => false,
+            _ => true,
+        }
     }
 }
 
@@ -2174,13 +2251,13 @@ pub struct InitializerListExpression {
     pub initializers: Vec<Box<dyn Expression>>,
 }
 impl Expression for InitializerListExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+    fn emit(&self, _instructions: &mut InstructionGenerator) {
         panic!("InitializerListExpression.eval not implemented");
     }
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         panic!("InitializerListExpression.get_typeinfo not implemented");
     }
     fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
