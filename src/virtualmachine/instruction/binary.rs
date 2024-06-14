@@ -1280,8 +1280,7 @@ pub struct Assign {
 }
 impl Instruction for Assign {
     fn execute(&self, program: &mut VirtualProgram) {
-        let rhs = get_operand_value(program, &self.rhs).clone();
-        let rhs = rhs
+        let rhs = get_operand_value(program, &self.rhs)
             .cast_to(&self.lhs_type)
             .expect(format!("Invalid cast to {:?}", &self.lhs_type).as_str());
 

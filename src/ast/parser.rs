@@ -870,7 +870,7 @@ impl ASTParser {
                  op: BinaryOperator,
                  rhs: Box<dyn Expression>|
                  -> Box<dyn Expression> {
-                    Box::new(BinaryExpression { op, lhs, rhs })
+                    Box::new(MultiplicativeExpression { op, lhs, rhs })
                 },
             );
             multiplicative_expression
@@ -895,7 +895,7 @@ impl ASTParser {
                  op: BinaryOperator,
                  rhs: Box<dyn Expression>|
                  -> Box<dyn Expression> {
-                    Box::new(BinaryExpression { op, lhs, rhs })
+                    Box::new(AdditiveExpression { op, lhs, rhs })
                 },
             );
             additive_expression.borrow_mut().assign(additive);
@@ -918,7 +918,7 @@ impl ASTParser {
                  op: BinaryOperator,
                  rhs: Box<dyn Expression>|
                  -> Box<dyn Expression> {
-                    Box::new(BinaryExpression { op, lhs, rhs })
+                    Box::new(ShiftExpression { op, lhs, rhs })
                 },
             );
             shift_expression.borrow_mut().assign(shift);
@@ -987,7 +987,7 @@ impl ASTParser {
                  op: BinaryOperator,
                  rhs: Box<dyn Expression>|
                  -> Box<dyn Expression> {
-                    Box::new(BinaryExpression { op, lhs, rhs })
+                    Box::new(BitwiseExpression { op, lhs, rhs })
                 },
             );
             and_expression.borrow_mut().assign(and);
@@ -1006,7 +1006,7 @@ impl ASTParser {
                  op: BinaryOperator,
                  rhs: Box<dyn Expression>|
                  -> Box<dyn Expression> {
-                    Box::new(BinaryExpression { op, lhs, rhs })
+                    Box::new(BitwiseExpression { op, lhs, rhs })
                 },
             );
             exclusive_or_expression.borrow_mut().assign(xor);
@@ -1025,7 +1025,7 @@ impl ASTParser {
                  op: BinaryOperator,
                  rhs: Box<dyn Expression>|
                  -> Box<dyn Expression> {
-                    Box::new(BinaryExpression { op, lhs, rhs })
+                    Box::new(BitwiseExpression { op, lhs, rhs })
                 },
             );
             inclusive_or_expression.borrow_mut().assign(or);
