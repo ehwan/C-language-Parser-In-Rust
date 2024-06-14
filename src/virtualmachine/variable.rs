@@ -269,17 +269,3 @@ impl VariableData {
         }
     }
 }
-
-#[derive(Debug, Clone)]
-pub struct StructData {
-    pub fields: HashMap<String, (TypeInfo, VariableData)>,
-}
-#[derive(Debug, Clone)]
-pub struct UnionData {
-    pub fields: HashMap<String, (TypeInfo, VariableData)>,
-}
-
-#[derive(Debug, Clone)]
-pub struct EnumData {
-    pub value: i64,
-}

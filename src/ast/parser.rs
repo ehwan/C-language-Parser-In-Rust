@@ -1151,7 +1151,11 @@ impl ASTParser {
                      op: BinaryOperator,
                      rhs: Box<dyn Expression>|
                      -> Box<dyn Expression> {
-                        Box::new(AssignExpression { op, lhs, rhs })
+                        if op == BinaryOperator::Assign {
+                            Box::new(AssignExpression { op, lhs, rhs })
+                        } else {
+                            Box::new(AssignOpExpression { op, lhs, rhs })
+                        }
                     }
                 ),
                 conditional_expression.clone()

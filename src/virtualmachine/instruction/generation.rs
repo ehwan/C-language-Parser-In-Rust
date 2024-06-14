@@ -1,5 +1,6 @@
 use super::DefineLabel;
 use super::Instruction;
+use crate::ast::typename::StructInfo;
 use crate::ast::typename::TypeInfo;
 use crate::virtualmachine::scope::*;
 use std::collections::HashMap;
@@ -142,6 +143,27 @@ impl InstructionGenerator {
             return Some(type_info);
         }
         None
+    }
+    pub fn get_struct_definition(&self, sinfo: &mut StructInfo) {
+        if sinfo.fields.is_some() {
+            return;
+        }
+
+        let searched = self.search_type(sinfo.name.as_ref().unwrap()).expect(
+            format!(
+                "get_struct_definition: struct {} is not defined",
+                sinfo.name.as_ref().unwrap()
+            )
+            .as_str(),
+        );
+        if let TypeInfo::Struct(sinfo2) = searched {
+            *sinfo = sinfo2.clone();
+        } else {
+            panic!(
+                "get_struct_definition: {} is not struct",
+                sinfo.name.as_ref().unwrap()
+            );
+        }
     }
 
     // link label name to current instruction address

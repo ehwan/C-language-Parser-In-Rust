@@ -11,7 +11,6 @@ use crate::virtualmachine::variable::VariableData;
 
 use core::panic;
 use std::any::Any;
-use std::ops::Mul;
 
 pub trait Expression: std::fmt::Debug + Any {
     /// push instruction that eval expression and store result in register0
@@ -104,7 +103,8 @@ pub struct PostMember {
 impl Expression for PostMember {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         let member_offset = match self.src.get_typeinfo(instructions) {
-            TypeInfo::Struct(sinfo) => {
+            TypeInfo::Struct(mut sinfo) => {
+                instructions.get_struct_definition(&mut sinfo);
                 let mut member_offset: Option<usize> = None;
                 for (_, name, offset) in sinfo.fields.as_ref().unwrap() {
                     if name == &self.member {
@@ -127,22 +127,10 @@ impl Expression for PostMember {
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         match self.src.get_typeinfo(instructions) {
-            TypeInfo::Struct(s) => {
-                let sinfo = if s.fields.is_some() {
-                    s
-                } else {
-                    let tt = instructions
-                        .search_type(s.name.as_ref().unwrap())
-                        .expect(format!("Struct {} not found", s.name.as_ref().unwrap()).as_str());
-                    if let TypeInfo::Struct(sinfo) = tt {
-                        sinfo.clone()
-                    } else {
-                        panic!("PostMember on non-struct type");
-                    }
-                };
-
+            TypeInfo::Struct(mut sinfo) => {
+                instructions.get_struct_definition(&mut sinfo);
                 let mut member_type: Option<TypeInfo> = None;
-                for (t, name, offset) in sinfo.fields.as_ref().unwrap() {
+                for (t, name, _) in sinfo.fields.as_ref().unwrap() {
                     if name == &self.member {
                         member_type = Some(t.clone());
                         break;
@@ -1376,9 +1364,7 @@ impl Expression for ComparisonExpression {
         false
     }
 }
-
-// = += -= *= /= %=
-// <<= >>= &= |= ^=
+// lhs = rhs
 #[derive(Debug)]
 pub struct AssignExpression {
     pub op: BinaryOperator,
@@ -1386,6 +1372,89 @@ pub struct AssignExpression {
     pub rhs: Box<dyn Expression>,
 }
 impl Expression for AssignExpression {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        // check if it is non-numeric <-> non-numeric assignment
+        if let TypeInfo::Struct(mut lhs_type) = self.lhs.get_typeinfo(instructions) {
+            instructions.get_struct_definition(&mut lhs_type);
+            if let TypeInfo::Struct(mut rhs_type) = self.rhs.get_typeinfo(instructions) {
+                instructions.get_struct_definition(&mut rhs_type);
+                if &lhs_type != &rhs_type {
+                    panic!(
+                        "Struct assignment with different types: {:?} = {:?}",
+                        lhs_type, rhs_type
+                    );
+                }
+                // struct = struct assignment
+                self.rhs.emit(instructions);
+                instructions.push(PushStack {
+                    operand: Operand::Register(0),
+                });
+                self.lhs.emit(instructions);
+                instructions.push(PopStack {
+                    operand: Operand::Register(1),
+                });
+
+                let count = lhs_type.number_of_primitives();
+                instructions.push(AssignStruct {
+                    count,
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            } else {
+                // struct = other assignment; panic
+                panic!(
+                    "Struct assignment with non-struct type: {:?} = {:?}",
+                    lhs_type,
+                    self.rhs.get_typeinfo(instructions)
+                );
+            }
+        } else {
+            // normal assignment
+
+            if self.lhs.is_return_reference(instructions) == false {
+                panic!("{:?} on non-reference", self.op);
+            }
+            self.rhs.emit(instructions);
+            if self.rhs.is_return_reference(instructions) {
+                instructions.push(PushStack {
+                    operand: Operand::Derefed(0, 0),
+                });
+            } else {
+                instructions.push(PushStack {
+                    operand: Operand::Register(0),
+                });
+            }
+            self.lhs.emit(instructions);
+            instructions.push(PopStack {
+                operand: Operand::Register(1),
+            });
+            instructions.push(Assign {
+                lhs_type: self.lhs.get_typeinfo(instructions),
+                lhs: Operand::Derefed(0, 0),
+                rhs: Operand::Register(1),
+            });
+        }
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        self.lhs.is_return_reference(instructions)
+    }
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        self.lhs.get_typeinfo(instructions)
+    }
+}
+
+// += -= *= /= %=
+// <<= >>= &= |= ^=
+#[derive(Debug)]
+pub struct AssignOpExpression {
+    pub op: BinaryOperator,
+    pub lhs: Box<dyn Expression>,
+    pub rhs: Box<dyn Expression>,
+}
+impl Expression for AssignOpExpression {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         if self.lhs.is_return_reference(instructions) == false {
             panic!("{:?} on non-reference", self.op);
@@ -1497,13 +1566,6 @@ impl Expression for AssignExpression {
                     rhs: Operand::Register(1),
                 });
             }
-            BinaryOperator::Assign => {
-                instructions.push(Assign {
-                    lhs_type: self.lhs.get_typeinfo(instructions),
-                    lhs: Operand::Derefed(0, 0),
-                    rhs: Operand::Register(1),
-                });
-            } // TODO check if lhs rhs is struct, pointer, array in assign operation
             _ => panic!("Invalid operator for AssignExpression: {:?}", self.op),
         }
     }
@@ -2074,19 +2136,8 @@ impl Expression for PostArrow {
         let member_offset = match self.src.get_typeinfo(instructions) {
             TypeInfo::Pointer(t) => match t.as_ref() {
                 TypeInfo::Struct(sinfo) => {
-                    let sinfo = if sinfo.fields.is_none() {
-                        let search_res = instructions
-                            .search_type(sinfo.name.as_ref().unwrap())
-                            .expect(format!("struct not defined1: {:?}", sinfo.name).as_str());
-                        if let TypeInfo::Struct(ss) = search_res {
-                            ss
-                        } else {
-                            panic!("struct not defined2: {:?}", sinfo.name);
-                        }
-                    } else {
-                        sinfo
-                    }
-                    .clone();
+                    let mut sinfo = sinfo.clone();
+                    instructions.get_struct_definition(&mut sinfo);
                     let mut member_offset: Option<usize> = None;
                     for (_, name, offset) in sinfo.fields.as_ref().unwrap() {
                         if name == &self.member {
@@ -2123,19 +2174,8 @@ impl Expression for PostArrow {
         match self.src.get_typeinfo(instructions) {
             TypeInfo::Pointer(t) => match t.as_ref() {
                 TypeInfo::Struct(sinfo) => {
-                    let sinfo = if sinfo.fields.is_none() {
-                        let search_res = instructions
-                            .search_type(sinfo.name.as_ref().unwrap())
-                            .expect(format!("struct not defined1: {:?}", sinfo.name).as_str());
-                        if let TypeInfo::Struct(ss) = search_res {
-                            ss
-                        } else {
-                            panic!("struct not defined2: {:?}", sinfo.name);
-                        }
-                    } else {
-                        sinfo
-                    }
-                    .clone();
+                    let mut sinfo = sinfo.clone();
+                    instructions.get_struct_definition(&mut sinfo);
                     let mut member_type: Option<TypeInfo> = None;
                     for (type_, name, _) in sinfo.fields.as_ref().unwrap() {
                         if name == &self.member {

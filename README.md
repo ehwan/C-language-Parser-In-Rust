@@ -1,14 +1,19 @@
 # minimal C language lexer & parser & virtual executer written in Rust
 
-minimal C language lexer & parser & virtual executer from scratch in Rust
+C language lexer & parser & virtual executer from scratch in Rust.
 
-A lot of language features are not implemented yet. 
+## syntax not supported
+ - Preprocessor
+ - `union` `enum`
+ - type qualifiers (`const`, `volatile`, `restrict` `static` `extern`) will be ignored
+ - `typedef`
 
 ## Features
  - Tokenizer (Lexer)
  - Parser ( AST Builder )
  - Code Generator
  - Virtual Machine (Instruction Executor)
+
 ### Note
 This process will not generate binary or assembly code. Instead, it will produce a sequence of virtual instructions (`src/virtualmachine/instruction`) which will be executed at the software level.
 

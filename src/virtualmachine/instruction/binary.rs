@@ -1,5 +1,3 @@
-use std::ops::Shl;
-
 use super::operand::*;
 use super::Instruction;
 use crate::ast::typename::TypeInfo;
@@ -1285,5 +1283,22 @@ impl Instruction for Assign {
             .expect(format!("Invalid cast to {:?}", &self.lhs_type).as_str());
 
         *get_operand_value_mut(program, &self.lhs) = rhs;
+    }
+}
+
+#[derive(Debug)]
+pub struct AssignStruct {
+    pub count: usize,
+    pub lhs: Operand,
+    pub rhs: Operand,
+}
+impl Instruction for AssignStruct {
+    fn execute(&self, program: &mut VirtualProgram) {
+        let lhs_address = get_operand_value(program, &self.lhs).to_u64() as usize;
+        let rhs_address = get_operand_value(program, &self.rhs).to_u64() as usize;
+
+        for i in 0..self.count {
+            program.stack[lhs_address + i] = program.stack[rhs_address + i].clone();
+        }
     }
 }

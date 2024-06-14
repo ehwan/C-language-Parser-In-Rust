@@ -532,20 +532,9 @@ impl Statement for DeclarationStatement {
                         TypeInfo::Struct(sinfo) => {
                             // if sinfo is not direct definition of 'struct type', it does not have fields.
                             // so we have to search on type definition map.
-                            let sinfo = if sinfo.fields.is_some() {
-                                sinfo.clone()
-                            } else {
-                                if let TypeInfo::Struct(s) = instructions
-                                    .search_type(
-                                        sinfo.name.as_ref().expect("Struct name is not defined"),
-                                    )
-                                    .expect("Struct is not defined")
-                                {
-                                    s.clone()
-                                } else {
-                                    panic!("Struct is not defined");
-                                }
-                            };
+                            let mut sinfo = sinfo.clone();
+                            instructions.get_struct_definition(&mut sinfo);
+
                             // link name to stack
                             instructions.declare_variable(
                                 declaration.0.as_ref().unwrap(),
@@ -660,20 +649,8 @@ impl Statement for DeclarationStatement {
                         TypeInfo::Struct(sinfo) => {
                             // if sinfo is not direct definition of 'struct type', it does not have fields.
                             // so we have to search on type definition map.
-                            let sinfo = if sinfo.fields.is_some() {
-                                sinfo.clone()
-                            } else {
-                                if let TypeInfo::Struct(s) = instructions
-                                    .search_type(
-                                        sinfo.name.as_ref().expect("Struct name is not defined"),
-                                    )
-                                    .expect("Struct is not defined")
-                                {
-                                    s.clone()
-                                } else {
-                                    panic!("Struct is not defined");
-                                }
-                            };
+                            let mut sinfo = sinfo.clone();
+                            instructions.get_struct_definition(&mut sinfo);
                             let sinfo = TypeInfo::Struct(sinfo);
                             let size = sinfo.number_of_primitives();
                             if size == 0 {

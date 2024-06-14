@@ -28,5 +28,21 @@ int main()
   struct MyStruct* sptr = &s;
   sptr->b = 100;
   print(s.b);
+
+  struct MyStruct s2 = s;
+  print(s2.a);
+  print(s2.b);
+  print(s2.c);
+  s2.a = 100;
+  s2.b = 200;
+  s2.c = 300;
+
+  print(s2.a);
+  print(s2.b);
+  print(s2.c);
+  print(s.a);
+  print(s.b);
+  print(s.c);
+
   return 0;
 }

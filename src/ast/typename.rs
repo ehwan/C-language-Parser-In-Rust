@@ -1,7 +1,13 @@
 use std::collections::HashMap;
 
 use crate::virtualmachine::{
-    instruction::{binary::Assign, generation::InstructionGenerator, operand::Operand, PushStack},
+    instruction::{
+        binary::{AddAssign, Assign, AssignStruct},
+        generation::InstructionGenerator,
+        operand::Operand,
+        MoveRegister, PushStack,
+    },
+    program::STACK_POINTER_REGISTER,
     variable::VariableData,
 };
 
@@ -244,22 +250,59 @@ impl StructInfo {
         instructions: &mut InstructionGenerator,
         initializer: &Box<dyn Expression>,
     ) {
-        let initializer = initializer
+        if let Some(initializer) = initializer
             .as_any()
             .downcast_ref::<InitializerListExpression>()
-            .expect("StructInfo::emit_init: initializer is not InitializerListExpression");
+        {
+            // struct init with initializer
 
-        if initializer.initializers.len() != self.fields.as_ref().unwrap().len() {
-            panic!(
-                "StructInfo::emit_init: initializer length mismatch: expected {}, got {}",
-                self.fields.as_ref().unwrap().len(),
-                initializer.initializers.len()
-            );
-        }
+            if initializer.initializers.len() != self.fields.as_ref().unwrap().len() {
+                panic!(
+                    "StructInfo::emit_init: initializer length mismatch: expected {}, got {}",
+                    self.fields.as_ref().unwrap().len(),
+                    initializer.initializers.len()
+                );
+            }
 
-        for i in 0..initializer.initializers.len() {
-            let (t, _, _) = &self.fields.as_ref().unwrap()[i];
-            t.emit_init(instructions, &initializer.initializers[i]);
+            for i in 0..initializer.initializers.len() {
+                let (t, _, _) = &self.fields.as_ref().unwrap()[i];
+                t.emit_init(instructions, &initializer.initializers[i]);
+            }
+        } else {
+            // struct init with other struct
+            if let TypeInfo::Struct(mut rhs_type) = initializer.get_typeinfo(instructions) {
+                instructions.get_struct_definition(&mut rhs_type);
+                if self != &rhs_type {
+                    panic!("struct init: type mismatch1");
+                }
+
+                let primitive_count = rhs_type.number_of_primitives();
+
+                initializer.emit(instructions);
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(0),
+                    operand_to: Operand::Register(1),
+                });
+
+                // start address of new struct
+                instructions.push(MoveRegister {
+                    operand_from: Operand::Register(STACK_POINTER_REGISTER),
+                    operand_to: Operand::Register(0),
+                });
+                // alloc stack
+                instructions.push(AddAssign {
+                    lhs: Operand::Register(STACK_POINTER_REGISTER),
+                    rhs: Operand::Value(VariableData::UInt64(primitive_count as u64)),
+                });
+
+                instructions.push(AssignStruct {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                    count: primitive_count,
+                });
+            } else {
+                panic!("struct init: type mismatch2");
+            }
         }
     }
 }
