@@ -142,9 +142,9 @@ impl TypeInfo {
                     .downcast_ref::<InitializerListExpression>()
                     .expect("TypeInfo::emit_init: initializer is not InitializerListExpression");
 
-                if initializer.initializers.len() != *n {
+                if initializer.initializers.len() > *n {
                     panic!(
-                        "TypeInfo::emit_init: initializer length mismatch: expected {}, got {}",
+                        "Array initialization overflow: expected {}, got {}",
                         n,
                         initializer.initializers.len()
                     );
@@ -152,6 +152,11 @@ impl TypeInfo {
 
                 for i in 0..initializer.initializers.len() {
                     t.emit_init(instructions, &initializer.initializers[i]);
+                }
+
+                let remaining = *n - initializer.initializers.len();
+                for _ in 0..remaining {
+                    t.emit_default(instructions);
                 }
             }
 

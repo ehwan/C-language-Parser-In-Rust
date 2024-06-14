@@ -546,18 +546,6 @@ impl Statement for DeclarationStatement {
                                     panic!("Struct is not defined");
                                 }
                             };
-                            // initializer must be initializer list
-                            let initial_value = initial_value
-                                .as_any()
-                                .downcast_ref::<InitializerListExpression>()
-                                .expect("Array initializer must be initializer list");
-
-                            if initial_value.initializers.len()
-                                != sinfo.fields.as_ref().unwrap().len()
-                            {
-                                panic!("Invalid number of initializers for struct");
-                            }
-
                             // link name to stack
                             instructions.declare_variable(
                                 declaration.0.as_ref().unwrap(),
@@ -565,18 +553,7 @@ impl Statement for DeclarationStatement {
                                 sinfo.number_of_primitives(),
                             );
 
-                            // allocate on stack
-                            instructions.push(AddAssign {
-                                lhs: Operand::Register(STACK_POINTER_REGISTER),
-                                rhs: Operand::Value(VariableData::UInt64(
-                                    sinfo.number_of_primitives() as u64,
-                                )),
-                            });
-
-                            // init with initializer
-                            panic!(
-                                "Struct initialization with initializer list is not implemented"
-                            );
+                            sinfo.emit_init(instructions, initial_value);
                         }
                         TypeInfo::Union(_uinfo) => {
                             panic!("Union declaration in declaration statement is not implemented");
@@ -602,7 +579,6 @@ impl Statement for DeclarationStatement {
                             if size == 0 {
                                 panic!("Array size must be greater than 0");
                             }
-                            let init_with_default = size - initial_value.initializers.len();
 
                             // link name to stack
                             instructions.declare_variable(
@@ -611,34 +587,8 @@ impl Statement for DeclarationStatement {
                                 size * type_.number_of_primitives(),
                             );
 
-                            // init with initializer
-                            for initializer in initial_value.initializers.iter() {
-                                // register0 = initial value
-                                initializer.emit(instructions);
-
-                                // register1 = (type-casting) register0
-                                if initializer.is_return_reference(instructions) {
-                                    instructions.push(Assign {
-                                        lhs_type: *type_.clone(),
-                                        lhs: Operand::Register(1),
-                                        rhs: Operand::Derefed(0, 0),
-                                    });
-                                } else {
-                                    instructions.push(Assign {
-                                        lhs_type: *type_.clone(),
-                                        lhs: Operand::Register(1),
-                                        rhs: Operand::Register(0),
-                                    });
-                                }
-                                // push to stack
-                                instructions.push(PushStack {
-                                    operand: Operand::Register(1),
-                                });
-                            }
-                            for _ in 0..init_with_default {
-                                // push to stack
-                                type_.emit_default(instructions);
-                            }
+                            TypeInfo::Array(type_.clone(), Some(size))
+                                .emit_init(instructions, declaration.2.as_ref().unwrap());
                         }
 
                         // primitive types + pointer
@@ -660,27 +610,7 @@ impl Statement for DeclarationStatement {
                                 1,
                             );
 
-                            // register0 = initial value
-                            initial_value.emit(instructions);
-
-                            // register1 = (type-casting) register0
-                            if initial_value.is_return_reference(instructions) {
-                                instructions.push(Assign {
-                                    lhs_type: declaration.1.clone(),
-                                    lhs: Operand::Register(1),
-                                    rhs: Operand::Derefed(0, 0),
-                                });
-                            } else {
-                                instructions.push(Assign {
-                                    lhs_type: declaration.1.clone(),
-                                    lhs: Operand::Register(1),
-                                    rhs: Operand::Register(0),
-                                });
-                            }
-                            // push register1 to stack
-                            instructions.push(PushStack {
-                                operand: Operand::Register(1),
-                            });
+                            declaration.1.emit_init(instructions, initial_value);
                         }
                         _ => panic!("Invalid type for variable declaration"),
                     }
@@ -728,17 +658,23 @@ impl Statement for DeclarationStatement {
                             }
                         }
                         TypeInfo::Struct(sinfo) => {
-                            // get struct info
-                            let sinfo = if sinfo.fields.is_none() {
-                                instructions
+                            // if sinfo is not direct definition of 'struct type', it does not have fields.
+                            // so we have to search on type definition map.
+                            let sinfo = if sinfo.fields.is_some() {
+                                sinfo.clone()
+                            } else {
+                                if let TypeInfo::Struct(s) = instructions
                                     .search_type(
                                         sinfo.name.as_ref().expect("Struct name is not defined"),
                                     )
                                     .expect("Struct is not defined")
-                                    .clone()
-                            } else {
-                                TypeInfo::Struct(sinfo.clone())
+                                {
+                                    s.clone()
+                                } else {
+                                    panic!("Struct is not defined");
+                                }
                             };
+                            let sinfo = TypeInfo::Struct(sinfo);
                             let size = sinfo.number_of_primitives();
                             if size == 0 {
                                 panic!("Struct size must be greater than 0");
