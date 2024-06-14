@@ -5,50 +5,6 @@ use crate::ast::typename::TypeInfo;
 use crate::virtualmachine::program::VirtualProgram;
 use crate::virtualmachine::variable::VariableData;
 
-/// inc 1 register N
-#[derive(Debug)]
-pub struct Increment {
-    pub operand: Operand, // register that have value of stack index
-}
-impl Instruction for Increment {
-    fn execute(&self, program: &mut VirtualProgram) {
-        let var = get_operand_value_mut(program, &self.operand);
-        match var {
-            VariableData::Int8(ref mut value) => *value += 1,
-            VariableData::UInt8(ref mut value) => *value += 1,
-            VariableData::Int16(ref mut value) => *value += 1,
-            VariableData::UInt16(ref mut value) => *value += 1,
-            VariableData::Int32(ref mut value) => *value += 1,
-            VariableData::UInt32(ref mut value) => *value += 1,
-            VariableData::Int64(ref mut value) => *value += 1,
-            VariableData::UInt64(ref mut value) => *value += 1,
-            _ => panic!("Invalid type for increment"),
-        }
-    }
-}
-
-/// dec 1 to register N
-#[derive(Debug)]
-pub struct Decrement {
-    pub operand: Operand, // register that have value of stack index
-}
-impl Instruction for Decrement {
-    fn execute(&self, program: &mut VirtualProgram) {
-        let var = get_operand_value_mut(program, &self.operand);
-        match var {
-            VariableData::Int8(ref mut value) => *value -= 1,
-            VariableData::UInt8(ref mut value) => *value -= 1,
-            VariableData::Int16(ref mut value) => *value -= 1,
-            VariableData::UInt16(ref mut value) => *value -= 1,
-            VariableData::Int32(ref mut value) => *value -= 1,
-            VariableData::UInt32(ref mut value) => *value -= 1,
-            VariableData::Int64(ref mut value) => *value -= 1,
-            VariableData::UInt64(ref mut value) => *value -= 1,
-            _ => panic!("Invalid type for decrement"),
-        }
-    }
-}
-
 /// cast register N to type
 #[derive(Debug)]
 pub struct Cast {

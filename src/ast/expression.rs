@@ -526,8 +526,9 @@ impl Expression for PostIncrement {
                 rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
             });
         } else {
-            instructions.push(Increment {
-                operand: Operand::Derefed(1, 0),
+            instructions.push(AddAssign {
+                lhs: Operand::Derefed(1, 0),
+                rhs: Operand::Value(VariableData::UInt8(1)),
             });
         }
     }
@@ -568,8 +569,9 @@ impl Expression for PostDecrement {
                 rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
             });
         } else {
-            instructions.push(Decrement {
-                operand: Operand::Derefed(1, 0),
+            instructions.push(SubAssign {
+                lhs: Operand::Derefed(1, 0),
+                rhs: Operand::Value(VariableData::UInt8(1)),
             });
         }
     }
@@ -834,8 +836,9 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int64
                     | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(Increment {
-                                operand: Operand::Derefed(0, 0),
+                            instructions.push(AddAssign {
+                                lhs: Operand::Derefed(0, 0),
+                                rhs: Operand::Value(VariableData::UInt8(1)),
                             });
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
@@ -877,8 +880,9 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int64
                     | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(Decrement {
-                                operand: Operand::Derefed(0, 0),
+                            instructions.push(SubAssign {
+                                lhs: Operand::Derefed(0, 0),
+                                rhs: Operand::Value(VariableData::UInt8(1)),
                             });
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
@@ -1778,17 +1782,6 @@ impl Expression for BinaryExpression {
             | BinaryOperator::BitwiseXor
             | BinaryOperator::ShiftLeft
             | BinaryOperator::ShiftRight => self.lhs.get_typeinfo(instructions),
-            BinaryOperator::Assign
-            | BinaryOperator::AddAssign
-            | BinaryOperator::SubAssign
-            | BinaryOperator::MulAssign
-            | BinaryOperator::DivAssign
-            | BinaryOperator::ModAssign
-            | BinaryOperator::BitwiseAndAssign
-            | BinaryOperator::BitwiseOrAssign
-            | BinaryOperator::BitwiseXorAssign
-            | BinaryOperator::ShiftLeftAssign
-            | BinaryOperator::ShiftRightAssign => self.lhs.get_typeinfo(instructions),
             _ => panic!("invalid operator for BinaryOperator: {:?}", self.op),
         }
     }
