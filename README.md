@@ -6,7 +6,6 @@ C language lexer & parser & virtual executer from scratch in Rust.
  - Preprocessor
  - `union` `enum`
  - type qualifiers (`const`, `volatile`, `restrict` `static` `extern`) will be ignored
- - `typedef`
 
 ## Features
  - Tokenizer (Lexer)
