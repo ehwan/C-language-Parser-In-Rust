@@ -165,25 +165,60 @@ impl InstructionGenerator {
     /// for struct type (and typedef-ed type in future)
     /// there may be no field information in typeinfo ( `struct MyStruct a;` )
     /// so we need to find the definition of struct
-    pub fn get_struct_definition(&self, sinfo: &mut StructInfo) {
-        if sinfo.fields.is_some() {
-            return;
-        }
+    pub fn get_true_typeinfo(&self, type_info: &TypeInfo) -> TypeInfo {
+        match type_info {
+            TypeInfo::Void
+            | TypeInfo::UInt8
+            | TypeInfo::UInt16
+            | TypeInfo::UInt32
+            | TypeInfo::UInt64
+            | TypeInfo::Int8
+            | TypeInfo::Int16
+            | TypeInfo::Int32
+            | TypeInfo::Int64
+            | TypeInfo::Float32
+            | TypeInfo::Float64
+            | TypeInfo::Pointer(_) => type_info.clone(),
+            TypeInfo::Array(t, len) => TypeInfo::Array(Box::new(self.get_true_typeinfo(t)), *len),
+            TypeInfo::Function(return_type, params) => {
+                let mut new_params = Vec::new();
+                for t in params.iter() {
+                    new_params.push(self.get_true_typeinfo(t));
+                }
+                TypeInfo::Function(Box::new(self.get_true_typeinfo(return_type)), new_params)
+            }
 
-        let searched = self.search_type(sinfo.name.as_ref().unwrap()).expect(
-            format!(
-                "get_struct_definition: struct {} is not defined",
-                sinfo.name.as_ref().unwrap()
-            )
-            .as_str(),
-        );
-        if let TypeInfo::Struct(sinfo2) = searched {
-            *sinfo = sinfo2.clone();
-        } else {
-            panic!(
-                "get_struct_definition: {} is not struct",
-                sinfo.name.as_ref().unwrap()
-            );
+            TypeInfo::Struct(sinfo) => {
+                if sinfo.fields.is_some() {
+                    return type_info.clone();
+                }
+                if sinfo.name.is_none() {
+                    panic!("get_true_typeinfo: anonymous struct");
+                }
+
+                let searched = self.search_type(sinfo.name.as_ref().unwrap()).expect(
+                    format!(
+                        "get_true_typeinfo: struct {} is not defined",
+                        sinfo.name.as_ref().unwrap()
+                    )
+                    .as_str(),
+                );
+                if let TypeInfo::Struct(sinfo) = searched {
+                    return TypeInfo::Struct(sinfo.clone());
+                } else {
+                    panic!(
+                        "get_true_typeinfo: {} is not struct",
+                        sinfo.name.as_ref().unwrap()
+                    );
+                }
+            }
+            TypeInfo::Identifier(name) => {
+                let searched = self
+                    .search_type(name)
+                    .expect(format!("get_true_typeinfo: type {} is not defined", name).as_str());
+                self.get_true_typeinfo(searched)
+            }
+            _ => panic!("get_true_typeinfo: not implemented {:?}", type_info),
         }
     }
 

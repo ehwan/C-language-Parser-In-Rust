@@ -524,17 +524,13 @@ impl Statement for DeclarationStatement {
                 if let Some(initial_value) = &declaration.2 {
                     // variable with initial value
 
+                    let var_type = instructions.get_true_typeinfo(&declaration.1);
                     // check type
-                    match &declaration.1 {
+                    match var_type {
                         TypeInfo::Function(_, _) => {
                             panic!( "Function declaration cannot have initial value; something went wrong");
                         }
                         TypeInfo::Struct(sinfo) => {
-                            // if sinfo is not direct definition of 'struct type', it does not have fields.
-                            // so we have to search on type definition map.
-                            let mut sinfo = sinfo.clone();
-                            instructions.get_struct_definition(&mut sinfo);
-
                             // link name to stack
                             instructions.declare_variable(
                                 declaration.0.as_ref().unwrap(),
@@ -558,10 +554,10 @@ impl Statement for DeclarationStatement {
 
                             let size = match size {
                                 Some(size) => {
-                                    if initial_value.initializers.len() > *size {
+                                    if initial_value.initializers.len() > size {
                                         panic!("Too many initializers for array");
                                     }
-                                    *size
+                                    size
                                 }
                                 None => initial_value.initializers.len(),
                             };
@@ -595,23 +591,25 @@ impl Statement for DeclarationStatement {
                             // link name to stack
                             instructions.declare_variable(
                                 declaration.0.as_ref().unwrap(),
-                                &declaration.1,
+                                &var_type,
                                 1,
                             );
 
-                            declaration.1.emit_init(instructions, initial_value);
+                            var_type.emit_init(instructions, initial_value);
                         }
                         _ => panic!("Invalid type for variable declaration"),
                     }
                 } else {
                     // variable without initial value
 
-                    match &declaration.1 {
+                    let var_type = instructions.get_true_typeinfo(&declaration.1);
+                    match var_type {
                         TypeInfo::Function(return_type, params) => {
                             // check if its already declared
                             let old = instructions.functions.get(declaration.0.as_ref().unwrap());
                             if let Some(old) = old {
-                                // function is declared
+                                // no need to check if the function is already defined,
+                                // since this statement is declaration statement
 
                                 // check parameter types are same
                                 let param_equal =
@@ -649,8 +647,6 @@ impl Statement for DeclarationStatement {
                         TypeInfo::Struct(sinfo) => {
                             // if sinfo is not direct definition of 'struct type', it does not have fields.
                             // so we have to search on type definition map.
-                            let mut sinfo = sinfo.clone();
-                            instructions.get_struct_definition(&mut sinfo);
                             let sinfo = TypeInfo::Struct(sinfo);
                             let size = sinfo.number_of_primitives();
                             if size == 0 {
@@ -701,17 +697,40 @@ impl Statement for DeclarationStatement {
                             // link name to stack
                             instructions.declare_variable(
                                 declaration.0.as_ref().unwrap(),
-                                &declaration.1,
+                                &var_type,
                                 1,
                             );
 
                             // push default value to stack
-                            declaration.1.emit_default(instructions);
+                            var_type.emit_default(instructions);
                         }
                         _ => {}
                     }
                 }
             }
+        }
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[derive(Debug)]
+pub struct TypedefStatement {
+    pub name: String,
+    pub typeinfo: TypeInfo,
+}
+impl Statement for TypedefStatement {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        let old = if instructions.scopes.is_empty() {
+            &mut instructions.global_scope
+        } else {
+            instructions.scopes.last_mut().unwrap()
+        }
+        .type_infos
+        .insert(self.name.clone(), self.typeinfo.clone());
+        if old.is_some() {
+            panic!("Type {} already exists", self.name);
         }
     }
     fn as_any(&self) -> &dyn Any {
@@ -733,8 +752,12 @@ impl Statement for FunctionDefinitionStatement {
         }
 
         let function_data = FunctionInfo {
-            return_type: self.return_type.clone(),
-            params: self.params.clone(),
+            return_type: instructions.get_true_typeinfo(&self.return_type),
+            params: self
+                .params
+                .iter()
+                .map(|(name, type_)| (name.clone(), instructions.get_true_typeinfo(type_)))
+                .collect(),
             is_defined: true,
         };
         let old = instructions
@@ -744,6 +767,33 @@ impl Statement for FunctionDefinitionStatement {
             // check if old was declaration
             if old.is_defined {
                 panic!("redefinition of function {}", &self.name);
+            }
+
+            // check parameter types are same
+            if old
+                .params
+                .iter()
+                .map(|(_, type_)| instructions.get_true_typeinfo(type_))
+                .eq(self
+                    .params
+                    .iter()
+                    .map(|(_, type_)| instructions.get_true_typeinfo(type_)))
+                == false
+            {
+                panic!(
+                    "Function {} is already declared with different parameter types",
+                    &self.name
+                );
+            }
+
+            // check return type is same
+            if instructions.get_true_typeinfo(&old.return_type)
+                != instructions.get_true_typeinfo(&self.return_type)
+            {
+                panic!(
+                    "Function {} is already declared with different return type",
+                    &self.name
+                );
             }
         }
         instructions.set_label(&self.name);
@@ -758,7 +808,11 @@ impl Statement for FunctionDefinitionStatement {
 
         for (id, param) in self.params.iter().enumerate() {
             if param.0.is_some() {
-                instructions.link_variable(param.0.as_ref().unwrap(), &param.1, -(id as isize) - 3);
+                instructions.link_variable(
+                    param.0.as_ref().unwrap(),
+                    &instructions.get_true_typeinfo(&param.1),
+                    -(id as isize) - 3,
+                );
             }
         }
 
@@ -781,7 +835,7 @@ impl Statement for FunctionDefinitionStatement {
         // end of body
         // if return type is void, add return statement
         // else, add panic statement for missing return statement
-        if self.return_type == TypeInfo::Void {
+        if instructions.get_true_typeinfo(&self.return_type) == TypeInfo::Void {
             // force add return statement
             let return_statement = ReturnStatement { expr: None };
             return_statement.emit(instructions);

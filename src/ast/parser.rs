@@ -1893,11 +1893,12 @@ impl ASTParser {
             declaration
             : specifier_list ';'
             | specifier_list init_declarator_list ';'
+            | TYPEDEF specifier_list init_declarator_list ';'
             ;
             */
             let declaration = rp::seq!(
                 self.type_specifier.clone(),
-                init_declarator_list.optional(),
+                init_declarator_list.clone().optional(),
                 rp::one(Token::SemiColon).void()
             )
             .map(
@@ -1918,7 +1919,32 @@ impl ASTParser {
                     }
                 },
             );
-            self.declaration.borrow_mut().assign(declaration);
+            let typedef_declaration = rp::seq!(
+                rp::one(Token::Typedef).void(),
+                self.type_specifier.clone(),
+                init_declarator_list.clone(),
+                rp::one(Token::SemiColon).void()
+            )
+            .map(
+                |typeinfo: TypeInfo, decls: Vec<Box<InitDeclarator>>| -> Box<dyn Statement> {
+                    if decls.len() != 1 {
+                        panic!("Typedef declaration must have exactly one declarator");
+                    }
+                    let decl = &decls[0];
+                    if decl.initializer.is_some() {
+                        panic!("Typedef declaration cannot have initializer");
+                    }
+                    let (name, typeinfo) = decl.declarator.resolve_typeinfo(typeinfo);
+
+                    Box::new(TypedefStatement {
+                        name: name.expect("Typedef must have a target name"),
+                        typeinfo,
+                    })
+                },
+            );
+            self.declaration
+                .borrow_mut()
+                .assign(rp::or!(declaration, typedef_declaration));
         }
     }
 

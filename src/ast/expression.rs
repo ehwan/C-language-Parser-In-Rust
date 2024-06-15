@@ -93,11 +93,11 @@ impl Expression for PrimaryIdentifier {
         self
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        instructions
+        let var_type = instructions
             .search_variable(&self.name)
             .expect(format!("Variable {} not found", self.name).as_str())
-            .0
-            .clone()
+            .0;
+        instructions.get_true_typeinfo(var_type).clone()
     }
 }
 #[derive(Debug)]
@@ -108,8 +108,7 @@ pub struct PostMember {
 impl Expression for PostMember {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         let member_offset = match self.src.get_typeinfo(instructions) {
-            TypeInfo::Struct(mut sinfo) => {
-                instructions.get_struct_definition(&mut sinfo);
+            TypeInfo::Struct(sinfo) => {
                 let mut member_offset: Option<usize> = None;
                 for (_, name, offset) in sinfo.fields.as_ref().unwrap() {
                     if name == &self.member {
@@ -132,8 +131,7 @@ impl Expression for PostMember {
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         match self.src.get_typeinfo(instructions) {
-            TypeInfo::Struct(mut sinfo) => {
-                instructions.get_struct_definition(&mut sinfo);
+            TypeInfo::Struct(sinfo) => {
                 let mut member_type: Option<TypeInfo> = None;
                 for (t, name, _) in sinfo.fields.as_ref().unwrap() {
                     if name == &self.member {
@@ -149,7 +147,6 @@ impl Expression for PostMember {
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         match self.get_typeinfo(instructions) {
             TypeInfo::Array(_, _) => false,
-            // TypeInfo::Struct(_) => false,
             _ => true,
         }
     }
@@ -374,6 +371,7 @@ impl Expression for PostBracket {
                 operand: Operand::Register(0),
             });
         }
+        // register0 = src
         self.src.emit(instructions);
         if self.src.is_return_reference(instructions) {
             instructions.push(MoveRegister {
@@ -381,18 +379,36 @@ impl Expression for PostBracket {
                 operand_to: Operand::Register(0),
             });
         }
+        // register1 = index
         instructions.push(PopStack {
             operand: Operand::Register(1),
         });
-        // instructions.push( AddAssign(
-        //     Operand::Register(0),
-        //     Operand::Register(1),
-        // ));
-        instructions.push(Bracket {
-            operand_from: Operand::Register(0),
-            operand_idx: Operand::Register(1),
-            operand_to: Operand::Register(0),
-        });
+
+        match self.src.get_typeinfo(instructions) {
+            TypeInfo::Array(t, _) => {
+                let move_size = t.number_of_primitives();
+                instructions.push(MulAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
+                });
+                instructions.push(AddAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            TypeInfo::Pointer(t) => {
+                let move_size = t.number_of_primitives();
+                instructions.push(MulAssign {
+                    lhs: Operand::Register(1),
+                    rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
+                });
+                instructions.push(AddAssign {
+                    lhs: Operand::Register(0),
+                    rhs: Operand::Register(1),
+                });
+            }
+            _ => panic!("Bracket is only available at array or pointer type"),
+        }
     }
     fn as_any(&self) -> &dyn Any {
         self
@@ -514,7 +530,9 @@ impl Expression for PostParen {
             .functions
             .get(&name)
             .expect(format!("Function not found : {}", &name).as_str());
-        funcdata.return_type.clone()
+        instructions
+            .get_true_typeinfo(&funcdata.return_type)
+            .clone()
     }
     fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
@@ -616,13 +634,13 @@ impl Expression for CastExpression {
         self.src.emit(instructions);
         if self.src.is_return_reference(instructions) {
             instructions.push(Cast {
-                info: self.typeinfo.clone(),
+                info: instructions.get_true_typeinfo(&self.typeinfo),
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
             });
         } else {
             instructions.push(Cast {
-                info: self.typeinfo.clone(),
+                info: instructions.get_true_typeinfo(&self.typeinfo),
                 operand_from: Operand::Register(0),
                 operand_to: Operand::Register(0),
             });
@@ -631,8 +649,8 @@ impl Expression for CastExpression {
     fn as_any(&self) -> &dyn Any {
         self
     }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
-        self.typeinfo.clone()
+    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        instructions.get_true_typeinfo(&self.typeinfo)
     }
     fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
@@ -975,7 +993,7 @@ impl Expression for UnaryExpression {
             },
             UnaryOperator::Dereference => {
                 if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
-                    *t
+                    instructions.get_true_typeinfo(t.as_ref()).clone()
                 } else {
                     panic!("Dereference on non-pointer type");
                 }
@@ -1406,10 +1424,8 @@ pub struct AssignExpression {
 impl Expression for AssignExpression {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         // check if it is non-numeric <-> non-numeric assignment
-        if let TypeInfo::Struct(mut lhs_type) = self.lhs.get_typeinfo(instructions) {
-            instructions.get_struct_definition(&mut lhs_type);
-            if let TypeInfo::Struct(mut rhs_type) = self.rhs.get_typeinfo(instructions) {
-                instructions.get_struct_definition(&mut rhs_type);
+        if let TypeInfo::Struct(lhs_type) = self.lhs.get_typeinfo(instructions) {
+            if let TypeInfo::Struct(rhs_type) = self.rhs.get_typeinfo(instructions) {
                 if &lhs_type != &rhs_type {
                     panic!(
                         "Struct assignment with different types: {:?} = {:?}",
@@ -1679,6 +1695,32 @@ impl Expression for AdditiveExpression {
                 }
                 _ => panic!("Invalid operator for AdditiveExpression: {:?}", self.op),
             }
+        } else if let TypeInfo::Array(t, _) = self.lhs.get_typeinfo(instructions) {
+            let move_size = t.number_of_primitives();
+            instructions.push(MoveRegister {
+                operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
+                operand_to: Operand::Register(2),
+            });
+            instructions.push(MulAssign {
+                lhs: Operand::Register(2),
+                rhs: Operand::Register(1),
+            });
+
+            match self.op {
+                BinaryOperator::Add => {
+                    instructions.push(AddAssign {
+                        lhs: Operand::Register(0),
+                        rhs: Operand::Register(2),
+                    });
+                }
+                BinaryOperator::Sub => {
+                    instructions.push(SubAssign {
+                        lhs: Operand::Register(0),
+                        rhs: Operand::Register(2),
+                    });
+                }
+                _ => panic!("Invalid operator for AdditiveExpression: {:?}", self.op),
+            }
         } else {
             match self.op {
                 BinaryOperator::Add => {
@@ -1791,6 +1833,18 @@ impl Expression for AdditiveExpression {
                 ),
             },
             TypeInfo::Pointer(t) => match self.rhs.get_typeinfo(instructions) {
+                TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Pointer(t),
+                TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Pointer(t),
+                TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Pointer(t),
+                TypeInfo::UInt64 | TypeInfo::Int64 => TypeInfo::Pointer(t),
+                _ => panic!(
+                    "{:?} not implemented between {:?} and {:?}",
+                    self.op,
+                    self.lhs.get_typeinfo(instructions),
+                    self.rhs.get_typeinfo(instructions)
+                ),
+            },
+            TypeInfo::Array(t, _) => match self.rhs.get_typeinfo(instructions) {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Pointer(t),
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Pointer(t),
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Pointer(t),
@@ -2166,10 +2220,8 @@ pub struct PostArrow {
 impl Expression for PostArrow {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         let member_offset = match self.src.get_typeinfo(instructions) {
-            TypeInfo::Pointer(t) => match t.as_ref() {
+            TypeInfo::Pointer(t) => match instructions.get_true_typeinfo(t.as_ref()) {
                 TypeInfo::Struct(sinfo) => {
-                    let mut sinfo = sinfo.clone();
-                    instructions.get_struct_definition(&mut sinfo);
                     let mut member_offset: Option<usize> = None;
                     for (_, name, offset) in sinfo.fields.as_ref().unwrap() {
                         if name == &self.member {
@@ -2204,10 +2256,8 @@ impl Expression for PostArrow {
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         match self.src.get_typeinfo(instructions) {
-            TypeInfo::Pointer(t) => match t.as_ref() {
+            TypeInfo::Pointer(t) => match instructions.get_true_typeinfo(t.as_ref()) {
                 TypeInfo::Struct(sinfo) => {
-                    let mut sinfo = sinfo.clone();
-                    instructions.get_struct_definition(&mut sinfo);
                     let mut member_type: Option<TypeInfo> = None;
                     for (type_, name, _) in sinfo.fields.as_ref().unwrap() {
                         if name == &self.member {
@@ -2228,7 +2278,6 @@ impl Expression for PostArrow {
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         match self.get_typeinfo(instructions) {
             TypeInfo::Array(_, _) => false,
-            // TypeInfo::Struct(_) => false,
             _ => true,
         }
     }

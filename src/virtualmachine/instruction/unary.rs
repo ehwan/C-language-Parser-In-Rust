@@ -16,7 +16,7 @@ impl Instruction for Cast {
     fn execute(&self, program: &mut VirtualProgram) {
         let rhs_casted = get_operand_value(program, &self.operand_from)
             .cast_to(&self.info)
-            .expect("Invalid cast");
+            .expect(format!("Invalid cast: to {:?}", &self.info).as_str());
         *get_operand_value_mut(program, &self.operand_to) = rhs_casted;
     }
 }
@@ -136,20 +136,5 @@ impl Instruction for BitwiseNot {
             VariableData::Int64(ref mut value) => *value = !*value,
             _ => panic!("Invalid type for bitwise not"),
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct Bracket {
-    pub operand_from: Operand, // register that have value of stack index
-    pub operand_idx: Operand,
-    pub operand_to: Operand,
-}
-impl Instruction for Bracket {
-    fn execute(&self, program: &mut VirtualProgram) {
-        let ptr = get_operand_value(program, &self.operand_from).to_i64();
-        let idx = get_operand_value(program, &self.operand_idx).to_i64();
-        *get_operand_value_mut(program, &self.operand_to) =
-            VariableData::UInt64((ptr + idx) as u64);
     }
 }

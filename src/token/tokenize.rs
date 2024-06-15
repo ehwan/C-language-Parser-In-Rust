@@ -68,7 +68,6 @@ pub fn tokenize(source: String) -> Vec<Token> {
                 && *t != Token::Volatile
                 && *t != Token::Auto
                 && *t != Token::Register
-                && *t != Token::Typedef
         })
         .collect()
 }

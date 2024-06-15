@@ -266,12 +266,13 @@ impl StructInfo {
 
             for i in 0..initializer.initializers.len() {
                 let (t, _, _) = &self.fields.as_ref().unwrap()[i];
-                t.emit_init(instructions, &initializer.initializers[i]);
+                instructions
+                    .get_true_typeinfo(t)
+                    .emit_init(instructions, &initializer.initializers[i]);
             }
         } else {
             // struct init with other struct
-            if let TypeInfo::Struct(mut rhs_type) = initializer.get_typeinfo(instructions) {
-                instructions.get_struct_definition(&mut rhs_type);
+            if let TypeInfo::Struct(rhs_type) = initializer.get_typeinfo(instructions) {
                 if self != &rhs_type {
                     panic!("struct init: type mismatch1");
                 }
