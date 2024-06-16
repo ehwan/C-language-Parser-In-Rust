@@ -92,7 +92,7 @@ impl InstructionGenerator {
     }
     /// pop variable scopes
     pub fn pop_scope(&mut self) {
-        let scope = self.scopes.pop().expect("pop_scope: no scope");
+        self.scopes.pop().expect("pop_scope: no scope");
     }
 
     /// make new named variable on current scope
