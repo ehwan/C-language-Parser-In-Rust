@@ -32,6 +32,7 @@ pub enum TypeInfo {
     Pointer(Box<TypeInfo>),
     Array(Box<TypeInfo>, Option<usize>),
     Function(Box<TypeInfo>, Vec<TypeInfo>),
+    Const(Box<TypeInfo>),
 
     // for typedef
     // temporary store the name of the type; will be replaced by the actual type in emitting
@@ -65,6 +66,7 @@ impl TypeInfo {
             }
             TypeInfo::Function(_, _) => panic!("sizeof(function) is invalid"),
             TypeInfo::Identifier(_) => panic!("sizeof(identifier) is invalid"),
+            TypeInfo::Const(t) => t.sizeof(),
         }
     }
     pub fn number_of_primitives(&self) -> usize {
@@ -76,6 +78,7 @@ impl TypeInfo {
             TypeInfo::Struct(structinfo) => structinfo.number_of_primitives(),
             TypeInfo::Pointer(_) => 1,
             TypeInfo::Array(info, Some(size)) => info.number_of_primitives() * size,
+            TypeInfo::Const(t) => t.number_of_primitives(),
             _ => panic!("number_of_primitives: unsupported type: {:?}", self),
         }
     }
@@ -130,6 +133,8 @@ impl TypeInfo {
 
             TypeInfo::Struct(info) => info.emit_default(instructions),
 
+            TypeInfo::Const(t) => t.emit_default(instructions),
+
             _ => panic!("emit_default: unsupported type: {:?}", self),
         }
     }
@@ -167,6 +172,8 @@ impl TypeInfo {
             }
 
             TypeInfo::Struct(info) => info.emit_init(instructions, &initializer),
+
+            TypeInfo::Const(t) => t.emit_init(instructions, &initializer),
 
             TypeInfo::UInt8
             | TypeInfo::Int8
@@ -216,6 +223,27 @@ impl TypeInfo {
                 }
             }
             _ => panic!("emit_init: unsupported type: {:?}", self),
+        }
+    }
+
+    // remove outermost const recursively
+    pub fn remove_const(&self) -> TypeInfo {
+        match self {
+            TypeInfo::Const(t) => t.remove_const(),
+            _ => self.clone(),
+        }
+    }
+
+    pub fn add_const(&self) -> TypeInfo {
+        match self {
+            TypeInfo::Const(_) => self.clone(),
+            _ => TypeInfo::Const(Box::new(self.clone())),
+        }
+    }
+    pub fn is_const(&self) -> bool {
+        match self {
+            TypeInfo::Const(_) => true,
+            _ => false,
         }
     }
 }

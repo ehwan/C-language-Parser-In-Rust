@@ -64,7 +64,6 @@ pub fn tokenize(source: String) -> Vec<Token> {
         .cloned()
         .filter(move |t| {
             *t != Token::Static
-                && *t != Token::Const
                 && *t != Token::Volatile
                 && *t != Token::Auto
                 && *t != Token::Register

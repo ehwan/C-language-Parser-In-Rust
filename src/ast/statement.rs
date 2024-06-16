@@ -526,7 +526,7 @@ impl Statement for DeclarationStatement {
 
                     let var_type = instructions.get_true_typeinfo(&declaration.1);
                     // check type
-                    match var_type {
+                    match var_type.remove_const() {
                         TypeInfo::Function(_, _) => {
                             panic!( "Function declaration cannot have initial value; something went wrong");
                         }
@@ -534,7 +534,7 @@ impl Statement for DeclarationStatement {
                             // link name to stack
                             instructions.declare_variable(
                                 declaration.0.as_ref().unwrap(),
-                                &TypeInfo::Struct(sinfo.clone()),
+                                &var_type,
                                 sinfo.number_of_primitives(),
                             );
 
@@ -603,7 +603,7 @@ impl Statement for DeclarationStatement {
                     // variable without initial value
 
                     let var_type = instructions.get_true_typeinfo(&declaration.1);
-                    match var_type {
+                    match var_type.remove_const() {
                         TypeInfo::Function(return_type, params) => {
                             // check if its already declared
                             let old = instructions.functions.get(declaration.0.as_ref().unwrap());
@@ -645,9 +645,6 @@ impl Statement for DeclarationStatement {
                             }
                         }
                         TypeInfo::Struct(sinfo) => {
-                            // if sinfo is not direct definition of 'struct type', it does not have fields.
-                            // so we have to search on type definition map.
-                            let sinfo = TypeInfo::Struct(sinfo);
                             let size = sinfo.number_of_primitives();
                             if size == 0 {
                                 panic!("Struct size must be greater than 0");
@@ -655,7 +652,7 @@ impl Statement for DeclarationStatement {
                             // link name to stack
                             instructions.declare_variable(
                                 declaration.0.as_ref().unwrap(),
-                                &sinfo,
+                                &var_type,
                                 size,
                             );
 
