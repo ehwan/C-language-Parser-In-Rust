@@ -20,7 +20,7 @@ fn main() {
 
     let source = String::from_utf8(source).expect("Invalid UTF-8");
 
-    println!("============================ Tokenizing ============================");
+    println!("{:=^80}", "Tokenizing");
 
     let tokens = token::tokenize::tokenize(source);
     println!("Tokens: ");
@@ -29,14 +29,14 @@ fn main() {
         println!("{:4}: {:?}", id, *token);
     }
 
-    println!("============================ Building AST ============================");
+    println!("{:=^80}", "Building AbstractSyntaxTree");
 
     println!("ASTs: ");
     let parser = ast::parser::ASTParser::new();
     let translation_unit = parser.parse(tokens);
-    println!("{:?}", translation_unit);
+    println!("{:#?}", translation_unit);
 
-    println!("============================ Generating Instructions ============================");
+    println!("{:=^80}", "Generating Instructions");
 
     let mut program: VirtualProgram = VirtualProgram::new();
     let mut instructions: InstructionGenerator = InstructionGenerator::new();
