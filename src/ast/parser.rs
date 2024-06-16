@@ -1152,7 +1152,7 @@ impl ASTParser {
                      rhs: Box<dyn Expression>|
                      -> Box<dyn Expression> {
                         if op == BinaryOperator::Assign {
-                            Box::new(AssignExpression { op, lhs, rhs })
+                            Box::new(AssignExpression { lhs, rhs })
                         } else {
                             Box::new(AssignOpExpression { op, lhs, rhs })
                         }

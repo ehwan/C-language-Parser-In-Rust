@@ -83,9 +83,8 @@ impl Expression for PrimaryIdentifier {
         }
     }
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
-        match self.get_typeinfo(instructions) {
+        match self.get_typeinfo(instructions).remove_const() {
             TypeInfo::Array(_, _) => false,
-            // TypeInfo::Struct(_) => false,
             _ => true,
         }
     }
@@ -93,11 +92,10 @@ impl Expression for PrimaryIdentifier {
         self
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        let var_type = instructions
+        instructions
             .search_variable(&self.name)
             .expect(format!("Variable {} not found", self.name).as_str())
-            .0;
-        instructions.get_true_typeinfo(var_type).clone()
+            .0
     }
 }
 #[derive(Debug)]
@@ -107,7 +105,7 @@ pub struct PostMember {
 }
 impl Expression for PostMember {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        let member_offset = match self.src.get_typeinfo(instructions) {
+        let member_offset = match self.src.get_typeinfo(instructions).remove_const() {
             TypeInfo::Struct(sinfo) => {
                 let mut member_offset: Option<usize> = None;
                 for (_, name, offset) in sinfo.fields.as_ref().unwrap() {
@@ -130,7 +128,8 @@ impl Expression for PostMember {
         self
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        match self.src.get_typeinfo(instructions) {
+        let src_type = self.src.get_typeinfo(instructions);
+        match src_type.remove_const() {
             TypeInfo::Struct(sinfo) => {
                 let mut member_type: Option<TypeInfo> = None;
                 for (t, name, _) in sinfo.fields.as_ref().unwrap() {
@@ -139,13 +138,19 @@ impl Expression for PostMember {
                         break;
                     }
                 }
-                member_type.expect(format!("Field {} not found", self.member).as_str())
+                let member_type =
+                    member_type.expect(format!("Field {} not found", self.member).as_str());
+                if src_type.is_const() {
+                    member_type.add_const()
+                } else {
+                    member_type
+                }
             }
             _ => panic!("PostMember on non-struct type"),
         }
     }
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
-        match self.get_typeinfo(instructions) {
+        match self.get_typeinfo(instructions).remove_const() {
             TypeInfo::Array(_, _) => false,
             _ => true,
         }
@@ -342,7 +347,7 @@ impl Expression for StringLiteral {
         self
     }
     fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
-        TypeInfo::Pointer(Box::new(TypeInfo::Int8))
+        TypeInfo::Pointer(Box::new(TypeInfo::Const(Box::new(TypeInfo::Int8))))
     }
     fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
@@ -356,7 +361,7 @@ pub struct PostBracket {
 }
 impl Expression for PostBracket {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        match self.src.get_typeinfo(instructions) {
+        match self.src.get_typeinfo(instructions).remove_const() {
             TypeInfo::Array(_, _) => {}
             TypeInfo::Pointer(_) => {}
             _ => panic!("Bracket is only available at array or pointer type"),
@@ -384,7 +389,7 @@ impl Expression for PostBracket {
             operand: Operand::Register(1),
         });
 
-        match self.src.get_typeinfo(instructions) {
+        match self.src.get_typeinfo(instructions).remove_const() {
             TypeInfo::Array(t, _) => {
                 let move_size = t.number_of_primitives();
                 instructions.push(MulAssign {
@@ -414,8 +419,15 @@ impl Expression for PostBracket {
         self
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        match self.src.get_typeinfo(instructions) {
-            TypeInfo::Array(t, _) => *t,
+        let src_type = self.src.get_typeinfo(instructions);
+        match src_type.remove_const() {
+            TypeInfo::Array(t, _) => {
+                if src_type.is_const() {
+                    t.add_const()
+                } else {
+                    *t
+                }
+            }
             TypeInfo::Pointer(t) => *t,
             _ => panic!("Bracket is only available at array or pointer type"),
         }
@@ -548,6 +560,9 @@ impl Expression for PostIncrement {
         if self.src.is_return_reference(instructions) == false {
             panic!("PostIncrement on non-lhs");
         }
+        if self.src.get_typeinfo(instructions).is_const() {
+            panic!("PostIncrement on const variable");
+        }
         self.src.emit(instructions);
         instructions.push(MoveRegister {
             operand_from: Operand::Register(0),
@@ -589,6 +604,9 @@ impl Expression for PostDecrement {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         if self.src.is_return_reference(instructions) == false {
             panic!("PostDecrement on non-lhs");
+        }
+        if self.src.get_typeinfo(instructions).is_const() {
+            panic!("PostDecrement on const variable");
         }
         self.src.emit(instructions);
         instructions.push(MoveRegister {
@@ -634,13 +652,17 @@ impl Expression for CastExpression {
         self.src.emit(instructions);
         if self.src.is_return_reference(instructions) {
             instructions.push(Cast {
-                info: instructions.get_true_typeinfo(&self.typeinfo),
+                info: instructions
+                    .get_true_typeinfo(&self.typeinfo)
+                    .remove_const(),
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
             });
         } else {
             instructions.push(Cast {
-                info: instructions.get_true_typeinfo(&self.typeinfo),
+                info: instructions
+                    .get_true_typeinfo(&self.typeinfo)
+                    .remove_const(),
                 operand_from: Operand::Register(0),
                 operand_to: Operand::Register(0),
             });
@@ -650,7 +672,9 @@ impl Expression for CastExpression {
         self
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        instructions.get_true_typeinfo(&self.typeinfo)
+        instructions
+            .get_true_typeinfo(&self.typeinfo)
+            .remove_const()
     }
     fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
@@ -726,9 +750,11 @@ impl Expression for UnaryExpression {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         self.src.emit(instructions);
 
+        let src_type = self.src.get_typeinfo(instructions);
+
         match self.op {
             UnaryOperator::Plus => {
-                match self.src.get_typeinfo(instructions) {
+                match src_type.remove_const() {
                     TypeInfo::Int8
                     | TypeInfo::UInt8
                     | TypeInfo::Int16
@@ -754,7 +780,7 @@ impl Expression for UnaryExpression {
                     ),
                 };
             }
-            UnaryOperator::Minus => match self.src.get_typeinfo(instructions) {
+            UnaryOperator::Minus => match src_type.remove_const() {
                 TypeInfo::Int8
                 | TypeInfo::UInt8
                 | TypeInfo::Int16
@@ -783,7 +809,7 @@ impl Expression for UnaryExpression {
                 ),
             },
             UnaryOperator::LogicalNot => {
-                match self.src.get_typeinfo(instructions) {
+                match src_type.remove_const() {
                     TypeInfo::Int8
                     | TypeInfo::UInt8
                     | TypeInfo::Int16
@@ -811,7 +837,7 @@ impl Expression for UnaryExpression {
                 };
             }
             UnaryOperator::BitwiseNot => {
-                match self.src.get_typeinfo(instructions) {
+                match src_type.remove_const() {
                     TypeInfo::Int8
                     | TypeInfo::UInt8
                     | TypeInfo::Int16
@@ -819,9 +845,7 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int32
                     | TypeInfo::UInt32
                     | TypeInfo::Int64
-                    | TypeInfo::UInt64
-                    | TypeInfo::Pointer(_)
-                    | TypeInfo::Array(_, _) => {
+                    | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
                             instructions.push(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
@@ -839,7 +863,7 @@ impl Expression for UnaryExpression {
                 };
             }
             UnaryOperator::Dereference => {
-                if let TypeInfo::Pointer(_) = self.src.get_typeinfo(instructions) {
+                if let TypeInfo::Pointer(_) = src_type.remove_const() {
                     if self.src.is_return_reference(instructions) {
                         instructions.push(MoveRegister {
                             operand_from: Operand::Derefed(0, 0),
@@ -864,7 +888,10 @@ impl Expression for UnaryExpression {
                 }
             }
             UnaryOperator::Increment => {
-                match self.src.get_typeinfo(instructions) {
+                if src_type.is_const() {
+                    panic!("Increment on const variable");
+                }
+                match src_type {
                     TypeInfo::Int8
                     | TypeInfo::UInt8
                     | TypeInfo::Int16
@@ -908,7 +935,10 @@ impl Expression for UnaryExpression {
                 };
             }
             UnaryOperator::Decrement => {
-                match self.src.get_typeinfo(instructions) {
+                if src_type.is_const() {
+                    panic!("Decrement on const variable");
+                }
+                match src_type {
                     TypeInfo::Int8
                     | TypeInfo::UInt8
                     | TypeInfo::Int16
@@ -959,8 +989,8 @@ impl Expression for UnaryExpression {
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         let srctype = self.src.get_typeinfo(instructions);
         match self.op {
-            UnaryOperator::Plus => srctype,
-            UnaryOperator::Minus => match srctype {
+            UnaryOperator::Plus => srctype.remove_const(),
+            UnaryOperator::Minus => match srctype.remove_const() {
                 TypeInfo::Int8 => TypeInfo::Int8,
                 TypeInfo::UInt8 => TypeInfo::Int8,
                 TypeInfo::Int16 => TypeInfo::Int16,
@@ -976,7 +1006,7 @@ impl Expression for UnaryExpression {
                 _ => panic!("Unary Minus not implemented for {:?}", srctype),
             },
             UnaryOperator::LogicalNot => TypeInfo::UInt8,
-            UnaryOperator::BitwiseNot => match srctype {
+            UnaryOperator::BitwiseNot => match srctype.remove_const() {
                 TypeInfo::Int8 => TypeInfo::Int8,
                 TypeInfo::UInt8 => TypeInfo::Int8,
                 TypeInfo::Int16 => TypeInfo::Int16,
@@ -985,14 +1015,10 @@ impl Expression for UnaryExpression {
                 TypeInfo::UInt32 => TypeInfo::Int32,
                 TypeInfo::Int64 => TypeInfo::Int64,
                 TypeInfo::UInt64 => TypeInfo::Int64,
-                TypeInfo::Float32 => TypeInfo::Float32,
-                TypeInfo::Float64 => TypeInfo::Float64,
-                TypeInfo::Pointer(t) => TypeInfo::Pointer(t),
-                TypeInfo::Array(t, _) => TypeInfo::Pointer(t),
                 _ => panic!("BitwiseNot not implemented for {:?}", srctype),
             },
             UnaryOperator::Dereference => {
-                if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
+                if let TypeInfo::Pointer(t) = srctype.remove_const() {
                     instructions.get_true_typeinfo(t.as_ref()).clone()
                 } else {
                     panic!("Dereference on non-pointer type");
@@ -1004,7 +1030,7 @@ impl Expression for UnaryExpression {
                 }
                 TypeInfo::Pointer(Box::new(srctype))
             }
-            UnaryOperator::Increment | UnaryOperator::Decrement => srctype,
+            UnaryOperator::Increment | UnaryOperator::Decrement => srctype.remove_const(),
         }
     }
     fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
@@ -1057,7 +1083,9 @@ pub struct LogicalBinaryExpression {
 }
 impl Expression for LogicalBinaryExpression {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        match self.lhs.get_typeinfo(instructions) {
+        let lhs_type = self.lhs.get_typeinfo(instructions);
+        let rhs_type = self.rhs.get_typeinfo(instructions);
+        match lhs_type.remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
             | TypeInfo::UInt16
@@ -1074,7 +1102,7 @@ impl Expression for LogicalBinaryExpression {
                 self.lhs.get_typeinfo(instructions)
             ),
         }
-        match self.rhs.get_typeinfo(instructions) {
+        match rhs_type.remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
             | TypeInfo::UInt16
@@ -1187,7 +1215,7 @@ impl Expression for LogicalBinaryExpression {
         false
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        match self.lhs.get_typeinfo(instructions) {
+        match self.lhs.get_typeinfo(instructions).remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
             | TypeInfo::UInt16
@@ -1204,7 +1232,7 @@ impl Expression for LogicalBinaryExpression {
                 self.lhs.get_typeinfo(instructions)
             ),
         }
-        match self.rhs.get_typeinfo(instructions) {
+        match self.rhs.get_typeinfo(instructions).remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
             | TypeInfo::UInt16
@@ -1234,7 +1262,7 @@ pub struct ComparisonExpression {
 }
 impl Expression for ComparisonExpression {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        match self.lhs.get_typeinfo(instructions) {
+        match self.lhs.get_typeinfo(instructions).remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
             | TypeInfo::UInt16
@@ -1253,7 +1281,7 @@ impl Expression for ComparisonExpression {
                 self.lhs.get_typeinfo(instructions)
             ),
         }
-        match self.rhs.get_typeinfo(instructions) {
+        match self.rhs.get_typeinfo(instructions).remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
             | TypeInfo::UInt16
@@ -1369,7 +1397,7 @@ impl Expression for ComparisonExpression {
         self
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        match self.lhs.get_typeinfo(instructions) {
+        match self.lhs.get_typeinfo(instructions).remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
             | TypeInfo::UInt16
@@ -1388,7 +1416,7 @@ impl Expression for ComparisonExpression {
                 self.lhs.get_typeinfo(instructions)
             ),
         }
-        match self.rhs.get_typeinfo(instructions) {
+        match self.rhs.get_typeinfo(instructions).remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
             | TypeInfo::UInt16
@@ -1417,15 +1445,26 @@ impl Expression for ComparisonExpression {
 // lhs = rhs
 #[derive(Debug)]
 pub struct AssignExpression {
-    pub op: BinaryOperator,
     pub lhs: Box<dyn Expression>,
     pub rhs: Box<dyn Expression>,
 }
 impl Expression for AssignExpression {
     fn emit(&self, instructions: &mut InstructionGenerator) {
+        let lhs_type = self.lhs.get_typeinfo(instructions);
+        // check lhs is not const
+        if lhs_type.is_const() {
+            panic!("Assign to const variable");
+        }
+        // check lhs is reference
+        if self.lhs.is_return_reference(instructions) == false {
+            panic!("Assign on non-reference");
+        }
+
+        let rhs_type = self.rhs.get_typeinfo(instructions);
+
         // check if it is non-numeric <-> non-numeric assignment
-        if let TypeInfo::Struct(lhs_type) = self.lhs.get_typeinfo(instructions) {
-            if let TypeInfo::Struct(rhs_type) = self.rhs.get_typeinfo(instructions) {
+        if let TypeInfo::Struct(lhs_type) = lhs_type {
+            if let TypeInfo::Struct(rhs_type) = rhs_type.remove_const() {
                 if &lhs_type != &rhs_type {
                     panic!(
                         "Struct assignment with different types: {:?} = {:?}",
@@ -1460,7 +1499,7 @@ impl Expression for AssignExpression {
             // normal assignment
 
             if self.lhs.is_return_reference(instructions) == false {
-                panic!("{:?} on non-reference", self.op);
+                panic!("Assign on non-reference");
             }
             self.rhs.emit(instructions);
             if self.rhs.is_return_reference(instructions) {
@@ -1504,9 +1543,14 @@ pub struct AssignOpExpression {
 }
 impl Expression for AssignOpExpression {
     fn emit(&self, instructions: &mut InstructionGenerator) {
+        let lhs_type = self.lhs.get_typeinfo(instructions);
         if self.lhs.is_return_reference(instructions) == false {
             panic!("{:?} on non-reference", self.op);
         }
+        if lhs_type.is_const() {
+            panic!("{:?} on const variable", self.op);
+        }
+
         self.rhs.emit(instructions);
         if self.rhs.is_return_reference(instructions) {
             instructions.push(PushStack {
@@ -1523,7 +1567,7 @@ impl Expression for AssignOpExpression {
         });
         match self.op {
             BinaryOperator::AddAssign => {
-                if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions) {
+                if let TypeInfo::Pointer(t) = lhs_type {
                     let move_size = t.number_of_primitives();
                     instructions.push(MoveRegister {
                         operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
@@ -1545,7 +1589,7 @@ impl Expression for AssignOpExpression {
                 }
             }
             BinaryOperator::SubAssign => {
-                if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions) {
+                if let TypeInfo::Pointer(t) = lhs_type {
                     let move_size = t.number_of_primitives();
                     instructions.push(MoveRegister {
                         operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
@@ -1669,7 +1713,7 @@ impl Expression for AdditiveExpression {
         });
 
         // pointer arithmetic
-        if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions) {
+        if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions).remove_const() {
             let move_size = t.number_of_primitives();
             instructions.push(MoveRegister {
                 operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
@@ -1695,7 +1739,7 @@ impl Expression for AdditiveExpression {
                 }
                 _ => panic!("Invalid operator for AdditiveExpression: {:?}", self.op),
             }
-        } else if let TypeInfo::Array(t, _) = self.lhs.get_typeinfo(instructions) {
+        } else if let TypeInfo::Array(t, _) = self.lhs.get_typeinfo(instructions).remove_const() {
             let move_size = t.number_of_primitives();
             instructions.push(MoveRegister {
                 operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
@@ -1746,9 +1790,11 @@ impl Expression for AdditiveExpression {
         false
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        let lhs_type = self.lhs.get_typeinfo(instructions).remove_const();
+        let rhs_type = self.rhs.get_typeinfo(instructions).remove_const();
         // choose bigger-precision type
-        match self.lhs.get_typeinfo(instructions) {
-            TypeInfo::UInt8 | TypeInfo::Int8 => match self.rhs.get_typeinfo(instructions) {
+        match lhs_type {
+            TypeInfo::UInt8 | TypeInfo::Int8 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt8,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
@@ -1762,7 +1808,7 @@ impl Expression for AdditiveExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::UInt16 | TypeInfo::Int16 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::UInt16 | TypeInfo::Int16 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt16,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
@@ -1776,7 +1822,7 @@ impl Expression for AdditiveExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::UInt32 | TypeInfo::Int32 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::UInt32 | TypeInfo::Int32 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt32,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt32,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
@@ -1790,7 +1836,7 @@ impl Expression for AdditiveExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::UInt64 | TypeInfo::Int64 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::UInt64 | TypeInfo::Int64 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt64,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt64,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt64,
@@ -1804,7 +1850,7 @@ impl Expression for AdditiveExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::Float32 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::Float32 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float32,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float32,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float32,
@@ -1818,7 +1864,7 @@ impl Expression for AdditiveExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::Float64 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::Float64 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float64,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float64,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float64,
@@ -1832,7 +1878,7 @@ impl Expression for AdditiveExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::Pointer(t) => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::Pointer(t) => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Pointer(t),
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Pointer(t),
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Pointer(t),
@@ -1844,7 +1890,7 @@ impl Expression for AdditiveExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::Array(t, _) => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::Array(t, _) => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Pointer(t),
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Pointer(t),
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Pointer(t),
@@ -1934,9 +1980,11 @@ impl Expression for MultiplicativeExpression {
         false
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        let lhs_type = self.lhs.get_typeinfo(instructions).remove_const();
+        let rhs_type = self.rhs.get_typeinfo(instructions).remove_const();
         // choose bigger-precision type
-        match self.lhs.get_typeinfo(instructions) {
-            TypeInfo::UInt8 | TypeInfo::Int8 => match self.rhs.get_typeinfo(instructions) {
+        match lhs_type {
+            TypeInfo::UInt8 | TypeInfo::Int8 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt8,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
@@ -1950,7 +1998,7 @@ impl Expression for MultiplicativeExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::UInt16 | TypeInfo::Int16 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::UInt16 | TypeInfo::Int16 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt16,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
@@ -1964,7 +2012,7 @@ impl Expression for MultiplicativeExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::UInt32 | TypeInfo::Int32 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::UInt32 | TypeInfo::Int32 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt32,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt32,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
@@ -1978,7 +2026,7 @@ impl Expression for MultiplicativeExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::UInt64 | TypeInfo::Int64 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::UInt64 | TypeInfo::Int64 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt64,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt64,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt64,
@@ -1992,7 +2040,7 @@ impl Expression for MultiplicativeExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::Float32 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::Float32 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float32,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float32,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float32,
@@ -2006,7 +2054,7 @@ impl Expression for MultiplicativeExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::Float64 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::Float64 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::Float64,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::Float64,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::Float64,
@@ -2152,9 +2200,11 @@ impl Expression for BitwiseExpression {
         false
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        let lhs_type = self.lhs.get_typeinfo(instructions).remove_const();
+        let rhs_type = self.rhs.get_typeinfo(instructions).remove_const();
         // choose bigger-precision type
-        match self.lhs.get_typeinfo(instructions) {
-            TypeInfo::UInt8 | TypeInfo::Int8 => match self.rhs.get_typeinfo(instructions) {
+        match lhs_type {
+            TypeInfo::UInt8 | TypeInfo::Int8 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt8,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
@@ -2166,7 +2216,7 @@ impl Expression for BitwiseExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::UInt16 | TypeInfo::Int16 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::UInt16 | TypeInfo::Int16 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt16,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt16,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
@@ -2178,7 +2228,7 @@ impl Expression for BitwiseExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::UInt32 | TypeInfo::Int32 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::UInt32 | TypeInfo::Int32 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt32,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt32,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt32,
@@ -2190,7 +2240,7 @@ impl Expression for BitwiseExpression {
                     self.rhs.get_typeinfo(instructions)
                 ),
             },
-            TypeInfo::UInt64 | TypeInfo::Int64 => match self.rhs.get_typeinfo(instructions) {
+            TypeInfo::UInt64 | TypeInfo::Int64 => match rhs_type {
                 TypeInfo::UInt8 | TypeInfo::Int8 => TypeInfo::UInt64,
                 TypeInfo::UInt16 | TypeInfo::Int16 => TypeInfo::UInt64,
                 TypeInfo::UInt32 | TypeInfo::Int32 => TypeInfo::UInt64,
@@ -2219,8 +2269,9 @@ pub struct PostArrow {
 }
 impl Expression for PostArrow {
     fn emit(&self, instructions: &mut InstructionGenerator) {
-        let member_offset = match self.src.get_typeinfo(instructions) {
-            TypeInfo::Pointer(t) => match instructions.get_true_typeinfo(t.as_ref()) {
+        let member_offset = match self.src.get_typeinfo(instructions).remove_const() {
+            TypeInfo::Pointer(t) => match instructions.get_true_typeinfo(t.as_ref()).remove_const()
+            {
                 TypeInfo::Struct(sinfo) => {
                     let mut member_offset: Option<usize> = None;
                     for (_, name, offset) in sinfo.fields.as_ref().unwrap() {
@@ -2255,20 +2306,29 @@ impl Expression for PostArrow {
         self
     }
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        match self.src.get_typeinfo(instructions) {
-            TypeInfo::Pointer(t) => match instructions.get_true_typeinfo(t.as_ref()) {
-                TypeInfo::Struct(sinfo) => {
-                    let mut member_type: Option<TypeInfo> = None;
-                    for (type_, name, _) in sinfo.fields.as_ref().unwrap() {
-                        if name == &self.member {
-                            member_type = Some(type_.clone());
-                            break;
+        match self.src.get_typeinfo(instructions).remove_const() {
+            TypeInfo::Pointer(t) => {
+                let t_type = instructions.get_true_typeinfo(t.as_ref());
+                match t_type.remove_const() {
+                    TypeInfo::Struct(sinfo) => {
+                        let mut member_type: Option<TypeInfo> = None;
+                        for (type_, name, _) in sinfo.fields.as_ref().unwrap() {
+                            if name == &self.member {
+                                member_type = Some(type_.clone());
+                                break;
+                            }
+                        }
+                        let member_type = member_type
+                            .expect(format!("member not found: {:?}", self.member).as_str());
+                        if t_type.is_const() {
+                            member_type.add_const()
+                        } else {
+                            member_type
                         }
                     }
-                    member_type.expect(format!("member not found: {:?}", self.member).as_str())
+                    _ => panic!("-> operator on non-struct type: {:?}", t),
                 }
-                _ => panic!("-> operator on non-struct type: {:?}", t),
-            },
+            }
             _ => panic!(
                 "-> operator on non-pointer type: {:?}",
                 self.src.get_typeinfo(instructions)
@@ -2276,7 +2336,7 @@ impl Expression for PostArrow {
         }
     }
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
-        match self.get_typeinfo(instructions) {
+        match self.get_typeinfo(instructions).remove_const() {
             TypeInfo::Array(_, _) => false,
             _ => true,
         }
