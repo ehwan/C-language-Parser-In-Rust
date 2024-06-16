@@ -1344,22 +1344,16 @@ impl ASTParser {
                 self.pointer.clone()
             )
             .optional()
-            .map(|decorators: Option<Vec<Token>>| -> Vec<Token> {
-                if let Some(mut decorators) = decorators {
-                    let mut ret = Vec::new();
-                    ret.push(Token::Star);
-                    ret.append(&mut decorators);
-                    ret
-                } else {
-                    vec![Token::Star]
-                }
-            })
         )
-        .map(|mut decorators: Vec<Token>| -> Vec<Token> {
-            let mut ret = Vec::new();
-            ret.push(Token::Star);
-            ret.append(&mut decorators);
-            ret
+        .map(|decorators: Option<Vec<Token>>| -> Vec<Token> {
+            if let Some(mut decorators) = decorators {
+                let mut ret = Vec::new();
+                ret.push(Token::Star);
+                ret.append(&mut decorators);
+                ret
+            } else {
+                vec![Token::Star]
+            }
         });
         self.pointer.borrow_mut().assign(pointer_);
 

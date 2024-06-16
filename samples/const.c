@@ -28,10 +28,18 @@ int main()
     const int a = 10;
     print(a);
 
-    int const* p = &a;
-    // p = 10;
-    *p = 100; // error
-    print(p, *p);
+    const int* p = &a;
+    p = 9; // valid
+    // *p = 100; // error
+    print(p, *p, a);
+  }
+
+  // string
+  {
+    const char* s = "hello";
+
+    print_str(s);
+    // s[0] = 'H'; // error
   }
 
   return 0;
