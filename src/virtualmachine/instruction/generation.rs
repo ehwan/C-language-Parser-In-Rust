@@ -1,6 +1,5 @@
 use super::DefineLabel;
 use super::Instruction;
-use crate::ast::typename::StructInfo;
 use crate::ast::typename::TypeInfo;
 use crate::virtualmachine::scope::*;
 use std::collections::HashMap;
@@ -103,6 +102,7 @@ impl InstructionGenerator {
     /// make new named variable on current scope
     /// this does not allocate stack memory, just for variable counting
     pub fn declare_variable(&mut self, name: &str, type_info: &TypeInfo, count: usize) {
+        let type_info = self.get_true_typeinfo(type_info);
         // if there is function scope, it is local variable
         let (offset, scope) = if let Some(func_scope) = &mut self.function_scope {
             let offset = func_scope.declared_variable_count;
@@ -120,7 +120,7 @@ impl InstructionGenerator {
         };
         let old = scope
             .variables
-            .insert(name.to_string(), (type_info.clone(), offset as isize));
+            .insert(name.to_string(), (type_info, offset as isize));
         if let Some(_) = old {
             panic!("variable {} is already declared", name);
         }
@@ -130,35 +130,42 @@ impl InstructionGenerator {
     /// this deos not count up variable_count
     /// only for stack address-variable mapping
     pub fn link_variable(&mut self, name: &str, type_info: &TypeInfo, offset_from_rbp: isize) {
+        let type_info = self.get_true_typeinfo(type_info);
         let scope = self.scopes.last_mut().unwrap();
         let old = scope
             .variables
-            .insert(name.to_string(), (type_info.clone(), offset_from_rbp));
+            .insert(name.to_string(), (type_info, offset_from_rbp));
         if let Some(_) = old {
             panic!("variable {} is already declared", name);
         }
     }
     /// search variable by name across scopes
-    pub fn search_variable(&self, name: &str) -> Option<(&TypeInfo, VariableOffset)> {
+    pub fn search_variable(&self, name: &str) -> Option<(TypeInfo, VariableOffset)> {
         for scope in self.scopes.iter().rev() {
             if let Some((type_info, offset)) = scope.variables.get(name) {
-                return Some((type_info, VariableOffset::Local(*offset as isize)));
+                return Some((
+                    self.get_true_typeinfo(type_info),
+                    VariableOffset::Local(*offset as isize),
+                ));
             }
         }
         if let Some((type_info, offset)) = self.global_scope.variables.get(name) {
-            return Some((type_info, VariableOffset::Global(*offset as usize)));
+            return Some((
+                self.get_true_typeinfo(type_info),
+                VariableOffset::Global(*offset as usize),
+            ));
         }
         None
     }
     /// search typeinfo by name across scopes
-    pub fn search_type(&self, name: &str) -> Option<&TypeInfo> {
+    pub fn search_type(&self, name: &str) -> Option<TypeInfo> {
         for scope in self.scopes.iter().rev() {
             if let Some(type_info) = scope.type_infos.get(name) {
-                return Some(type_info);
+                return Some(self.get_true_typeinfo(type_info));
             }
         }
         if let Some(type_info) = self.global_scope.type_infos.get(name) {
-            return Some(type_info);
+            return Some(self.get_true_typeinfo(type_info));
         }
         None
     }
@@ -180,6 +187,7 @@ impl InstructionGenerator {
             | TypeInfo::Float64
             | TypeInfo::Pointer(_) => type_info.clone(),
             TypeInfo::Array(t, len) => TypeInfo::Array(Box::new(self.get_true_typeinfo(t)), *len),
+            TypeInfo::Const(t) => TypeInfo::Const(Box::new(self.get_true_typeinfo(t))),
             TypeInfo::Function(return_type, params) => {
                 let mut new_params = Vec::new();
                 for t in params.iter() {
@@ -212,12 +220,9 @@ impl InstructionGenerator {
                     );
                 }
             }
-            TypeInfo::Identifier(name) => {
-                let searched = self
-                    .search_type(name)
-                    .expect(format!("get_true_typeinfo: type {} is not defined", name).as_str());
-                self.get_true_typeinfo(searched)
-            }
+            TypeInfo::Identifier(name) => self
+                .search_type(name)
+                .expect(format!("get_true_typeinfo: type {} is not defined", name).as_str()),
             _ => panic!("get_true_typeinfo: not implemented {:?}", type_info),
         }
     }
