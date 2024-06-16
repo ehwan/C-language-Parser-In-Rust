@@ -80,6 +80,19 @@ impl Declarator for DirectFunctionDeclarator {
         (name, TypeInfo::Function(Box::new(return_type), params))
     }
 }
+#[derive(Debug)]
+pub struct ConstDeclarator {
+    pub declarator: Box<dyn Declarator>,
+}
+impl Declarator for ConstDeclarator {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        let (name, info) = self.declarator.resolve_typeinfo(info);
+        (name, TypeInfo::Const(Box::new(info)))
+    }
+}
 
 #[derive(Debug)]
 pub struct PointerDeclarator {
@@ -190,5 +203,23 @@ impl Declarator for AbstractPointerDeclarator {
             (None, info)
         };
         (name, TypeInfo::Pointer(Box::new(info_)))
+    }
+}
+
+#[derive(Debug)]
+pub struct AbstractConstDeclarator {
+    pub declarator: Option<Box<dyn Declarator>>,
+}
+impl Declarator for AbstractConstDeclarator {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        let (name, info_) = if let Some(decl) = &self.declarator {
+            decl.resolve_typeinfo(info)
+        } else {
+            (None, info)
+        };
+        (name, TypeInfo::Const(Box::new(info_)))
     }
 }

@@ -18,6 +18,7 @@ pub struct ASTParser {
     declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Declarator>,), Token>>>, // OK
     init_declarator: Rc<RefCell<rp::DynBoxSlice<(Box<InitDeclarator>,), Token>>>, // OK
     abstract_declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Declarator>,), Token>>>, // OK
+    pointer: Rc<RefCell<rp::DynBoxSlice<(Vec<Token>,), Token>>>,
 
     expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>>, //OK
     assignment_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>>, // OK
@@ -50,6 +51,7 @@ impl ASTParser {
             declarator: Default::default(),
             init_declarator: Default::default(),
             abstract_declarator: Default::default(),
+            pointer: Default::default(),
 
             translation_unit: Default::default(),
         };
@@ -158,6 +160,18 @@ impl ASTParser {
                     None
                 }
             })
+        );
+
+        let consts = rp::one(Token::Const).repeat(0..);
+
+        let type_specifier = rp::seq!(consts.clone(), type_specifier, consts).map(
+            |consts: Vec<Token>, specifier: TypeInfo, consts2: Vec<Token>| -> TypeInfo {
+                if consts.is_empty() == false || consts2.is_empty() == false {
+                    TypeInfo::Const(Box::new(specifier))
+                } else {
+                    specifier
+                }
+            },
         );
 
         self.type_specifier.borrow_mut().assign(type_specifier);
@@ -1309,9 +1323,46 @@ impl ASTParser {
         );
         /*
         pointer
-        : '*' pointer
+        : '*'
+        | '*' CONST pointer
+        | '*' CONST
+        | '*' pointer
         ;
         */
+        let pointer_ = rp::seq!(
+            rp::one(Token::Star).void(),
+            rp::or!(
+                rp::seq!(rp::one(Token::Const).void(), self.pointer.clone()).map(
+                    |mut decorators: Vec<Token>| -> Vec<Token> {
+                        let mut ret = Vec::new();
+                        ret.push(Token::Const);
+                        ret.append(&mut decorators);
+                        ret
+                    }
+                ),
+                rp::one(Token::Const).map(|t| -> Vec<Token> { vec![t] }),
+                self.pointer.clone()
+            )
+            .optional()
+            .map(|decorators: Option<Vec<Token>>| -> Vec<Token> {
+                if let Some(mut decorators) = decorators {
+                    let mut ret = Vec::new();
+                    ret.push(Token::Star);
+                    ret.append(&mut decorators);
+                    ret
+                } else {
+                    vec![Token::Star]
+                }
+            })
+        )
+        .map(|mut decorators: Vec<Token>| -> Vec<Token> {
+            let mut ret = Vec::new();
+            ret.push(Token::Star);
+            ret.append(&mut decorators);
+            ret
+        });
+        self.pointer.borrow_mut().assign(pointer_);
+
         /*
         declarator
         : pointer direct_declarator
@@ -1319,11 +1370,20 @@ impl ASTParser {
         ;
         */
 
-        let declarator_ = direct_declarator.reduce_right(
-            rp::one(Token::Star).void(),
-            |decl: Box<dyn Declarator>| -> Box<dyn Declarator> {
-                Box::new(PointerDeclarator { declarator: decl })
-            },
+        let declarator_ = rp::or!(
+            rp::seq!(self.pointer.clone(), direct_declarator.clone()).map(
+                |ptr: Vec<Token>, mut decl: Box<dyn Declarator>| -> Box<dyn Declarator> {
+                    for t in ptr.iter() {
+                        match t {
+                            Token::Star => decl = Box::new(PointerDeclarator { declarator: decl }),
+                            Token::Const => decl = Box::new(ConstDeclarator { declarator: decl }),
+                            _ => unreachable!("Invalid token in pointer or const"),
+                        }
+                    }
+                    decl
+                }
+            ),
+            direct_declarator.clone()
         );
 
         self.declarator.borrow_mut().assign(declarator_);
@@ -1480,33 +1540,29 @@ impl ASTParser {
             | pointer direct_abstract_declarator
             ;
             */
-            /*
-            pointer
-            : '*' pointer
-            ;
-            */
-            let pointered = direct_abstract_declarator.clone().reduce_right(
-                rp::one(Token::Star).void(),
-                |lhs: Box<dyn Declarator>| -> Box<dyn Declarator> {
-                    Box::new(AbstractPointerDeclarator {
-                        declarator: Some(lhs),
-                    })
+            let pointered = rp::seq!(
+                self.pointer.clone(),
+                direct_abstract_declarator.clone().optional()
+            )
+            .map(
+                |ptr: Vec<Token>, decl: Option<Box<dyn Declarator>>| -> Box<dyn Declarator> {
+                    let mut decl = decl;
+                    for t in ptr.iter() {
+                        match t {
+                            Token::Star => {
+                                decl =
+                                    Some(Box::new(AbstractPointerDeclarator { declarator: decl }));
+                            }
+                            Token::Const => {
+                                decl = Some(Box::new(AbstractConstDeclarator { declarator: decl }));
+                            }
+                            _ => unreachable!("Invalid token in pointer"),
+                        }
+                    }
+                    decl.unwrap()
                 },
             );
-            let pointer = rp::one(Token::Star)
-                .void()
-                .map(|| -> Box<dyn Declarator> {
-                    Box::new(AbstractPointerDeclarator { declarator: None })
-                })
-                .reduce_right(
-                    rp::one(Token::Star).void(),
-                    |lhs: Box<dyn Declarator>| -> Box<dyn Declarator> {
-                        Box::new(AbstractPointerDeclarator {
-                            declarator: Some(lhs),
-                        })
-                    },
-                );
-            let abstract_declarator_ = rp::or!(pointered, pointer, direct_abstract_declarator);
+            let abstract_declarator_ = rp::or!(pointered, direct_abstract_declarator.clone());
             self.abstract_declarator
                 .borrow_mut()
                 .assign(abstract_declarator_);
