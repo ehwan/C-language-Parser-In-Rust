@@ -225,6 +225,27 @@ impl TypeInfo {
             _ => panic!("emit_init: unsupported type: {:?}", self),
         }
     }
+
+    // remove outermost const recursively
+    pub fn remove_const(&self) -> TypeInfo {
+        match self {
+            TypeInfo::Const(t) => t.remove_const(),
+            _ => self.clone(),
+        }
+    }
+
+    pub fn add_const(&self) -> TypeInfo {
+        match self {
+            TypeInfo::Const(_) => self.clone(),
+            _ => TypeInfo::Const(Box::new(self.clone())),
+        }
+    }
+    pub fn is_const(&self) -> bool {
+        match self {
+            TypeInfo::Const(_) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
