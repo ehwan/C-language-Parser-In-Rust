@@ -451,18 +451,17 @@ impl ASTParser {
             let mut fields: HashMap<String, i64> = HashMap::new();
             let mut last_enum_value: Option<i64> = None;
             for enumerator in enumerators.into_iter() {
-                let mut enum_value: i64 = 0;
-                if let Some(value) = enumerator.value {
-                    enum_value = value
+                let enum_value: i64 = if let Some(value) = enumerator.value {
+                    value
                         .get_constant_i64()
-                        .expect("Enumerator value must be constant expression");
+                        .expect("Enumerator value must be constant expression")
                 } else {
                     if last_enum_value.is_none() {
-                        enum_value = 0;
+                        0
                     } else {
-                        enum_value = last_enum_value.unwrap() + 1;
+                        last_enum_value.unwrap() + 1
                     }
-                }
+                };
                 let old = fields.insert(enumerator.name.clone(), enum_value);
                 if old.is_some() {
                     panic!("Duplicated enumerator name: {}", enumerator.name);
@@ -492,18 +491,17 @@ impl ASTParser {
             let mut fields: HashMap<String, i64> = HashMap::new();
             let mut last_enum_value: Option<i64> = None;
             for enumerator in enumerators.into_iter() {
-                let mut enum_value: i64 = 0;
-                if let Some(value) = enumerator.value {
-                    enum_value = value
+                let enum_value: i64 = if let Some(value) = enumerator.value {
+                    value
                         .get_constant_i64()
-                        .expect("Enumerator value must be constant expression");
+                        .expect("Enumerator value must be constant expression")
                 } else {
                     if last_enum_value.is_none() {
-                        enum_value = 0;
+                        0
                     } else {
-                        enum_value = last_enum_value.unwrap() + 1;
+                        last_enum_value.unwrap() + 1
                     }
-                }
+                };
                 let old = fields.insert(enumerator.name.clone(), enum_value);
                 if old.is_some() {
                     panic!("Duplicated enumerator name: {}", enumerator.name);
@@ -1956,16 +1954,30 @@ impl ASTParser {
                  decls: Option<Vec<Box<InitDeclarator>>>|
                  -> Box<dyn Statement> {
                     if let Some(decls) = decls {
-                        let mut ret = Vec::new();
+                        // variable definition
+                        let mut ret = Vec::with_capacity(decls.len());
                         for decl in decls.into_iter() {
                             let (name, typeinfo_) = decl.resolve_typeinfo(typeinfo.clone());
-                            ret.push((name, typeinfo_, decl.initializer));
+                            ret.push((
+                                name.expect("Declaration must have name"),
+                                typeinfo_,
+                                decl.initializer,
+                            ));
+                        }
+                        // check if it's a function declaration
+                        if ret.len() == 1 {
+                            if let TypeInfo::Function(return_type, params) = &ret[0].1 {
+                                return Box::new(FunctionDeclaration {
+                                    name: ret[0].0.clone(),
+                                    return_type: *return_type.clone(),
+                                    params: params.clone(),
+                                });
+                            }
                         }
                         Box::new(DeclarationStatement { vars: ret })
                     } else {
-                        Box::new(DeclarationStatement {
-                            vars: vec![(None, typeinfo, None)],
-                        })
+                        // type definition
+                        Box::new(TypeDefinition { typeinfo })
                     }
                 },
             );

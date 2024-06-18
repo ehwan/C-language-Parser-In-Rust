@@ -12,11 +12,13 @@ use crate::virtualmachine::variable::VariableData;
 
 use std::any::Any;
 
+/// Base trait for all statements
 pub trait Statement: core::fmt::Debug + Any {
     fn emit(&self, instructions: &mut InstructionGenerator);
     fn as_any(&self) -> &dyn Any;
 }
 
+/// Statements that do nothing
 #[derive(Debug)]
 pub struct NullStatement;
 impl Statement for NullStatement {
@@ -26,6 +28,7 @@ impl Statement for NullStatement {
     }
 }
 
+/// for any expression ends with semicolon ';'
 #[derive(Debug)]
 pub struct ExpressionStatement {
     pub expression: Box<dyn Expression>,
@@ -39,6 +42,8 @@ impl Statement for ExpressionStatement {
     }
 }
 
+/// label:
+///    statement
 #[derive(Debug)]
 pub struct LabeledStatement {
     pub label: String,
@@ -54,6 +59,7 @@ impl Statement for LabeledStatement {
     }
 }
 
+/// { statements ... }
 #[derive(Debug)]
 pub struct CompoundStatement {
     pub statements: Vec<Box<dyn Statement>>,
@@ -73,6 +79,8 @@ impl Statement for CompoundStatement {
     }
 }
 
+/// if ( condition_expression ) then_statement else else_statement
+/// no else if statement
 #[derive(Debug)]
 pub struct IfStatement {
     pub cond: Box<dyn Expression>,
@@ -104,6 +112,7 @@ impl Statement for IfStatement {
     }
 }
 
+/// switch ( target_expression ) body_statement
 #[derive(Debug)]
 pub struct SwitchStatement {
     pub target: Box<dyn Expression>,
@@ -165,6 +174,7 @@ impl Statement for SwitchStatement {
         self
     }
 }
+/// case value: statement
 #[derive(Debug)]
 pub struct CaseStatement {
     pub value: Box<dyn Expression>,
@@ -231,6 +241,8 @@ impl Statement for CaseStatement {
         self
     }
 }
+
+/// default: statement
 #[derive(Debug)]
 pub struct DefaultStatement {
     pub statement: Box<dyn Statement>,
@@ -261,6 +273,7 @@ impl Statement for DefaultStatement {
     }
 }
 
+/// continue;
 #[derive(Debug)]
 pub struct ContinueStatement;
 impl Statement for ContinueStatement {
@@ -279,6 +292,7 @@ impl Statement for ContinueStatement {
     }
 }
 
+/// break;
 #[derive(Debug)]
 pub struct BreakStatement;
 impl Statement for BreakStatement {
@@ -296,6 +310,8 @@ impl Statement for BreakStatement {
         self
     }
 }
+
+/// while ( condition_expression ) statement
 #[derive(Debug)]
 pub struct WhileStatement {
     pub cond: Box<dyn Expression>,
@@ -337,6 +353,8 @@ impl Statement for WhileStatement {
         self
     }
 }
+
+/// do statement while ( condition_expression );
 
 #[derive(Debug)]
 pub struct DoWhileStatement {
@@ -387,6 +405,8 @@ impl Statement for DoWhileStatement {
     }
 }
 
+/// for ( init; cond; next ) statement
+/// since init is expression, must declare variable before entering for loop
 #[derive(Debug)]
 pub struct ForStatement {
     pub init: Box<dyn Expression>,
@@ -446,6 +466,7 @@ impl Statement for ForStatement {
     }
 }
 
+/// goto label;
 #[derive(Debug)]
 pub struct GotoStatement {
     pub label: String,
@@ -461,6 +482,7 @@ impl Statement for GotoStatement {
     }
 }
 
+/// return; or return expression;
 #[derive(Debug)]
 pub struct ReturnStatement {
     pub expr: Option<Box<dyn Expression>>,
@@ -484,225 +506,245 @@ impl Statement for ReturnStatement {
     }
 }
 
+/// type definition of struct, union, enum
+#[derive(Debug)]
+pub struct TypeDefinition {
+    pub typeinfo: TypeInfo,
+}
+impl Statement for TypeDefinition {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        match &self.typeinfo {
+            TypeInfo::Struct(t) => {
+                if t.name.is_none() {
+                    println!("Anonymous struct in declaration statement; ignored it");
+                } else {
+                    let old = if instructions.scopes.is_empty() {
+                        &mut instructions.global_scope
+                    } else {
+                        instructions.scopes.last_mut().unwrap()
+                    }
+                    .type_infos
+                    .insert(
+                        t.name.as_ref().unwrap().clone(),
+                        TypeInfo::Struct(t.clone()),
+                    );
+                    if old.is_some() {
+                        panic!("Struct {} already exists", t.name.as_ref().unwrap());
+                    }
+                }
+            }
+            _ => panic!("Invalid type for type declaration: {:?}", self.typeinfo),
+        }
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+/// return_type function_name ( params );
+#[derive(Debug)]
+pub struct FunctionDeclaration {
+    pub return_type: TypeInfo,
+    pub name: String,
+    pub params: Vec<TypeInfo>,
+}
+impl Statement for FunctionDeclaration {
+    fn emit(&self, instructions: &mut InstructionGenerator) {
+        // check if its already declared
+        let old = instructions.functions.get(&self.name);
+        if let Some(old) = old {
+            // no need to check if the function is already defined,
+            // since this statement is declaration statement
+
+            // check parameter types are same
+            let param_equal = old
+                .params
+                .iter()
+                .map(|(_, type_)| type_)
+                .eq(self.params.iter());
+            if param_equal == false {
+                panic!(
+                    "Function {} is already declared with different parameter types",
+                    &self.name
+                );
+            }
+
+            // check return type is same
+            if &old.return_type != &self.return_type {
+                panic!(
+                    "Function {} is already declared with different return type",
+                    &self.name
+                );
+            }
+        } else {
+            // function is not declared
+            let params: Vec<_> = self
+                .params
+                .iter()
+                .map(|typeinfo| (None, typeinfo.clone()))
+                .collect();
+            let function_data = FunctionInfo {
+                return_type: self.return_type.clone(),
+                params,
+                is_defined: false,
+            };
+            instructions
+                .functions
+                .insert(self.name.clone(), function_data);
+        }
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+/// typename var1, var2, var3, ...,;
+/// var_i can be decorated with qualifiers; pointer, const ...
 #[derive(Debug)]
 pub struct DeclarationStatement {
-    pub vars: Vec<(Option<String>, TypeInfo, Option<Box<dyn Expression>>)>, // name, type, initializer
+    pub vars: Vec<(String, TypeInfo, Option<Box<dyn Expression>>)>, // name, type, initializer
 }
 impl Statement for DeclarationStatement {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         for declaration in &self.vars {
-            if declaration.0.is_none() && declaration.2.is_none() {
-                // Struct & Enum & Union declaration
-                // panic!("Struct & Enum & Union declaration is not allowed in declaration statement");
-                match &declaration.1 {
-                    TypeInfo::Struct(t) => {
-                        if t.name.is_none() {
-                            println!("Anonymous struct in declaration statement; ignored it");
-                        } else {
-                            let old = if instructions.scopes.is_empty() {
-                                &mut instructions.global_scope
-                            } else {
-                                instructions.scopes.last_mut().unwrap()
-                            }
-                            .type_infos
-                            .insert(
-                                t.name.as_ref().unwrap().clone(),
-                                TypeInfo::Struct(t.clone()),
-                            );
-                            if old.is_some() {
-                                panic!("Struct {} already exists", t.name.as_ref().unwrap());
-                            }
-                        }
+            // variable declaration
+            if let Some(initial_value) = &declaration.2 {
+                // variable with initial value
+
+                let var_type = instructions.get_true_typeinfo(&declaration.1);
+                // check type
+                match var_type.remove_const() {
+                    TypeInfo::Function(_, _) => {
+                        panic!(
+                            "Function declaration cannot have initial value; something went wrong"
+                        );
                     }
-                    _ => panic!("Invalid type for type declaration: {:?}", declaration.1),
+                    TypeInfo::Struct(sinfo) => {
+                        // link name to stack
+                        instructions.declare_variable(
+                            &declaration.0,
+                            &var_type,
+                            sinfo.number_of_primitives(),
+                        );
+
+                        sinfo.emit_init(instructions, initial_value);
+                    }
+                    TypeInfo::Union(_uinfo) => {
+                        panic!("Union declaration in declaration statement is not implemented");
+                    }
+
+                    // array
+                    TypeInfo::Array(type_, size) => {
+                        // initializer must be initializer list
+                        let initial_value = initial_value
+                            .as_any()
+                            .downcast_ref::<InitializerListExpression>()
+                            .expect("Array initializer must be initializer list");
+
+                        let size = match size {
+                            Some(size) => {
+                                if initial_value.initializers.len() > size {
+                                    panic!("Too many initializers for array");
+                                }
+                                size
+                            }
+                            None => initial_value.initializers.len(),
+                        };
+                        if size == 0 {
+                            panic!("Array size must be greater than 0");
+                        }
+
+                        // link name to stack
+                        instructions.declare_variable(
+                            &declaration.0,
+                            &TypeInfo::Array(type_.clone(), Some(size)),
+                            size * type_.number_of_primitives(),
+                        );
+
+                        TypeInfo::Array(type_.clone(), Some(size))
+                            .emit_init(instructions, declaration.2.as_ref().unwrap());
+                    }
+
+                    // primitive types + pointer
+                    TypeInfo::UInt8
+                    | TypeInfo::UInt16
+                    | TypeInfo::UInt32
+                    | TypeInfo::UInt64
+                    | TypeInfo::Int8
+                    | TypeInfo::Int16
+                    | TypeInfo::Int32
+                    | TypeInfo::Int64
+                    | TypeInfo::Float32
+                    | TypeInfo::Float64
+                    | TypeInfo::Pointer(_) => {
+                        // link name to stack
+                        instructions.declare_variable(&declaration.0, &var_type, 1);
+
+                        var_type.emit_init(instructions, initial_value);
+                    }
+                    _ => panic!(
+                        "Invalid type for variable declaration: {:?}",
+                        &declaration.1
+                    ),
                 }
-            } else if declaration.0.is_none() {
-                panic!("Anonymous variable is not allowed in declaration statement");
             } else {
-                // variable declaration
+                // variable without initial value
 
-                if let Some(initial_value) = &declaration.2 {
-                    // variable with initial value
-
-                    let var_type = instructions.get_true_typeinfo(&declaration.1);
-                    // check type
-                    match var_type.remove_const() {
-                        TypeInfo::Function(_, _) => {
-                            panic!( "Function declaration cannot have initial value; something went wrong");
+                let var_type = instructions.get_true_typeinfo(&declaration.1);
+                match var_type.remove_const() {
+                    TypeInfo::Struct(sinfo) => {
+                        let size = sinfo.number_of_primitives();
+                        if size == 0 {
+                            panic!("Struct size must be greater than 0");
                         }
-                        TypeInfo::Struct(sinfo) => {
-                            // link name to stack
-                            instructions.declare_variable(
-                                declaration.0.as_ref().unwrap(),
-                                &var_type,
-                                sinfo.number_of_primitives(),
-                            );
+                        // link name to stack
+                        instructions.declare_variable(&declaration.0, &var_type, size);
 
-                            sinfo.emit_init(instructions, initial_value);
-                        }
-                        TypeInfo::Union(_uinfo) => {
-                            panic!("Union declaration in declaration statement is not implemented");
-                        }
-
-                        // array
-                        TypeInfo::Array(type_, size) => {
-                            // initializer must be initializer list
-                            let initial_value = initial_value
-                                .as_any()
-                                .downcast_ref::<InitializerListExpression>()
-                                .expect("Array initializer must be initializer list");
-
-                            let size = match size {
-                                Some(size) => {
-                                    if initial_value.initializers.len() > size {
-                                        panic!("Too many initializers for array");
-                                    }
-                                    size
-                                }
-                                None => initial_value.initializers.len(),
-                            };
-                            if size == 0 {
-                                panic!("Array size must be greater than 0");
-                            }
-
-                            // link name to stack
-                            instructions.declare_variable(
-                                declaration.0.as_ref().unwrap(),
-                                &TypeInfo::Array(type_.clone(), Some(size)),
-                                size * type_.number_of_primitives(),
-                            );
-
-                            TypeInfo::Array(type_.clone(), Some(size))
-                                .emit_init(instructions, declaration.2.as_ref().unwrap());
-                        }
-
-                        // primitive types + pointer
-                        TypeInfo::UInt8
-                        | TypeInfo::UInt16
-                        | TypeInfo::UInt32
-                        | TypeInfo::UInt64
-                        | TypeInfo::Int8
-                        | TypeInfo::Int16
-                        | TypeInfo::Int32
-                        | TypeInfo::Int64
-                        | TypeInfo::Float32
-                        | TypeInfo::Float64
-                        | TypeInfo::Pointer(_) => {
-                            // link name to stack
-                            instructions.declare_variable(
-                                declaration.0.as_ref().unwrap(),
-                                &var_type,
-                                1,
-                            );
-
-                            var_type.emit_init(instructions, initial_value);
-                        }
-                        _ => panic!("Invalid type for variable declaration"),
+                        sinfo.emit_default(instructions);
                     }
-                } else {
-                    // variable without initial value
-
-                    let var_type = instructions.get_true_typeinfo(&declaration.1);
-                    match var_type.remove_const() {
-                        TypeInfo::Function(return_type, params) => {
-                            // check if its already declared
-                            let old = instructions.functions.get(declaration.0.as_ref().unwrap());
-                            if let Some(old) = old {
-                                // no need to check if the function is already defined,
-                                // since this statement is declaration statement
-
-                                // check parameter types are same
-                                let param_equal =
-                                    old.params.iter().map(|(_, type_)| type_).eq(params.iter());
-                                if param_equal == false {
-                                    panic!(
-                                        "Function {} is already declared with different parameter types",
-                                        declaration.0.as_ref().unwrap()
-                                    );
-                                }
-
-                                // check return type is same
-                                if &old.return_type != return_type.as_ref() {
-                                    panic!(
-                                        "Function {} is already declared with different return type",
-                                        declaration.0.as_ref().unwrap()
-                                    );
-                                }
-                            } else {
-                                // function is not declared
-                                let params: Vec<_> = params
-                                    .iter()
-                                    .map(|typeinfo| (None, typeinfo.clone()))
-                                    .collect();
-                                let function_data = FunctionInfo {
-                                    return_type: *return_type.clone(),
-                                    params,
-                                    is_defined: false,
-                                };
-                                instructions
-                                    .functions
-                                    .insert(declaration.0.as_ref().unwrap().clone(), function_data);
-                            }
-                        }
-                        TypeInfo::Struct(sinfo) => {
-                            let size = sinfo.number_of_primitives();
-                            if size == 0 {
-                                panic!("Struct size must be greater than 0");
-                            }
-                            // link name to stack
-                            instructions.declare_variable(
-                                declaration.0.as_ref().unwrap(),
-                                &var_type,
-                                size,
-                            );
-
-                            sinfo.emit_default(instructions);
-                        }
-                        TypeInfo::Union(_uinfo) => {
-                            panic!("Union declaration in declaration statement is not implemented");
-                        }
-
-                        TypeInfo::Array(type_, size) => {
-                            let size =
-                                size.expect("Array declaration without initializer must have size");
-                            if size == 0 {
-                                panic!("Array size must be greater than 0");
-                            }
-
-                            // link name to stack
-                            instructions.declare_variable(
-                                declaration.0.as_ref().unwrap(),
-                                &TypeInfo::Array(type_.clone(), Some(size)),
-                                size * type_.number_of_primitives(),
-                            );
-
-                            TypeInfo::Array(type_.clone(), Some(size)).emit_default(instructions);
-                        }
-
-                        // primitive types + pointer
-                        TypeInfo::UInt8
-                        | TypeInfo::UInt16
-                        | TypeInfo::UInt32
-                        | TypeInfo::UInt64
-                        | TypeInfo::Int8
-                        | TypeInfo::Int16
-                        | TypeInfo::Int32
-                        | TypeInfo::Int64
-                        | TypeInfo::Float32
-                        | TypeInfo::Float64
-                        | TypeInfo::Pointer(_) => {
-                            // link name to stack
-                            instructions.declare_variable(
-                                declaration.0.as_ref().unwrap(),
-                                &var_type,
-                                1,
-                            );
-
-                            // push default value to stack
-                            var_type.emit_default(instructions);
-                        }
-                        _ => {}
+                    TypeInfo::Union(_uinfo) => {
+                        panic!("Union declaration in declaration statement is not implemented");
                     }
+
+                    TypeInfo::Array(type_, size) => {
+                        let size =
+                            size.expect("Array declaration without initializer must have size");
+                        if size == 0 {
+                            panic!("Array size must be greater than 0");
+                        }
+
+                        // link name to stack
+                        instructions.declare_variable(
+                            &declaration.0,
+                            &TypeInfo::Array(type_.clone(), Some(size)),
+                            size * type_.number_of_primitives(),
+                        );
+
+                        TypeInfo::Array(type_.clone(), Some(size)).emit_default(instructions);
+                    }
+
+                    // primitive types + pointer
+                    TypeInfo::UInt8
+                    | TypeInfo::UInt16
+                    | TypeInfo::UInt32
+                    | TypeInfo::UInt64
+                    | TypeInfo::Int8
+                    | TypeInfo::Int16
+                    | TypeInfo::Int32
+                    | TypeInfo::Int64
+                    | TypeInfo::Float32
+                    | TypeInfo::Float64
+                    | TypeInfo::Pointer(_) => {
+                        // link name to stack
+                        instructions.declare_variable(&declaration.0, &var_type, 1);
+
+                        // push default value to stack
+                        var_type.emit_default(instructions);
+                    }
+                    _ => panic!(
+                        "Invalid type for variable declaration: {:?}",
+                        &declaration.1
+                    ),
                 }
             }
         }

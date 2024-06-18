@@ -13,21 +13,29 @@ use crate::virtualmachine::variable::VariableData;
 use core::panic;
 use std::any::Any;
 
+/// base trait for all expressions
 pub trait Expression: std::fmt::Debug + Any {
     /// push instruction that eval expression and store result in rax (register0)
     fn emit(&self, instructions: &mut InstructionGenerator);
 
     fn as_any(&self) -> &dyn Any;
 
+    /// true if this expression returns reference;
+    /// note C language does not have reference,
+    /// but I use the term 'reference' to represent the expression that returns address of variable
+    /// so it must be dereferenced to get the value
     fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool;
 
+    /// if this expression is compile-time evaluable, return the value
     fn get_constant_i64(&self) -> Result<i64, String> {
         Err(format!("get_constant_i64 not implemented for {:?}", self))
     }
+
+    /// get typeinfo of this expression
     fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo;
 }
 
-// expression that always returns true int32(1)
+/// expression that always returns true int32(1)
 #[derive(Debug, Clone)]
 pub struct VoidExpression {}
 impl Expression for VoidExpression {
@@ -48,6 +56,7 @@ impl Expression for VoidExpression {
     }
 }
 
+/// for variable
 #[derive(Debug, Clone)]
 pub struct PrimaryIdentifier {
     pub name: String,
@@ -98,6 +107,8 @@ impl Expression for PrimaryIdentifier {
             .0
     }
 }
+
+/// for struct member access
 #[derive(Debug)]
 pub struct PostMember {
     pub src: Box<dyn Expression>,
@@ -157,6 +168,7 @@ impl Expression for PostMember {
     }
 }
 
+/// constant integer
 #[derive(Debug, Clone)]
 pub struct ConstantInteger {
     pub value: i32,
@@ -181,6 +193,8 @@ impl Expression for ConstantInteger {
         false
     }
 }
+
+/// constant unsigned integer
 #[derive(Debug, Clone)]
 pub struct ConstantUnsignedInteger {
     pub value: u32,
@@ -206,6 +220,7 @@ impl Expression for ConstantUnsignedInteger {
     }
 }
 
+/// 'c' character
 #[derive(Debug, Clone)]
 pub struct ConstantCharacter {
     pub value: i8,
@@ -231,6 +246,7 @@ impl Expression for ConstantCharacter {
     }
 }
 
+/// constant long
 #[derive(Debug, Clone)]
 pub struct ConstantLong {
     pub value: i64,
@@ -255,6 +271,8 @@ impl Expression for ConstantLong {
         false
     }
 }
+
+/// constant unsigned long
 #[derive(Debug, Clone)]
 pub struct ConstantUnsignedLong {
     pub value: u64,
@@ -280,6 +298,7 @@ impl Expression for ConstantUnsignedLong {
     }
 }
 
+/// constant float
 #[derive(Debug, Clone)]
 pub struct ConstantFloat {
     pub value: f32,
@@ -302,6 +321,7 @@ impl Expression for ConstantFloat {
     }
 }
 
+/// constant double
 #[derive(Debug, Clone)]
 pub struct ConstantDouble {
     pub value: f64,
@@ -324,6 +344,7 @@ impl Expression for ConstantDouble {
     }
 }
 
+/// for string literal
 #[derive(Debug, Clone)]
 pub struct StringLiteral {
     pub value: String,
@@ -338,6 +359,8 @@ impl Expression for StringLiteral {
         instructions
             .text_section
             .append(&mut null_terminated.as_bytes().to_vec());
+
+        // put its address to register0
         instructions.push(MoveRegister {
             operand_from: Operand::Value(VariableData::UInt64(offset as u64)),
             operand_to: Operand::Register(0),
@@ -354,6 +377,7 @@ impl Expression for StringLiteral {
     }
 }
 
+/// src[index]
 #[derive(Debug)]
 pub struct PostBracket {
     pub src: Box<dyn Expression>,
@@ -437,6 +461,7 @@ impl Expression for PostBracket {
     }
 }
 
+/// src( args... )
 #[derive(Debug)]
 pub struct PostParen {
     pub src: Box<dyn Expression>,
@@ -551,6 +576,7 @@ impl Expression for PostParen {
     }
 }
 
+/// src++
 #[derive(Debug)]
 pub struct PostIncrement {
     pub src: Box<dyn Expression>,
@@ -596,6 +622,7 @@ impl Expression for PostIncrement {
     }
 }
 
+/// src--
 #[derive(Debug)]
 pub struct PostDecrement {
     pub src: Box<dyn Expression>,
@@ -642,6 +669,7 @@ impl Expression for PostDecrement {
     }
 }
 
+/// (typeinfo)src
 #[derive(Debug)]
 pub struct CastExpression {
     pub src: Box<dyn Expression>,
@@ -681,6 +709,7 @@ impl Expression for CastExpression {
     }
 }
 
+/// sizeof(typeinfo)
 #[derive(Debug)]
 pub struct SizeofType {
     pub typeinfo: TypeInfo,
@@ -706,6 +735,7 @@ impl Expression for SizeofType {
     }
 }
 
+/// sizeof(expr)
 #[derive(Debug)]
 pub struct SizeofExpr {
     pub expr: Box<dyn Expression>,

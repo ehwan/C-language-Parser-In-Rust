@@ -4,10 +4,13 @@ use super::typename::TypeInfo;
 use std::any::Any;
 use std::vec::Vec;
 
+/// base trait for all declarators
+/// this trait will not be visible in emitting sessions.
+/// this will be used no AST Building sessions, to resolve type and variable informations.
 pub trait Declarator: std::fmt::Debug + Any {
     fn as_any(&self) -> &dyn Any;
 
-    // get (variable_name, real_type) from direct declarator and type info
+    // get (variable_name, real_type) from (direct|abstract) declarator and type info
     fn resolve_typeinfo(&self, _info: TypeInfo) -> (Option<String>, TypeInfo) {
         panic!(
             "get_direct_typeinfo_from_declarator not implemented for {:?}",
