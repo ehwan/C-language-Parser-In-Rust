@@ -55,6 +55,14 @@ pub fn build_trie() -> rp::DictHashMap<(Token,), char> {
     dict.insert("^".chars(), (Token::Caret,));
     dict.insert("|".chars(), (Token::Pipe,));
     dict.insert("?".chars(), (Token::Question,));
+    dict.insert("#define".chars(), (Token::PreprocessorDefine,));
+    dict.insert("#ifdef".chars(), (Token::PreprocessorIfDef,));
+    dict.insert("#ifndef".chars(), (Token::PreprocessorIfNDef,));
+    dict.insert("#undef".chars(), (Token::PreprocessorUndef,));
+    dict.insert("#elif".chars(), (Token::PreprocessorElIf,));
+    dict.insert("#endif".chars(), (Token::PreprocessorEndIf,));
+    dict.insert("#else".chars(), (Token::PreprocessorElse,));
+    dict.insert("\n".chars(), (Token::NewLine,));
 
     dict
 }

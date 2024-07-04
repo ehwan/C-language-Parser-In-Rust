@@ -22,7 +22,9 @@ fn main() {
 
     println!("{:=^80}", "Tokenizing");
 
-    let tokens = token::tokenize::tokenize(source);
+    let tokens = token::tokenize::tokenize(&source);
+    let tokens = token::preprocessor::preprocess_phase1(&tokens);
+
     println!("Tokens: ");
 
     for (id, token) in tokens.iter().enumerate() {
