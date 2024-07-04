@@ -3,7 +3,7 @@
 C language lexer & parser & virtual executer from scratch in Rust.
 
 ## syntax not supported
- - Preprocessor
+ - Preprocessor ( `#define`, `#ifdef`, `#ifndef`, `#else`, `#endif` are supported )
  - `union` `enum`
  - type qualifiers (`volatile`, `restrict` `static` `extern`) will be ignored in tokenizing level
 
@@ -32,7 +32,13 @@ Sample C codes (only with implemented features) are in `samples/` directory. Try
 /// samples/sample.c
 
 // fibonacci sequence using recursion declaration
+#ifndef MY_SAMPLE_C
+  #define MY_SAMPLE_C
+
+  #define MY_MACRO 100
 int fibonacci(int);
+
+  #define MY_MACRO_FUNC(x, y) y + x
 
 // main function
 int main()
@@ -40,8 +46,10 @@ int main()
   print_str("Hello, World!"); // built in function 'print_str'
   int var = 10;
   int* ptr = &var;
-  *ptr = 100;
+  *ptr = MY_MACRO;
   print(ptr, *ptr, var); // built in function 'print'
+
+  print(MY_MACRO_FUNC(10, 20));
 
   // print fibonacci sequence
   print_str("Fibonacci sequence:");
@@ -62,6 +70,12 @@ int fibonacci(int n)
   else
     return fibonacci(n - 1) + fibonacci(n - 2);
 }
+
+#else
+
+This Will Be Ignored
+
+#endif
 ```
 
 Pass c code to stdin

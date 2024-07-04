@@ -1,14 +1,11 @@
 // fibonacci sequence using recursion declaration
-#define MY_MACRO 100
+#ifndef MY_SAMPLE_C
+  #define MY_SAMPLE_C
+
+  #define MY_MACRO 100
 int fibonacci(int);
 
-#define MY_MACRO_FUNC(x, y) y + x
-
-#ifndef MY_MACRO
-
-this will be ignored
-
-#else
+  #define MY_MACRO_FUNC(x, y) y + x
 
 // main function
 int main()
@@ -40,5 +37,9 @@ int fibonacci(int n)
   else
     return fibonacci(n - 1) + fibonacci(n - 2);
 }
+
+#else
+
+This Will Be Ignored
 
 #endif
