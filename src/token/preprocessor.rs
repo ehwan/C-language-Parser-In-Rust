@@ -15,117 +15,133 @@ pub enum MacroData {
     Function(usize, Vec<Token>),
 }
 
-/// recursively replace macro in given tokens
-fn recursive_macro_replace(
-    define_map: &HashMap<String, MacroData>,
-    tokens: &[Token],
-) -> Vec<Token> {
-    let macro_argument_item: Rc<RefCell<rp::DynBoxSlice<(Vec<Token>,), Token>>> =
-        Default::default();
-    let macro_argument_item_list: Rc<RefCell<rp::DynBoxSlice<(Vec<Vec<Token>>,), Token>>> =
-        Default::default();
+pub struct MacroReplacer {
+    pub macro_argument_item: Rc<RefCell<rp::DynBoxSlice<(Vec<Token>,), Token>>>,
+    pub macro_argument_item_list: Rc<RefCell<rp::DynBoxSlice<(Vec<Vec<Token>>,), Token>>>,
+}
 
-    let single_item = rp::any()
-        .not(rp::or!(rp::one(Token::Comma), rp::one(Token::RightParen)))
-        .repeat(0..);
-    let parenthesized_list = rp::seq!(
-        rp::one(Token::LeftParen).void(),
-        macro_argument_item_list.clone(),
-        rp::one(Token::RightParen).void()
-    )
-    .map(|mut args: Vec<Vec<Token>>| {
-        let mut v = Vec::new();
-        v.push(Token::LeftParen);
-        for (idx, arg) in args.iter_mut().enumerate() {
-            if idx > 0 {
-                v.push(Token::Comma);
-            }
-            v.append(arg);
-        }
-        v.push(Token::RightParen);
-        v
-    });
-    // macro_argument_item.borrow_mut().assign(single_item);
-    macro_argument_item
-        .borrow_mut()
-        .assign(rp::or!(parenthesized_list, single_item));
+impl MacroReplacer {
+    pub fn new() -> Self {
+        let macro_argument_item: Rc<RefCell<rp::DynBoxSlice<(Vec<Token>,), Token>>> =
+            Default::default();
+        let macro_argument_item_list: Rc<RefCell<rp::DynBoxSlice<(Vec<Vec<Token>>,), Token>>> =
+            Default::default();
 
-    let single_item_list = macro_argument_item
-        .clone()
-        .map(|item: Vec<Token>| -> Vec<Vec<Token>> { vec![item] })
-        .reduce_left(
-            rp::seq!(rp::one(Token::Comma).void(), macro_argument_item.clone()),
-            |mut v: Vec<Vec<Token>>, item: Vec<Token>| {
-                v.push(item);
-                v
-            },
-        );
-    macro_argument_item_list
-        .borrow_mut()
-        .assign(single_item_list);
-
-    let mut v = Vec::new();
-    let mut it = tokens.iter().cloned();
-
-    while let Some(token) = it.next() {
-        match token {
-            Token::Identifier(name) => {
-                let macro_data = define_map.get(&name);
-                if let Some(MacroData::DirectReplace(replacement)) = macro_data {
-                    // identifier links to normal macro
-                    let mut replacement = replacement.clone();
-                    v.append(&mut replacement);
-                } else if let Some(MacroData::Function(param_count, replacement)) = macro_data {
-                    // identifier links to function-like macro
-                    // check arguments
-
-                    let parser = rp::seq!(
-                        rp::one(Token::LeftParen).void(),
-                        macro_argument_item_list.clone(),
-                        rp::one(Token::RightParen).void()
-                    );
-                    let args_res = rp::parse(&parser, it);
-                    println!("{:?}", args_res);
-                    if let Some((args,)) = args_res.output {
-                        if args.len() != *param_count {
-                            panic!("Invalid number of arguments for macro {}", name);
-                        }
-
-                        for replacement_token in replacement.iter() {
-                            if let Token::PreprocessorPlaceholder(arg_idx) = replacement_token {
-                                v.append(&mut args[*arg_idx].clone());
-                            } else {
-                                v.push(replacement_token.clone());
-                            }
-                        }
-                    } else {
-                        panic!("Invalid arguments for macro {}", name);
-                    }
-                    it = args_res.it;
-                } else {
-                    v.push(Token::Identifier(name));
+        let single_item = rp::any()
+            .not(rp::or!(rp::one(Token::Comma), rp::one(Token::RightParen)))
+            .repeat(0..);
+        let parenthesized_list = rp::seq!(
+            rp::one(Token::LeftParen).void(),
+            macro_argument_item_list.clone(),
+            rp::one(Token::RightParen).void()
+        )
+        .map(|mut args: Vec<Vec<Token>>| {
+            let mut v = Vec::new();
+            v.push(Token::LeftParen);
+            for (idx, arg) in args.iter_mut().enumerate() {
+                if idx > 0 {
+                    v.push(Token::Comma);
                 }
+                v.append(arg);
             }
-            _ => {
-                v.push(token);
-            }
+            v.push(Token::RightParen);
+            v
+        });
+        // macro_argument_item.borrow_mut().assign(single_item);
+        macro_argument_item
+            .borrow_mut()
+            .assign(rp::or!(parenthesized_list, single_item));
+
+        let single_item_list = macro_argument_item
+            .clone()
+            .map(|item: Vec<Token>| -> Vec<Vec<Token>> { vec![item] })
+            .reduce_left(
+                rp::seq!(rp::one(Token::Comma).void(), macro_argument_item.clone()),
+                |mut v: Vec<Vec<Token>>, item: Vec<Token>| {
+                    v.push(item);
+                    v
+                },
+            );
+        macro_argument_item_list
+            .borrow_mut()
+            .assign(single_item_list);
+
+        Self {
+            macro_argument_item,
+            macro_argument_item_list,
         }
     }
 
-    // for token in tokens.iter() {
-    //     match token {
-    //         Token::Identifier(ref s) => {
-    //             if let Some(MacroData::DirectReplace(replacement)) = define_map.get(s) {
-    //                 let mut replacement = recursive_macro_replace(define_map, replacement);
-    //                 v.append(&mut replacement);
-    //             } else {
-    //                 v.push(token.clone());
-    //             }
-    //         }
-    //         _ => v.push(token.clone()),
-    //     }
-    // }
-    v
+    /// replace macro in given tokens
+    /// this is not recursive macro replacement
+    /// returns true if there was any replacement occured
+    pub fn replace(
+        &self,
+        define_map: &HashMap<String, MacroData>,
+        tokens: &mut Vec<Token>,
+    ) -> bool {
+        let mut v = Vec::new();
+        let mut it = tokens.iter().cloned();
+
+        let mut replaced = false;
+        while let Some(token) = it.next() {
+            match token {
+                Token::Identifier(name) => {
+                    let macro_data = define_map.get(&name);
+                    if let Some(MacroData::DirectReplace(replacement)) = macro_data {
+                        // identifier links to normal macro
+                        let mut replacement = replacement.clone();
+                        v.append(&mut replacement);
+                        replaced = true;
+                    } else if let Some(MacroData::Function(param_count, replacement)) = macro_data {
+                        // identifier links to function-like macro
+                        // check arguments
+
+                        let parser = rp::seq!(
+                            rp::one(Token::LeftParen).void(),
+                            self.macro_argument_item_list.clone(),
+                            rp::one(Token::RightParen).void()
+                        );
+                        let args_res = rp::parse(&parser, it);
+                        if let Some((args,)) = args_res.output {
+                            if args.len() != *param_count {
+                                panic!("Invalid number of arguments for macro {}", name);
+                            }
+
+                            for replacement_token in replacement.iter() {
+                                if let Token::PreprocessorPlaceholder(arg_idx) = replacement_token {
+                                    v.append(&mut args[*arg_idx].clone());
+                                } else {
+                                    v.push(replacement_token.clone());
+                                }
+                            }
+                        } else {
+                            panic!("Invalid arguments for macro {}", name);
+                        }
+                        it = args_res.it;
+                        replaced = true;
+                    } else {
+                        v.push(Token::Identifier(name));
+                    }
+                }
+                _ => {
+                    v.push(token);
+                }
+            }
+        }
+
+        *tokens = v;
+        replaced
+    }
+    /// replace macro in given tokens
+    /// this is recursive macro replacement
+    pub fn replace_recursive(
+        &self,
+        define_map: &HashMap<String, MacroData>,
+        tokens: &mut Vec<Token>,
+    ) {
+        while self.replace(define_map, tokens) {}
+    }
 }
 
 /// preprocessing phase
@@ -184,6 +200,8 @@ pub fn preprocess_phase1(tokens: &[Token]) -> Vec<Token> {
     // preprocessing
     let mut define_map: HashMap<String, MacroData> = HashMap::new();
     let mut if_block_stack: Vec<bool> = Vec::new();
+
+    let macro_replacer = MacroReplacer::new();
 
     for token_line in token_lines.iter_mut() {
         // #else
@@ -281,8 +299,7 @@ pub fn preprocess_phase1(tokens: &[Token]) -> Vec<Token> {
             token_line.clear();
         } else {
             // else, unwrap the macro recursively
-            let replaced_token_line = recursive_macro_replace(&define_map, token_line);
-            *token_line = replaced_token_line;
+            macro_replacer.replace_recursive(&define_map, token_line);
         }
     }
     if if_block_stack.is_empty() == false {
