@@ -21,7 +21,7 @@ pub fn tokenize(source: &str) -> Vec<Token> {
     let c_comment = rp::seq!("/*", rp::any().not("*/").repeat(0..), "*/").void();
     // c comment
 
-    let whitespace = rp::or!(' ', '\t', '\r').void();
+    let whitespace = rp::or!(' '.void(), '\t'.void(), '\r'.void(), "\\\n".void());
 
     let ignore_all = rp::or!(cpp_comment, c_comment, whitespace).repeat(0..);
 

@@ -1,5 +1,6 @@
 #define MY_MACRO 10
-#define MY_ADD(x, y) y + x * 10
+#define MY_ADD(x, y) (y) + (x) *  \
+  10
 
 int main()
 {
