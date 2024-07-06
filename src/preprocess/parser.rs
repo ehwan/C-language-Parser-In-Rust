@@ -8,6 +8,7 @@ use rusty_parser as rp;
 use super::context::*;
 use super::expression::*;
 use super::preprocessor::*;
+use crate::token::trie::ident_to_keyword_map;
 use crate::token::Token;
 
 pub struct PreprocessorParser {
@@ -495,7 +496,9 @@ impl PreprocessorParser {
         // ( macro_name: String, replace_tokens: Vec<Token> )
         let define_identifier_parser = rp::seq!(
             rp::one(Token::PreprocessorDefine).void(),
-            identifier_parser,
+            identifier_parser.clone().or_else(|| -> String {
+                panic!("Identifier must come after #define");
+            }),
             tokens_to_end.clone()
         )
         .map(
@@ -507,7 +510,9 @@ impl PreprocessorParser {
         // ( macro_name: String, macro_params: Vec<String>, macro_value: Vec<Token> )
         let define_function_parser = rp::seq!(
             rp::one(Token::PreprocessorDefine).void(),
-            identifier_parser.clone(),
+            identifier_parser.clone().or_else(|| -> String {
+                panic!("Identifier must come after #define");
+            }),
             rp::one(Token::LeftParen).void(),
             identifiers_parser,
             rp::one(Token::RightParen).void(),
@@ -537,34 +542,50 @@ impl PreprocessorParser {
 
         let undef_parser = rp::seq!(
             rp::one(Token::PreprocessorUndef).void(),
-            identifier_parser,
-            rp::one(Token::NewLine).void()
+            identifier_parser.clone().or_else(|| -> String {
+                panic!("Identifier must come after #undef");
+            }),
+            rp::one(Token::NewLine).void().or_else(|| -> () {
+                panic!("unexpected token after #undef IDENTIFIER");
+            })
         )
         .map(|name: String| -> Box<dyn PreprocessedTokenLine> { Box::new(Undef { name }) });
 
         let ifdef_parser = rp::seq!(
             rp::one(Token::PreprocessorIfDef).void(),
-            identifier_parser,
-            rp::one(Token::NewLine).void()
+            identifier_parser.clone().or_else(|| -> String {
+                panic!("Identifier must come after #ifdef");
+            }),
+            rp::one(Token::NewLine).void().or_else(|| -> () {
+                panic!("unexpected token after #ifdef IDENTIFIER");
+            })
         )
         .map(|name: String| -> Box<dyn PreprocessedTokenLine> { Box::new(IfDef { name }) });
 
         let ifndef_parser = rp::seq!(
             rp::one(Token::PreprocessorIfNDef).void(),
-            identifier_parser,
-            rp::one(Token::NewLine).void()
+            identifier_parser.clone().or_else(|| -> String {
+                panic!("Identifier must come after #ifndef");
+            }),
+            rp::one(Token::NewLine).void().or_else(|| -> () {
+                panic!("unexpected token after #ifndef IDENTIFIER");
+            })
         )
         .map(|name: String| -> Box<dyn PreprocessedTokenLine> { Box::new(IfNDef { name }) });
 
         let else_parser = rp::seq!(
             rp::one(Token::PreprocessorElse).void(),
-            rp::one(Token::NewLine).void()
+            rp::one(Token::NewLine).void().or_else(|| -> () {
+                panic!("unexpected token after #else");
+            })
         )
         .map(|| -> Box<dyn PreprocessedTokenLine> { Box::new(Else {}) });
 
         let endif_parser = rp::seq!(
             rp::one(Token::PreprocessorEndIf).void(),
-            rp::one(Token::NewLine).void()
+            rp::one(Token::NewLine).void().or_else(|| -> () {
+                panic!("unexpected token after #endif");
+            })
         )
         .map(|| -> Box<dyn PreprocessedTokenLine> { Box::new(EndIf {}) });
 
@@ -642,6 +663,18 @@ impl PreprocessorParser {
         // check errors
         if context.if_stack.is_empty() == false {
             panic!("#if block is not closed");
+        }
+
+        // change Ident to keyword token
+        let ident_to_keyword = ident_to_keyword_map();
+        for line in lines_token.iter_mut() {
+            for token in line.iter_mut() {
+                if let Token::Identifier(name) = token {
+                    if let Some(replace_token) = ident_to_keyword.get(name) {
+                        *token = replace_token.clone();
+                    }
+                }
+            }
         }
 
         lines_token

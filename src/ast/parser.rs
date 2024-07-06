@@ -1661,7 +1661,9 @@ impl ASTParser {
                 rp::seq!(
                     identifier,
                     rp::one(Token::Colon).void(),
-                    self.statement.clone()
+                    self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                        panic!("Invalid Statement after label");
+                    })
                 )
                 .map(
                     |s: String, stmt: Box<dyn Statement>| -> Box<dyn Statement> {
@@ -1673,9 +1675,17 @@ impl ASTParser {
                 ),
                 rp::seq!(
                     rp::one(Token::Case).void(),
-                    self.constant_expression.clone(),
-                    rp::one(Token::Colon).void(),
-                    self.statement.clone()
+                    self.constant_expression
+                        .clone()
+                        .or_else(|| -> Box<dyn Expression> {
+                            panic!("Invalid expression after 'case'");
+                        }),
+                    rp::one(Token::Colon).void().or_else(|| -> () {
+                        panic!(": is expected after 'case'");
+                    }),
+                    self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                        panic!("Invalid Statement after 'case'");
+                    })
                 )
                 .map(
                     |expr: Box<dyn Expression>, stmt: Box<dyn Statement>| -> Box<dyn Statement> {
@@ -1687,8 +1697,12 @@ impl ASTParser {
                 ),
                 rp::seq!(
                     rp::one(Token::Default).void(),
-                    rp::one(Token::Colon).void(),
-                    self.statement.clone()
+                    rp::one(Token::Colon).void().or_else(|| -> () {
+                        panic!(": is expected after 'default'");
+                    }),
+                    self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                        panic!("Invalid Statement after 'default'");
+                    })
                 )
                 .map(|stmt: Box<dyn Statement>| -> Box<dyn Statement> {
                     Box::new(DefaultStatement { statement: stmt })
@@ -1752,11 +1766,25 @@ impl ASTParser {
             let selection_statement_ = rp::or!(
                 rp::seq!(
                     rp::one(Token::If).void(),
-                    rp::one(Token::LeftParen).void(),
-                    self.expression.clone(),
-                    rp::one(Token::RightParen).void(),
-                    self.statement.clone(),
-                    rp::seq!(rp::one(Token::Else).void(), self.statement.clone()).optional()
+                    rp::one(Token::LeftParen).void().or_else(|| -> () {
+                        panic!("'(' is expected after 'if'");
+                    }),
+                    self.expression.clone().or_else(|| -> Box<dyn Expression> {
+                        panic!("Invalid expression after 'if'");
+                    }),
+                    rp::one(Token::RightParen).void().or_else(|| -> () {
+                        panic!("')' is expected after 'if'");
+                    }),
+                    self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                        panic!("Invalid body statement after 'if'");
+                    }),
+                    rp::seq!(
+                        rp::one(Token::Else).void(),
+                        self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                            panic!("Invalid body statement after 'else'");
+                        })
+                    )
+                    .optional()
                 )
                 .map(
                     |cond: Box<dyn Expression>,
@@ -1772,10 +1800,18 @@ impl ASTParser {
                 ),
                 rp::seq!(
                     rp::one(Token::Switch).void(),
-                    rp::one(Token::LeftParen).void(),
-                    self.expression.clone(),
-                    rp::one(Token::RightParen).void(),
-                    self.statement.clone()
+                    rp::one(Token::LeftParen).void().or_else(|| -> () {
+                        panic!("'(' is expected after 'switch'");
+                    }),
+                    self.expression.clone().or_else(|| -> Box<dyn Expression> {
+                        panic!("Invalid expression after 'switch'");
+                    }),
+                    rp::one(Token::RightParen).void().or_else(|| -> () {
+                        panic!("')' is expected after 'switch'");
+                    }),
+                    self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                        panic!("Invalid body statement after 'switch'");
+                    })
                 )
                 .map(
                     |target: Box<dyn Expression>, stmt: Box<dyn Statement>| -> Box<dyn Statement> {
@@ -1802,10 +1838,18 @@ impl ASTParser {
 
             let while_statement = rp::seq!(
                 rp::one(Token::While).void(),
-                rp::one(Token::LeftParen).void(),
-                self.expression.clone(),
-                rp::one(Token::RightParen).void(),
-                self.statement.clone()
+                rp::one(Token::LeftParen).void().or_else(|| -> () {
+                    panic!("'(' is expected after 'while'");
+                }),
+                self.expression.clone().or_else(|| -> Box<dyn Expression> {
+                    panic!("Invalid expression after 'while'");
+                }),
+                rp::one(Token::RightParen).void().or_else(|| -> () {
+                    panic!("')' is expected after 'while'");
+                }),
+                self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                    panic!("Invalid body statement after 'while'");
+                })
             )
             .map(
                 |cond: Box<dyn Expression>, stmt: Box<dyn Statement>| -> Box<dyn Statement> {
@@ -1818,12 +1862,22 @@ impl ASTParser {
 
             let do_while_statement = rp::seq!(
                 rp::one(Token::Do).void(),
-                self.statement.clone(),
+                self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                    panic!("Invalid body statement for 'do-while'");
+                }),
                 rp::one(Token::While).void(),
-                rp::one(Token::LeftParen).void(),
-                self.expression.clone(),
-                rp::one(Token::RightParen).void(),
-                rp::one(Token::SemiColon).void()
+                rp::one(Token::LeftParen).void().or_else(|| -> () {
+                    panic!("'(' is expected after 'do-while'");
+                }),
+                self.expression.clone().or_else(|| -> Box<dyn Expression> {
+                    panic!("Invalid expression after 'do-while'");
+                }),
+                rp::one(Token::RightParen).void().or_else(|| -> () {
+                    panic!("')' is expected after 'do-while'");
+                }),
+                rp::one(Token::SemiColon).void().or_else(|| -> () {
+                    panic!("';' is expected after 'do-while'");
+                })
             )
             .map(
                 |stmt: Box<dyn Statement>, cond: Box<dyn Expression>| -> Box<dyn Statement> {
@@ -1836,12 +1890,26 @@ impl ASTParser {
 
             let for_statement = rp::seq!(
                 rp::one(Token::For).void(),
-                rp::one(Token::LeftParen).void(),
-                expression_statement.clone(),
-                expression_statement.clone(),
+                rp::one(Token::LeftParen).void().or_else(|| -> () {
+                    panic!("'(' is expected after 'for'");
+                }),
+                expression_statement
+                    .clone()
+                    .or_else(|| -> Box<dyn Expression> {
+                        panic!("Invalid 1st statement for 'for' statement");
+                    }),
+                expression_statement
+                    .clone()
+                    .or_else(|| -> Box<dyn Expression> {
+                        panic!("Invalid 2nd statement for 'for' statement");
+                    }),
                 self.expression.clone().optional(),
-                rp::one(Token::RightParen).void(),
-                self.statement.clone()
+                rp::one(Token::RightParen).void().or_else(|| -> () {
+                    panic!("')' is expected after 'for'");
+                }),
+                self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                    panic!("Invalid body statement for 'for' statement");
+                })
             )
             .map(
                 |init: Box<dyn Expression>,
@@ -1877,27 +1945,37 @@ impl ASTParser {
 
             let goto_statement = rp::seq!(
                 rp::one(Token::Goto).void(),
-                identifier,
-                rp::one(Token::SemiColon).void()
+                identifier.or_else(|| -> String {
+                    panic!("IDENTIFIER label must be followed by 'goto'");
+                }),
+                rp::one(Token::SemiColon).void().or_else(|| -> () {
+                    panic!("';' is expected after 'goto'");
+                })
             )
             .map(|s: String| -> Box<dyn Statement> { Box::new(GotoStatement { label: s }) });
 
             let continue_statement = rp::seq!(
                 rp::one(Token::Continue).void(),
-                rp::one(Token::SemiColon).void()
+                rp::one(Token::SemiColon).void().or_else(|| -> () {
+                    panic!("';' is expected after 'continue'");
+                })
             )
             .map(|| -> Box<dyn Statement> { Box::new(ContinueStatement {}) });
 
             let break_statement = rp::seq!(
                 rp::one(Token::Break).void(),
-                rp::one(Token::SemiColon).void()
+                rp::one(Token::SemiColon).void().or_else(|| -> () {
+                    panic!("';' is expected after 'break'");
+                })
             )
             .map(|| -> Box<dyn Statement> { Box::new(BreakStatement {}) });
 
             let return_statement = rp::seq!(
                 rp::one(Token::Return).void(),
                 self.expression.clone().optional(),
-                rp::one(Token::SemiColon).void()
+                rp::one(Token::SemiColon).void().or_else(|| -> () {
+                    panic!("';' is expected after 'return'");
+                })
             )
             .map(|expr: Option<Box<dyn Expression>>| -> Box<dyn Statement> {
                 Box::new(ReturnStatement { expr })
@@ -1983,9 +2061,17 @@ impl ASTParser {
             );
             let typedef_declaration = rp::seq!(
                 rp::one(Token::Typedef).void(),
-                self.type_specifier.clone(),
-                init_declarator_list.clone(),
-                rp::one(Token::SemiColon).void()
+                self.type_specifier.clone().or_else(|| -> TypeInfo {
+                    panic!("Typedef must have a type specifier");
+                }),
+                init_declarator_list
+                    .clone()
+                    .or_else(|| -> Vec<Box<InitDeclarator>> {
+                        panic!("Typedef must have a declarator");
+                    }),
+                rp::one(Token::SemiColon).void().or_else(|| -> () {
+                    panic!("';' is expected after 'typedef'");
+                })
             )
             .map(
                 |typeinfo: TypeInfo, decls: Vec<Box<InitDeclarator>>| -> Box<dyn Statement> {

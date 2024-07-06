@@ -4,13 +4,13 @@ version = 3
 
 [[package]]
 name = "mini-c-parser"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "rusty_parser",
 ]
 
 [[package]]
 name = "rusty_parser"
-version = "1.0.2"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b937e70e19f866fc12160d9415ff942c4682aa03fa7c49d203e9c7ac0653d425"
+checksum = "a0d4bd88bbc485acc1f3d26157ad5dd519e08c0e5a265a9601a8245b4eb195cd"
