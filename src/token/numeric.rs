@@ -13,7 +13,7 @@ IS		(u|U|l|L)*
 0{D}+{IS}?		{ count(); return(CONSTANT); }
 {D}+{IS}?		{ count(); return(CONSTANT); }
 */
-pub fn integer_numeric() -> DynParser {
+pub fn integer_numeric_parser() -> DynParser {
     let digit = ('0'..='9').into_parser();
     let hex_low = ('a'..='f').into_parser();
     let hex_up = ('A'..='F').into_parser();
@@ -55,7 +55,7 @@ FS		(f|F|l|L)
 {D}+"."{D}*({E})?{FS}?	{ count(); return(CONSTANT); }
 */
 
-pub fn float_numeric() -> DynParser {
+pub fn float_numeric_parser() -> DynParser {
     let digit = ('0'..='9').into_parser();
 
     let exp = rp::seq!(

@@ -4,7 +4,7 @@ use rusty_parser as rp;
 
 use rp::IntoParser;
 
-pub fn string_literal() -> DynParser {
+pub fn string_literal_parser() -> DynParser {
     // char literal enclosed with " "
     // this is a bit different from the char literal
     let escape = rp::or!(

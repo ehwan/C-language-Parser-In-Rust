@@ -1,7 +1,7 @@
 use super::token::Token;
 use rusty_parser as rp;
 
-pub fn build_trie() -> rp::DictHashMap<(Token,), char> {
+pub fn keyword_parser() -> rp::DictHashMap<(Token,), char> {
     let mut dict = rp::DictHashMap::new();
 
     dict.insert("...".chars(), (Token::Ellipsis,));
@@ -62,12 +62,9 @@ pub fn build_trie() -> rp::DictHashMap<(Token,), char> {
     dict.insert("#elif".chars(), (Token::PreprocessorElIf,));
     dict.insert("#endif".chars(), (Token::PreprocessorEndIf,));
     dict.insert("#else".chars(), (Token::PreprocessorElse,));
+    dict.insert("#if".chars(), (Token::PreprocessorIf,));
+    dict.insert("#include".chars(), (Token::PreprocessorInclude,));
     dict.insert("\n".chars(), (Token::NewLine,));
-
-    dict
-}
-pub fn build_keyword_trie() -> rp::DictHashMap<(Token,), char> {
-    let mut dict = rp::DictHashMap::new();
 
     dict.insert("auto".chars(), (Token::Auto,));
     dict.insert("break".chars(), (Token::Break,));

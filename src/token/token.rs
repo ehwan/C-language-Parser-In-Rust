@@ -1,5 +1,6 @@
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
+    Others(char), // any other character that failed to parse;
     Identifier(String),
     ConstantCharacter(i8),
     ConstantInteger(i32),
@@ -17,6 +18,8 @@ pub enum Token {
     PreprocessorUndef,
     PreprocessorElse,
     PreprocessorPlaceholder(usize), // for function-like macro
+    PreprocessorIf,
+    PreprocessorInclude,
     NewLine,
     Auto,
     Break,

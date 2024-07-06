@@ -4,6 +4,7 @@ use virtualmachine::instruction::generation::InstructionGenerator;
 use virtualmachine::program::VirtualProgram;
 
 mod ast;
+mod preprocess;
 mod token;
 mod virtualmachine;
 
@@ -20,25 +21,63 @@ fn main() {
 
     let source = String::from_utf8(source).expect("Invalid UTF-8");
 
-    println!("{:=^80}", "Tokenizing");
-
+    println!("{:=^80}", "");
+    println!("{:=^80}", "Phase1: Tokenizing");
+    println!("{:=^80}", "");
+    println!("LINE | {:-^73}", "Result");
     let tokens = token::tokenize::tokenize(&source);
-    let tokens = token::preprocessor::preprocess_phase1(&tokens);
-
-    println!("Tokens: ");
-
-    for (id, token) in tokens.iter().enumerate() {
-        println!("{:4}: {:?}", id, *token);
+    let mut linestart = true;
+    let mut lineid = 0;
+    for token in tokens.iter() {
+        if linestart {
+            print!("{:4}: ", lineid);
+        }
+        if token == &token::Token::NewLine {
+            println!();
+            linestart = true;
+            lineid += 1;
+        } else {
+            print!("{:?} ", token);
+            linestart = false;
+        }
     }
 
-    println!("{:=^80}", "Building AbstractSyntaxTree");
+    let preprocessor = preprocess::parser::PreprocessorParser::new();
+    println!("{:=^80}", "");
+    println!("{:=^80}", "Phase2: Line Analysis");
+    println!("{:=^80}", "");
+    println!("LINE | {:-^73}", "Result");
+    let lines = preprocessor.parse_lines(&tokens);
+    for (lineid, line) in lines.iter().enumerate() {
+        println!("{:4}: {:?}", lineid, line);
+    }
+
+    println!("{:=^80}", "");
+    println!("{:=^80}", "Phase3: Preprocessing");
+    println!("{:=^80}", "");
+    println!("LINE | {:-^73}", "Result");
+    let line_tokenized = preprocessor.preprocess(&lines);
+
+    for (lineid, line) in line_tokenized.iter().enumerate() {
+        println!("{:4}: {:?}", lineid, line);
+    }
+
+    // flatten the line_tokenized
+    let tokens: Vec<token::Token> = line_tokenized.into_iter().flatten().collect();
+
+    println!("{:=^80}", "");
+    println!("{:=^80}", "Phase4: Building AbstractSyntaxTree");
+    println!("{:=^80}", "");
 
     println!("ASTs: ");
     let parser = ast::parser::ASTParser::new();
     let translation_unit = parser.parse(tokens);
     println!("{:#?}", translation_unit);
 
+    println!("{:=^80}", "");
     println!("{:=^80}", "Generating Instructions");
+    println!("{:=^80}", "");
+    println!("ADDR | {:-^73}", "Result");
 
     let mut program: VirtualProgram = VirtualProgram::new();
     let mut instructions: InstructionGenerator = InstructionGenerator::new();
@@ -47,12 +86,14 @@ fn main() {
     println!("Instructions: ");
     for (id, instruction) in instructions.instructions.iter().enumerate() {
         if id == instructions.start_address {
-            println!("      -------------------- Start Address ---------------------");
+            println!("{: ^2}{:-^78}", "", "Start Address");
         }
         println!("{:4}: {:?}", id, instruction);
     }
 
-    println!("============================ Executing Instructions ============================");
+    println!("{:=^80}", "");
+    println!("{:=^80}", "Executing Instructions");
+    println!("{:=^80}", "");
     program.execute(&mut instructions);
 
     stdout().flush().expect("Failed to flush stdout");

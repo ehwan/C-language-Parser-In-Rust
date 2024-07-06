@@ -4,7 +4,7 @@ use rusty_parser as rp;
 
 use rp::IntoParser;
 
-pub fn identifier() -> DynParser {
+pub fn identifier_parser() -> DynParser {
     let digit = ('0'..='9').void();
     let alpha = rp::or!('a'..='z', 'A'..='Z').void();
     let identifier = rp::seq!(

@@ -1,11 +1,9 @@
-// fibonacci sequence using recursion declaration
-#ifndef MY_SAMPLE_C
-  #define MY_SAMPLE_C
-
-  #define MY_MACRO 100
+// declaration of function fibonacci sequence
 int fibonacci(int);
 
-  #define MY_MACRO_FUNC(x, y) y + x
+#define MY_MACRO_FUNC(x, y) y + x
+
+#if MY_MACRO_FUNC(1, 2) == 3
 
 // main function
 int main()
@@ -13,7 +11,7 @@ int main()
   print_str("Hello, World!"); // built in function 'print_str'
   int var = 10;
   int* ptr = &var;
-  *ptr = MY_MACRO;
+  *ptr = MY_MACRO_FUNC(40, 60);
   print(ptr, *ptr, var); // built in function 'print'
 
   print(MY_MACRO_FUNC(10, 20));
@@ -29,7 +27,7 @@ int main()
   return 0;
 }
 
-// fibonacci sequence using recursion definition
+// definition of function fibonacci sequence using recursion
 int fibonacci(int n)
 {
   if (n <= 2)
@@ -40,6 +38,6 @@ int fibonacci(int n)
 
 #else
 
-This Will Be Ignored
+THIS WILL BE IGNORED
 
 #endif

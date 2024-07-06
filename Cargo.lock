@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "mini-c-parser"
-version = "0.10.1"
+version = "0.11.0"
 dependencies = [
  "rusty_parser",
 ]

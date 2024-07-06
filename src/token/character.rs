@@ -4,7 +4,7 @@ use rusty_parser as rp;
 
 use rp::IntoParser;
 
-pub fn char_literal() -> DynParser {
+pub fn char_literal_parser() -> DynParser {
     // char literal enclosed with ' '
     let escape = rp::or!(
         'n'.output('\n'),
