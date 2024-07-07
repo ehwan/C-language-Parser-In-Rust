@@ -13,13 +13,13 @@ use crate::token::Token;
 
 pub struct PreprocessorParser {
     /// compile-time expression parser
-    pub expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn PreprocessorExpression>,), Token>>>,
+    pub(crate) expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn PreprocessorExpression>,), Token>>>,
 
     /// comma-separated list of macro arguments
-    pub macro_argument_item_list: Rc<RefCell<rp::DynBoxSlice<(Vec<Vec<Token>>,), Token>>>,
+    pub(crate) macro_argument_item_list: Rc<RefCell<rp::DynBoxSlice<(Vec<Vec<Token>>,), Token>>>,
 
     /// parse one line of token stream and make AST for preprocessing
-    pub line: Rc<RefCell<rp::DynBoxSlice<(Box<dyn PreprocessedTokenLine>,), Token>>>,
+    pub(crate) line: Rc<RefCell<rp::DynBoxSlice<(Box<dyn PreprocessedTokenLine>,), Token>>>,
 }
 
 impl PreprocessorParser {
@@ -631,6 +631,14 @@ impl PreprocessorParser {
             },
         );
 
+        let include_parser = rp::seq!(
+            rp::one(Token::PreprocessorInclude).void(),
+            tokens_to_end.clone()
+        )
+        .map(|tokens: Vec<Token>| -> Box<dyn PreprocessedTokenLine> {
+            Box::new(Include { path: tokens })
+        });
+
         // token stream as-is without any processing, excluding lineend
         let raw_parser =
             tokens_to_end
@@ -649,6 +657,7 @@ impl PreprocessorParser {
             elif_parser,
             else_parser,
             endif_parser,
+            include_parser,
             raw_parser
         ));
     }

@@ -212,6 +212,51 @@ impl PreprocessedTokenLine for Undef {
 }
 
 #[derive(Debug)]
+pub struct Include {
+    pub path: Vec<Token>,
+}
+impl PreprocessedTokenLine for Include {
+    fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Vec<Token>> {
+        if ctx.should_emit() == false {
+            return Vec::new();
+        }
+
+        panic!("#include directive is not supported yet");
+
+        /*
+        let filepath: &str = if let Token::StringLiteral(s) = &self.path[0] {
+            s
+        } else {
+            panic!("Invalid include path");
+        };
+
+        for path in parser.include_path.iter() {
+            let entries = std::fs::read_dir(path)
+                .expect(format!("Failed to read include directory: {}", path).as_str());
+            for entry in entries.into_iter() {
+                let entry = entry.expect("Failed to read entry");
+                if entry
+                    .file_name()
+                    .to_str()
+                    .expect("Invalid include filename")
+                    == filepath
+                {
+                    let source =
+                        std::fs::read_to_string(entry.path()).expect("Failed to read file");
+                    let tokens = parser.tokenize(&source);
+                    let lines = parser.parse_lines(&tokens);
+                    let line_tokenized = parser.preprocess(&lines);
+
+                    return line_tokenized;
+                }
+            }
+        }
+        panic!("Failed to find include file: {}", filepath);
+        */
+    }
+}
+
+#[derive(Debug)]
 pub struct RawTokens {
     pub tokens: Vec<Token>,
 }
