@@ -94,6 +94,17 @@ impl PreprocessorParser {
             })
             .map(|i: i64| -> Box<dyn PreprocessorExpression> { Box::new(Constant { value: i }) });
 
+            let float_constant = rp::check(|t: Token| -> Option<f64> {
+                match t {
+                    Token::ConstantFloat(f) => Some(f as f64),
+                    Token::ConstantDouble(f) => Some(f as f64),
+                    _ => None,
+                }
+            })
+            .map(|_: f64| -> Box<dyn PreprocessorExpression> {
+                panic!("Float constant is not supported in preprocessing stage");
+            });
+
             let defined = rp::seq!(
                 rp::one(Token::Identifier("defined".to_string())).void(),
                 rp::one(Token::LeftParen).void(),
@@ -110,6 +121,7 @@ impl PreprocessorParser {
 
             primary_expression.borrow_mut().assign(rp::or!(
                 integer_constant,
+                float_constant,
                 defined,
                 rp::seq!(
                     rp::one(Token::LeftParen).void(),
@@ -391,9 +403,19 @@ impl PreprocessorParser {
                 logical_or_expression.clone(),
                 rp::seq!(
                     rp::one(Token::Question).void(),
-                    self.expression.clone(),
-                    rp::one(Token::Colon).void(),
-                    conditional_expression.clone()
+                    self.expression
+                        .clone()
+                        .or_else(|| -> Box<dyn PreprocessorExpression> {
+                            panic!("Invalid expression after '?' in conditional expression");
+                        }),
+                    rp::one(Token::Colon).void().or_else(|| -> () {
+                        panic!("Colon ':' expected after '?' in conditional expression");
+                    }),
+                    conditional_expression.clone().or_else(
+                        || -> Box<dyn PreprocessorExpression> {
+                            panic!("Invalid expression after ':' in conditional expression");
+                        }
+                    )
                 )
                 .optional()
             )
@@ -702,9 +724,17 @@ impl PreprocessorParser {
                         // identifier links to function-like macro
                         // check arguments
                         let parser = rp::seq!(
-                            rp::one(Token::LeftParen).void(),
-                            self.macro_argument_item_list.clone(),
-                            rp::one(Token::RightParen).void()
+                            rp::one(Token::LeftParen).void().or_else(|| -> () {
+                                panic!("LeftParen '(' expected for macro call {}", name);
+                            }),
+                            self.macro_argument_item_list
+                                .clone()
+                                .or_else(|| -> Vec<Vec<Token>> {
+                                    panic!("Invalid arguments for macro {}", name);
+                                }),
+                            rp::one(Token::RightParen).void().or_else(|| -> () {
+                                panic!("RightParen ')' expected for macro call {}", name);
+                            })
                         );
                         let args_res = rp::parse(&parser, it);
                         if let Some((args,)) = args_res.output {

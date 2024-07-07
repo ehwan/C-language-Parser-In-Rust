@@ -644,7 +644,9 @@ impl ASTParser {
             let bracket = rp::seq!(
                 rp::one(Token::LeftBracket).void(),
                 self.expression.clone(),
-                rp::one(Token::RightBracket).void()
+                rp::one(Token::RightBracket).void().or_else(|| -> () {
+                    panic!("Expected ']' after index expression");
+                })
             )
             .map(|e: Box<dyn Expression>| PostfixType::Bracket(e));
 
@@ -681,7 +683,9 @@ impl ASTParser {
             let paren = rp::seq!(
                 rp::one(Token::LeftParen).void(),
                 argument_list0,
-                rp::one(Token::RightParen).void()
+                rp::one(Token::RightParen).void().or_else(|| -> () {
+                    panic!("Expected ')' for function call");
+                })
             )
             .map(|args| PostfixType::Paren(args));
 
@@ -691,7 +695,7 @@ impl ASTParser {
                     if let Token::Identifier(s) = t {
                         Some(s)
                     } else {
-                        None
+                        panic!("Expected identifier after '.'");
                     }
                 })
             )
@@ -703,7 +707,7 @@ impl ASTParser {
                     if let Token::Identifier(s) = t {
                         Some(s)
                     } else {
-                        None
+                        panic!("Expected identifier after '->'");
                     }
                 })
             )
@@ -784,9 +788,15 @@ impl ASTParser {
 
             let sizeof_type = rp::seq!(
                 rp::one(Token::Sizeof).void(),
-                rp::one(Token::LeftParen).void(),
-                self.type_name.clone(),
-                rp::one(Token::RightParen).void()
+                rp::one(Token::LeftParen).void().or_else(|| -> () {
+                    panic!("Expected '(' after sizeof");
+                }),
+                self.type_name.clone().or_else(|| -> TypeInfo {
+                    panic!("Expected type name after sizeof(");
+                }),
+                rp::one(Token::RightParen).void().or_else(|| -> () {
+                    panic!("Expected ')' after sizeof(type)");
+                })
             )
             .map(|typeinfo: TypeInfo| -> Box<dyn Expression> { Box::new(SizeofType { typeinfo }) });
 
@@ -1092,9 +1102,17 @@ impl ASTParser {
                 logical_or_expression.clone(),
                 rp::seq!(
                     rp::one(Token::Question).void(),
-                    self.expression.clone(),
-                    rp::one(Token::Colon).void(),
-                    conditional_expression.clone()
+                    self.expression.clone().or_else(|| -> Box<dyn Expression> {
+                        panic!("Invalid expression after '?' in conditional expression");
+                    }),
+                    rp::one(Token::Colon).void().or_else(|| -> () {
+                        panic!("Colon ':' expected after '?' in conditional expression");
+                    }),
+                    conditional_expression
+                        .clone()
+                        .or_else(|| -> Box<dyn Expression> {
+                            panic!("Invalid expression after ':' in conditional expression");
+                        })
                 )
                 .optional()
             )
