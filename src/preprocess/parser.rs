@@ -680,9 +680,9 @@ impl PreprocessorParser {
 
         // preprocessing phase
         for line in lines.iter() {
-            let line_token = line.emit(&mut context, self);
+            let mut line_token = line.emit(&mut context, self);
             if line_token.is_empty() == false {
-                lines_token.push(line_token);
+                lines_token.append(&mut line_token);
             }
         }
 

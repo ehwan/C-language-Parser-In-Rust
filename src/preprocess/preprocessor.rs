@@ -10,7 +10,7 @@ use super::context::*;
 use super::parser::PreprocessorParser;
 
 pub trait PreprocessedTokenLine: Debug {
-    fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Token>;
+    fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Vec<Token>>;
 
     fn is_empty(&self) -> bool {
         false
@@ -23,7 +23,7 @@ pub struct Define {
     pub replacement: Vec<Token>,
 }
 impl PreprocessedTokenLine for Define {
-    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
+    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Vec<Token>> {
         if ctx.should_emit() == false {
             return Vec::new();
         }
@@ -45,7 +45,7 @@ pub struct DefineFunction {
     pub replacement: Vec<Token>,
 }
 impl PreprocessedTokenLine for DefineFunction {
-    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
+    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Vec<Token>> {
         if ctx.should_emit() == false {
             return Vec::new();
         }
@@ -66,7 +66,7 @@ pub struct IfDef {
     pub name: String,
 }
 impl PreprocessedTokenLine for IfDef {
-    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
+    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Vec<Token>> {
         if ctx.should_emit() == false {
             return Vec::new();
         }
@@ -90,7 +90,7 @@ pub struct IfNDef {
     pub name: String,
 }
 impl PreprocessedTokenLine for IfNDef {
-    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
+    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Vec<Token>> {
         if ctx.should_emit() == false {
             return Vec::new();
         }
@@ -112,7 +112,7 @@ impl PreprocessedTokenLine for IfNDef {
 #[derive(Debug)]
 pub struct Else {}
 impl PreprocessedTokenLine for Else {
-    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
+    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Vec<Token>> {
         let branch_data = ctx.if_stack.last_mut().expect("#else without #if");
         if branch_data.current {
             branch_data.current = false;
@@ -126,7 +126,7 @@ impl PreprocessedTokenLine for Else {
 #[derive(Debug)]
 pub struct EndIf {}
 impl PreprocessedTokenLine for EndIf {
-    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
+    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Vec<Token>> {
         ctx.if_stack.pop().expect("#endif without #if");
         Vec::new()
     }
@@ -137,7 +137,7 @@ pub struct If {
     pub expression_tokens: Vec<Token>,
 }
 impl PreprocessedTokenLine for If {
-    fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Token> {
+    fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Vec<Token>> {
         let tokens = parser.replace_recursive(&self.expression_tokens, ctx);
         let expression = rp::parse(&parser.expression, tokens.iter().cloned())
             .output
@@ -168,7 +168,7 @@ pub struct ElIf {
     pub expression_tokens: Vec<Token>,
 }
 impl PreprocessedTokenLine for ElIf {
-    fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Token> {
+    fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Vec<Token>> {
         let tokens = parser.replace_recursive(&self.expression_tokens, ctx);
         let expression = rp::parse(&parser.expression, tokens.iter().cloned())
             .output
@@ -198,7 +198,7 @@ pub struct Undef {
     pub name: String,
 }
 impl PreprocessedTokenLine for Undef {
-    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
+    fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Vec<Token>> {
         if ctx.should_emit() == false {
             return Vec::new();
         }
@@ -216,13 +216,13 @@ pub struct RawTokens {
     pub tokens: Vec<Token>,
 }
 impl PreprocessedTokenLine for RawTokens {
-    fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Token> {
+    fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Vec<Token>> {
         if ctx.should_emit() == false {
             return Vec::new();
         }
 
         // replace macro to real tokens here
-        parser.replace_recursive(&self.tokens, ctx)
+        vec![parser.replace_recursive(&self.tokens, ctx)]
     }
 
     fn is_empty(&self) -> bool {
