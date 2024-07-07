@@ -20,12 +20,13 @@ fn main() {
         .expect("Failed to read from stdin");
 
     let source = String::from_utf8(source).expect("Invalid UTF-8");
+    let preprocessor = preprocess::parser::PreprocessorParser::new();
 
     println!("{:=^80}", "");
     println!("{:=^80}", "Phase1: Tokenizing");
     println!("{:=^80}", "");
     println!("LINE | {:-^73}", "Result");
-    let tokens = token::tokenize::tokenize(&source);
+    let tokens = preprocessor.tokenize(&source);
     let mut linestart = true;
     let mut lineid = 0;
     for token in tokens.iter() {
@@ -42,7 +43,6 @@ fn main() {
         }
     }
 
-    let preprocessor = preprocess::parser::PreprocessorParser::new();
     println!("{:=^80}", "");
     println!("{:=^80}", "Phase2: Line Analysis");
     println!("{:=^80}", "");

@@ -8,7 +8,7 @@ use rusty_parser as rp;
 use super::context::*;
 use super::expression::*;
 use super::preprocessor::*;
-use crate::token::trie::ident_to_keyword_map;
+use crate::token;
 use crate::token::Token;
 
 pub struct PreprocessorParser {
@@ -653,6 +653,10 @@ impl PreprocessorParser {
         ));
     }
 
+    pub fn tokenize(&self, src: &str) -> Vec<Token> {
+        let tokens = token::tokenize::tokenize(&src);
+        tokens
+    }
     pub fn parse_lines(&self, tokens: &[Token]) -> Vec<Box<dyn PreprocessedTokenLine>> {
         let lines_parser = rp::seq!(self.line.clone().repeat(0..), rp::end());
 
@@ -688,7 +692,7 @@ impl PreprocessorParser {
         }
 
         // change Ident to keyword token
-        let ident_to_keyword = ident_to_keyword_map();
+        let ident_to_keyword = token::trie::ident_to_keyword_map();
         for line in lines_token.iter_mut() {
             for token in line.iter_mut() {
                 if let Token::Identifier(name) = token {
