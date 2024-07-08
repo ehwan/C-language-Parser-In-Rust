@@ -3,8 +3,10 @@
 C language lexer & parser & virtual executer from scratch in Rust.
 
 ## syntax not supported
- - Some Preprocessor ( `#include`, `#pragma` )
- - `union` `enum`
+ - `#include`
+ - `#pragma`
+ - `union` 
+ - `enum`
  - type qualifiers (`volatile`, `restrict` `static` `extern`)
 
 ## Features
@@ -13,6 +15,29 @@ C language lexer & parser & virtual executer from scratch in Rust.
  - Parser ( AST Builder )
  - Code Generator
  - Virtual Machine (Instruction Executor)
+
+## How it works
+### Phase 1: Tokenizing
+Tokenize the raw source code into a list of tokens.
+This phase will remove c/cpp comments.
+Sequence of whitespaces will be combined into one `Token::Whitespace`
+The newline `\n` will be kept as a `Token::NewLine` for later phase
+If the source is not end with `\n`, it will be added automatically
+
+### Phase 2: Line Analysis
+Analyze the tokens in each line and generate a list of `Line` which contains the result of the analysis. This phase will extract preprocessor directives and macro definitions.
+
+### Phase 3: Preprocessing
+Preprocess the source code by expanding macros and removing preprocessor directives.
+
+### Phase 4: Building AbstractSyntaxTree
+Build an Abstract Syntax Tree (AST) from the preprocessed token stream. The AST will be used to generate instructions.
+
+### Phase 5: Generating Instructions
+Generate a sequence of virtual instructions from the AST. The instructions will be executed at the software level.
+
+### Phase 6: Executing Instructions
+Execute the generated instructions. The virtual machine will simulate the execution of the code.
 
 ### Note
 This process will not generate binary or assembly code. Instead, it will produce a sequence of virtual instructions (`src/virtualmachine/instruction`) which will be executed at the software level.
@@ -91,77 +116,77 @@ Enter your code (and ^D for EOF):
 ================================================================================
 LINE | ---------------------------------Result----------------------------------
    0: 
-   1: Int Identifier("fibonacci") LeftParen Int RightParen SemiColon 
+   1: Identifier("int") Whitespace Identifier("fibonacci") LeftParen Identifier("int") RightParen SemiColon 
    2: 
-   3: PreprocessorDefine Identifier("MY_MACRO_FUNC") LeftParen Identifier("x") Comma Identifier("y") RightParen Identifier("y") Plus Identifier("x") 
+   3: PreprocessorDefine Whitespace Identifier("MY_MACRO_FUNC") LeftParen Identifier("x") Comma Whitespace Identifier("y") RightParen Whitespace Identifier("y") Whitespace Plus Whitespace Identifier("x") 
    4: 
-   5: PreprocessorIf Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(1) Comma ConstantInteger(2) RightParen EqOp ConstantInteger(3) 
+   5: PreprocessorIf Whitespace Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(1) Comma Whitespace ConstantInteger(2) RightParen Whitespace EqOp Whitespace ConstantInteger(3) 
    6: 
    7: 
-   8: Int Identifier("main") LeftParen RightParen 
+   8: Identifier("int") Whitespace Identifier("main") LeftParen RightParen 
    9: LeftBrace 
-  10: Identifier("print_str") LeftParen StringLiteral("Hello, World!") RightParen SemiColon 
-  11: Int Identifier("var") Equal ConstantInteger(10) SemiColon 
-  12: Int Star Identifier("ptr") Equal Ampersand Identifier("var") SemiColon 
-  13: Star Identifier("ptr") Equal Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(40) Comma ConstantInteger(60) RightParen SemiColon 
-  14: Identifier("print") LeftParen Identifier("ptr") Comma Star Identifier("ptr") Comma Identifier("var") RightParen SemiColon 
+  10: Whitespace Identifier("print_str") LeftParen StringLiteral("Hello, World!") RightParen SemiColon Whitespace 
+  11: Whitespace Identifier("int") Whitespace Identifier("var") Whitespace Equal Whitespace ConstantInteger(10) SemiColon 
+  12: Whitespace Identifier("int") Star Whitespace Identifier("ptr") Whitespace Equal Whitespace Ampersand Identifier("var") SemiColon 
+  13: Whitespace Star Identifier("ptr") Whitespace Equal Whitespace Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(40) Comma Whitespace ConstantInteger(60) RightParen SemiColon 
+  14: Whitespace Identifier("print") LeftParen Identifier("ptr") Comma Whitespace Star Identifier("ptr") Comma Whitespace Identifier("var") RightParen SemiColon Whitespace 
   15: 
-  16: Identifier("print") LeftParen Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(10) Comma ConstantInteger(20) RightParen RightParen SemiColon 
+  16: Whitespace Identifier("print") LeftParen Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(10) Comma Whitespace ConstantInteger(20) RightParen RightParen SemiColon 
   17: 
-  18: 
-  19: Identifier("print_str") LeftParen StringLiteral("Fibonacci sequence:") RightParen SemiColon 
-  20: Int Identifier("i") SemiColon 
-  21: For LeftParen Identifier("i") Equal ConstantInteger(1) SemiColon Identifier("i") LeOp ConstantInteger(10) SemiColon Identifier("i") IncOp RightParen 
-  22: LeftBrace 
-  23: Identifier("print") LeftParen Identifier("i") Comma Identifier("fibonacci") LeftParen Identifier("i") RightParen RightParen SemiColon 
-  24: RightBrace 
+  18: Whitespace 
+  19: Whitespace Identifier("print_str") LeftParen StringLiteral("Fibonacci sequence:") RightParen SemiColon 
+  20: Whitespace Identifier("int") Whitespace Identifier("i") SemiColon 
+  21: Whitespace Identifier("for") Whitespace LeftParen Identifier("i") Whitespace Equal Whitespace ConstantInteger(1) SemiColon Whitespace Identifier("i") Whitespace LeOp Whitespace ConstantInteger(10) SemiColon Whitespace Identifier("i") IncOp RightParen 
+  22: Whitespace LeftBrace 
+  23: Whitespace Identifier("print") LeftParen Identifier("i") Comma Whitespace Identifier("fibonacci") LeftParen Identifier("i") RightParen RightParen SemiColon 
+  24: Whitespace RightBrace 
   25: 
-  26: Return ConstantInteger(0) SemiColon 
+  26: Whitespace Identifier("return") Whitespace ConstantInteger(0) SemiColon 
   27: RightBrace 
   28: 
   29: 
-  30: Int Identifier("fibonacci") LeftParen Int Identifier("n") RightParen 
+  30: Identifier("int") Whitespace Identifier("fibonacci") LeftParen Identifier("int") Whitespace Identifier("n") RightParen 
   31: LeftBrace 
-  32: If LeftParen Identifier("n") LeOp ConstantInteger(2) RightParen 
-  33: Return ConstantInteger(1) SemiColon 
-  34: Else 
-  35: Return Identifier("fibonacci") LeftParen Identifier("n") Minus ConstantInteger(1) RightParen Plus Identifier("fibonacci") LeftParen Identifier("n") Minus ConstantInteger(2) RightParen SemiColon 
+  32: Whitespace Identifier("if") Whitespace LeftParen Identifier("n") Whitespace LeOp Whitespace ConstantInteger(2) RightParen 
+  33: Whitespace Identifier("return") Whitespace ConstantInteger(1) SemiColon 
+  34: Whitespace Identifier("else") 
+  35: Whitespace Identifier("return") Whitespace Identifier("fibonacci") LeftParen Identifier("n") Whitespace Minus Whitespace ConstantInteger(1) RightParen Whitespace Plus Whitespace Identifier("fibonacci") LeftParen Identifier("n") Whitespace Minus Whitespace ConstantInteger(2) RightParen SemiColon 
   36: RightBrace 
   37: 
   38: PreprocessorElse 
   39: 
-  40: Identifier("THIS") Identifier("WILL") Identifier("BE") Identifier("IGNORED") 
+  40: Identifier("THIS") Whitespace Identifier("WILL") Whitespace Identifier("BE") Whitespace Identifier("IGNORED") 
   41: 
   42: PreprocessorEndIf 
 ================================================================================
 =============================Phase2: Line Analysis==============================
 ================================================================================
 LINE | ---------------------------------Result----------------------------------
-   0: RawTokens { tokens: [Int, Identifier("fibonacci"), LeftParen, Int, RightParen, SemiColon] }
+   0: RawTokens { tokens: [Identifier("int"), Identifier("fibonacci"), LeftParen, Identifier("int"), RightParen, SemiColon] }
    1: DefineFunction { name: "MY_MACRO_FUNC", param_count: 2, replacement: [PreprocessorPlaceholder(1), Plus, PreprocessorPlaceholder(0)] }
    2: If { expression_tokens: [Identifier("MY_MACRO_FUNC"), LeftParen, ConstantInteger(1), Comma, ConstantInteger(2), RightParen, EqOp, ConstantInteger(3)] }
-   3: RawTokens { tokens: [Int, Identifier("main"), LeftParen, RightParen] }
+   3: RawTokens { tokens: [Identifier("int"), Identifier("main"), LeftParen, RightParen] }
    4: RawTokens { tokens: [LeftBrace] }
    5: RawTokens { tokens: [Identifier("print_str"), LeftParen, StringLiteral("Hello, World!"), RightParen, SemiColon] }
-   6: RawTokens { tokens: [Int, Identifier("var"), Equal, ConstantInteger(10), SemiColon] }
-   7: RawTokens { tokens: [Int, Star, Identifier("ptr"), Equal, Ampersand, Identifier("var"), SemiColon] }
+   6: RawTokens { tokens: [Identifier("int"), Identifier("var"), Equal, ConstantInteger(10), SemiColon] }
+   7: RawTokens { tokens: [Identifier("int"), Star, Identifier("ptr"), Equal, Ampersand, Identifier("var"), SemiColon] }
    8: RawTokens { tokens: [Star, Identifier("ptr"), Equal, Identifier("MY_MACRO_FUNC"), LeftParen, ConstantInteger(40), Comma, ConstantInteger(60), RightParen, SemiColon] }
    9: RawTokens { tokens: [Identifier("print"), LeftParen, Identifier("ptr"), Comma, Star, Identifier("ptr"), Comma, Identifier("var"), RightParen, SemiColon] }
   10: RawTokens { tokens: [Identifier("print"), LeftParen, Identifier("MY_MACRO_FUNC"), LeftParen, ConstantInteger(10), Comma, ConstantInteger(20), RightParen, RightParen, SemiColon] }
   11: RawTokens { tokens: [Identifier("print_str"), LeftParen, StringLiteral("Fibonacci sequence:"), RightParen, SemiColon] }
-  12: RawTokens { tokens: [Int, Identifier("i"), SemiColon] }
-  13: RawTokens { tokens: [For, LeftParen, Identifier("i"), Equal, ConstantInteger(1), SemiColon, Identifier("i"), LeOp, ConstantInteger(10), SemiColon, Identifier("i"), IncOp, RightParen] }
+  12: RawTokens { tokens: [Identifier("int"), Identifier("i"), SemiColon] }
+  13: RawTokens { tokens: [Identifier("for"), LeftParen, Identifier("i"), Equal, ConstantInteger(1), SemiColon, Identifier("i"), LeOp, ConstantInteger(10), SemiColon, Identifier("i"), IncOp, RightParen] }
   14: RawTokens { tokens: [LeftBrace] }
   15: RawTokens { tokens: [Identifier("print"), LeftParen, Identifier("i"), Comma, Identifier("fibonacci"), LeftParen, Identifier("i"), RightParen, RightParen, SemiColon] }
   16: RawTokens { tokens: [RightBrace] }
-  17: RawTokens { tokens: [Return, ConstantInteger(0), SemiColon] }
+  17: RawTokens { tokens: [Identifier("return"), ConstantInteger(0), SemiColon] }
   18: RawTokens { tokens: [RightBrace] }
-  19: RawTokens { tokens: [Int, Identifier("fibonacci"), LeftParen, Int, Identifier("n"), RightParen] }
+  19: RawTokens { tokens: [Identifier("int"), Identifier("fibonacci"), LeftParen, Identifier("int"), Identifier("n"), RightParen] }
   20: RawTokens { tokens: [LeftBrace] }
-  21: RawTokens { tokens: [If, LeftParen, Identifier("n"), LeOp, ConstantInteger(2), RightParen] }
-  22: RawTokens { tokens: [Return, ConstantInteger(1), SemiColon] }
-  23: RawTokens { tokens: [Else] }
-  24: RawTokens { tokens: [Return, Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(1), RightParen, Plus, Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(2), RightParen, SemiColon] }
+  21: RawTokens { tokens: [Identifier("if"), LeftParen, Identifier("n"), LeOp, ConstantInteger(2), RightParen] }
+  22: RawTokens { tokens: [Identifier("return"), ConstantInteger(1), SemiColon] }
+  23: RawTokens { tokens: [Identifier("else")] }
+  24: RawTokens { tokens: [Identifier("return"), Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(1), RightParen, Plus, Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(2), RightParen, SemiColon] }
   25: RawTokens { tokens: [RightBrace] }
   26: Else
   27: RawTokens { tokens: [Identifier("THIS"), Identifier("WILL"), Identifier("BE"), Identifier("IGNORED")] }
@@ -475,7 +500,7 @@ TranslationUnit {
     ],
 }
 ================================================================================
-============================Generating Instructions=============================
+========================Phase5: Generating Instructions=========================
 ================================================================================
 ADDR | ---------------------------------Result----------------------------------
 Instructions: 
@@ -609,7 +634,7 @@ Instructions:
   --------------------------------Start Address---------------------------------
  127: Call { label: "main" }
 ================================================================================
-=============================Executing Instructions=============================
+=========================Phase6: Executing Instructions=========================
 ================================================================================
 "Hello, World!"
 Print: UInt64(36), Int32(100), Int32(100), 

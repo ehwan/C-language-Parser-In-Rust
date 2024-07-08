@@ -99,7 +99,9 @@ pub enum Token {
     Caret,
     Pipe,
     Question,
+    Whitespace, // one or more whitespaces
 }
+
 use rusty_parser as rp;
 
 pub type DynParser = rp::DynBoxChars<(Token,)>;

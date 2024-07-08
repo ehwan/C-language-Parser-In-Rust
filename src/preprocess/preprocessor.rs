@@ -1,4 +1,3 @@
-use rp::IntoParser;
 use rusty_parser as rp;
 
 use std::fmt::Debug;

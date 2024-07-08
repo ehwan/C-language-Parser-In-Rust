@@ -14,18 +14,21 @@ fn main() {
     println!("Enter your code (and ^D for EOF):");
     stdout().flush().expect("Failed to flush stdout");
 
+    // Read from stdin
     let mut source: Vec<u8> = Vec::new();
     stdin()
         .read_to_end(&mut source)
         .expect("Failed to read from stdin");
 
     let source = String::from_utf8(source).expect("Invalid UTF-8");
+    let preprocessor = preprocess::parser::PreprocessorParser::new();
 
+    // tokenize
     println!("{:=^80}", "");
     println!("{:=^80}", "Phase1: Tokenizing");
     println!("{:=^80}", "");
     println!("LINE | {:-^73}", "Result");
-    let tokens = token::tokenize::tokenize(&source);
+    let tokens = preprocessor.tokenize(&source);
     let mut linestart = true;
     let mut lineid = 0;
     for token in tokens.iter() {
@@ -42,7 +45,7 @@ fn main() {
         }
     }
 
-    let preprocessor = preprocess::parser::PreprocessorParser::new();
+    // line analysis
     println!("{:=^80}", "");
     println!("{:=^80}", "Phase2: Line Analysis");
     println!("{:=^80}", "");
@@ -52,6 +55,7 @@ fn main() {
         println!("{:4}: {:?}", lineid, line);
     }
 
+    // preprocess
     println!("{:=^80}", "");
     println!("{:=^80}", "Phase3: Preprocessing");
     println!("{:=^80}", "");
@@ -69,17 +73,18 @@ fn main() {
     println!("{:=^80}", "Phase4: Building AbstractSyntaxTree");
     println!("{:=^80}", "");
 
+    // parse the tokens into AST
     println!("ASTs: ");
     let parser = ast::parser::ASTParser::new();
     let translation_unit = parser.parse(tokens);
     println!("{:#?}", translation_unit);
 
+    // generate instructions
     println!("{:=^80}", "");
-    println!("{:=^80}", "Generating Instructions");
+    println!("{:=^80}", "Phase5: Generating Instructions");
     println!("{:=^80}", "");
     println!("ADDR | {:-^73}", "Result");
 
-    let mut program: VirtualProgram = VirtualProgram::new();
     let mut instructions: InstructionGenerator = InstructionGenerator::new();
     translation_unit.emit(&mut instructions);
 
@@ -91,9 +96,11 @@ fn main() {
         println!("{:4}: {:?}", id, instruction);
     }
 
+    // execute instructions
     println!("{:=^80}", "");
-    println!("{:=^80}", "Executing Instructions");
+    println!("{:=^80}", "Phase6: Executing Instructions");
     println!("{:=^80}", "");
+    let mut program: VirtualProgram = VirtualProgram::new();
     program.execute(&mut instructions);
 
     stdout().flush().expect("Failed to flush stdout");

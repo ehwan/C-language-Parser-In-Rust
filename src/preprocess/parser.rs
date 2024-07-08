@@ -502,7 +502,12 @@ impl PreprocessorParser {
         // identifier, identifier, ...
         // Vec<String>
         let identifiers_parser = identifier_parser.map(|s: String| vec![s]).reduce_left(
-            rp::seq!(rp::one(Token::Comma).void(), identifier_parser.clone()),
+            rp::seq!(
+                rp::one(Token::Whitespace).optional().void(),
+                rp::one(Token::Comma).void(),
+                rp::one(Token::Whitespace).optional().void(),
+                identifier_parser.clone()
+            ),
             |mut v: Vec<String>, s: String| {
                 v.push(s);
                 v
@@ -513,15 +518,31 @@ impl PreprocessorParser {
         let tokens_to_end = rp::seq!(
             rp::any().not(rp::one(Token::NewLine)).repeat(0..),
             rp::one(Token::NewLine).void()
-        );
+        )
+        .map(|tokens: Vec<Token>| -> Vec<Token> {
+            tokens
+                .iter()
+                .filter(|t| *t != &Token::Whitespace)
+                .cloned()
+                .collect()
+        });
 
         // ( macro_name: String, replace_tokens: Vec<Token> )
         let define_identifier_parser = rp::seq!(
             rp::one(Token::PreprocessorDefine).void(),
+            rp::one(Token::Whitespace).void().or_else(|| -> () {
+                panic!("Whitespace expected after #define directive");
+            }),
             identifier_parser.clone().or_else(|| -> String {
                 panic!("Identifier must come after #define");
             }),
-            tokens_to_end.clone()
+            rp::or!(
+                rp::seq!(rp::one(Token::Whitespace).void(), tokens_to_end.clone()),
+                rp::one(Token::NewLine).void().map(|| Vec::new())
+            )
+            .or_else(|| -> Vec<Token> {
+                panic!("Invalid macro replacement");
+            })
         )
         .map(
             |name: String, replacement: Vec<Token>| -> Box<dyn PreprocessedTokenLine> {
@@ -532,13 +553,29 @@ impl PreprocessorParser {
         // ( macro_name: String, macro_params: Vec<String>, macro_value: Vec<Token> )
         let define_function_parser = rp::seq!(
             rp::one(Token::PreprocessorDefine).void(),
+            rp::one(Token::Whitespace).void().or_else(|| -> () {
+                panic!("Whitespace expected after #define directive");
+            }),
             identifier_parser.clone().or_else(|| -> String {
                 panic!("Identifier must come after #define");
             }),
             rp::one(Token::LeftParen).void(),
-            identifiers_parser,
-            rp::one(Token::RightParen).void(),
-            tokens_to_end.clone()
+            rp::one(Token::Whitespace).optional().void(),
+            identifiers_parser.or_else(|| -> Vec<String> {
+                panic!("Invalid macro parameters; must be comma-separated identifiers");
+            }),
+            rp::one(Token::Whitespace).optional().void(),
+            rp::one(Token::RightParen).void().or_else(|| -> () {
+                panic!("RightParen ')' expected after macro parameters");
+            },),
+            // replacement
+            rp::or!(
+                rp::seq!(rp::one(Token::Whitespace).void(), tokens_to_end.clone()),
+                rp::one(Token::NewLine).void().map(|| Vec::new())
+            )
+            .or_else(|| -> Vec<Token> {
+                panic!("Invalid macro replacement");
+            })
         )
         .map(
             |name: String,
@@ -564,9 +601,13 @@ impl PreprocessorParser {
 
         let undef_parser = rp::seq!(
             rp::one(Token::PreprocessorUndef).void(),
+            rp::one(Token::Whitespace).void().or_else(|| -> () {
+                panic!("Whitespace expected after #undef directive");
+            }),
             identifier_parser.clone().or_else(|| -> String {
                 panic!("Identifier must come after #undef");
             }),
+            rp::one(Token::Whitespace).optional().void(),
             rp::one(Token::NewLine).void().or_else(|| -> () {
                 panic!("unexpected token after #undef IDENTIFIER");
             })
@@ -575,9 +616,13 @@ impl PreprocessorParser {
 
         let ifdef_parser = rp::seq!(
             rp::one(Token::PreprocessorIfDef).void(),
+            rp::one(Token::Whitespace).void().or_else(|| -> () {
+                panic!("Whitespace expected after #ifdef directive");
+            }),
             identifier_parser.clone().or_else(|| -> String {
                 panic!("Identifier must come after #ifdef");
             }),
+            rp::one(Token::Whitespace).optional().void(),
             rp::one(Token::NewLine).void().or_else(|| -> () {
                 panic!("unexpected token after #ifdef IDENTIFIER");
             })
@@ -586,9 +631,13 @@ impl PreprocessorParser {
 
         let ifndef_parser = rp::seq!(
             rp::one(Token::PreprocessorIfNDef).void(),
+            rp::one(Token::Whitespace).void().or_else(|| -> () {
+                panic!("Whitespace expected after #ifndef directive");
+            }),
             identifier_parser.clone().or_else(|| -> String {
                 panic!("Identifier must come after #ifndef");
             }),
+            rp::one(Token::Whitespace).optional().void(),
             rp::one(Token::NewLine).void().or_else(|| -> () {
                 panic!("unexpected token after #ifndef IDENTIFIER");
             })
@@ -597,6 +646,7 @@ impl PreprocessorParser {
 
         let else_parser = rp::seq!(
             rp::one(Token::PreprocessorElse).void(),
+            rp::one(Token::Whitespace).optional().void(),
             rp::one(Token::NewLine).void().or_else(|| -> () {
                 panic!("unexpected token after #else");
             })
@@ -605,13 +655,21 @@ impl PreprocessorParser {
 
         let endif_parser = rp::seq!(
             rp::one(Token::PreprocessorEndIf).void(),
+            rp::one(Token::Whitespace).optional().void(),
             rp::one(Token::NewLine).void().or_else(|| -> () {
                 panic!("unexpected token after #endif");
             })
         )
         .map(|| -> Box<dyn PreprocessedTokenLine> { Box::new(EndIf {}) });
 
-        let if_parser = rp::seq!(rp::one(Token::PreprocessorIf).void(), tokens_to_end.clone()).map(
+        let if_parser = rp::seq!(
+            rp::one(Token::PreprocessorIf).void(),
+            rp::one(Token::Whitespace).void().or_else(|| -> () {
+                panic!("Whitespace expected after #if directive");
+            }),
+            tokens_to_end.clone()
+        )
+        .map(
             |expr_tokens: Vec<Token>| -> Box<dyn PreprocessedTokenLine> {
                 Box::new(If {
                     expression_tokens: expr_tokens,
@@ -621,6 +679,9 @@ impl PreprocessorParser {
 
         let elif_parser = rp::seq!(
             rp::one(Token::PreprocessorElIf).void(),
+            rp::one(Token::Whitespace).void().or_else(|| -> () {
+                panic!("Whitespace expected after #elif directive");
+            }),
             tokens_to_end.clone()
         )
         .map(
@@ -639,18 +700,26 @@ impl PreprocessorParser {
                     Box::new(RawTokens { tokens })
                 });
 
-        self.line.borrow_mut().assign(rp::or!(
-            define_function_parser,
-            define_identifier_parser,
-            undef_parser,
-            ifdef_parser,
-            ifndef_parser,
-            if_parser,
-            elif_parser,
-            else_parser,
-            endif_parser,
-            raw_parser
+        self.line.borrow_mut().assign(rp::seq!(
+            rp::one(Token::Whitespace).optional().void(),
+            rp::or!(
+                define_function_parser,
+                define_identifier_parser,
+                undef_parser,
+                ifdef_parser,
+                ifndef_parser,
+                if_parser,
+                elif_parser,
+                else_parser,
+                endif_parser,
+                raw_parser
+            )
         ));
+    }
+
+    pub fn tokenize(&self, source: &str) -> Vec<Token> {
+        let tokens = crate::token::tokenize::tokenize(source);
+        tokens
     }
 
     pub fn parse_lines(&self, tokens: &[Token]) -> Vec<Box<dyn PreprocessedTokenLine>> {

@@ -1,6 +1,6 @@
 [package]
 name = "mini-c-parser"
-version = "0.12.1"
+version = "0.12.2"
 edition = "2021"
 license = "MIT"
 description = "minimal C language lexer & parser & virtual executer from scratch"
