@@ -15,21 +15,21 @@ pub struct ASTParser {
     type_name: Rc<RefCell<rp::DynBoxSlice<(TypeInfo,), Token>>>, // ? Only Single typename, no pointer
     type_specifier: Rc<RefCell<rp::DynBoxSlice<(TypeInfo,), Token>>>, // OK
     parameter_list: Rc<RefCell<rp::DynBoxSlice<(Vec<(Option<String>, TypeInfo)>,), Token>>>, // OK
-    declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Declarator>,), Token>>>, // OK
-    init_declarator: Rc<RefCell<rp::DynBoxSlice<(Box<InitDeclarator>,), Token>>>, // OK
-    abstract_declarator: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Declarator>,), Token>>>, // OK
+    declarator: Rc<RefCell<rp::DynBoxSlice<(Declarator,), Token>>>, // OK
+    init_declarator: Rc<RefCell<rp::DynBoxSlice<(DeclInit,), Token>>>, // OK
+    abstract_declarator: Rc<RefCell<rp::DynBoxSlice<(Declarator,), Token>>>, // OK
     pointer: Rc<RefCell<rp::DynBoxSlice<(Vec<Token>,), Token>>>,
 
-    expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>>, //OK
-    assignment_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>>, // OK
-    constant_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>>, // OK
-    initializer: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>>, // OK
+    expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>>, //OK
+    assignment_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>>, // OK
+    constant_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>>, // OK
+    initializer: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>>, // OK
 
-    statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Statement>,), Token>>>, // OK
-    compound_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Statement>,), Token>>>, // OK
-    declaration: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Statement>,), Token>>>, // OK
+    statement: Rc<RefCell<rp::DynBoxSlice<(Statement,), Token>>>, // OK
+    compound_statement: Rc<RefCell<rp::DynBoxSlice<(Statement,), Token>>>, // OK
+    declaration: Rc<RefCell<rp::DynBoxSlice<(Statement,), Token>>>, // OK
 
-    translation_unit: Rc<RefCell<rp::DynBoxSlice<(Box<TranslationUnit>,), Token>>>, // OK
+    translation_unit: Rc<RefCell<rp::DynBoxSlice<(TranslationUnit,), Token>>>, // OK
 }
 
 impl ASTParser {
@@ -65,7 +65,7 @@ impl ASTParser {
         s
     }
 
-    pub fn parse(&self, input: Vec<Token>) -> Box<TranslationUnit> {
+    pub fn parse(&self, input: Vec<Token>) -> TranslationUnit {
         let res = rp::parse(&self.translation_unit, input.iter().cloned());
         if let Some((out,)) = res.output {
             return out;
@@ -181,7 +181,7 @@ impl ASTParser {
             self.abstract_declarator.clone().optional()
         )
         .map(
-            |specifier: TypeInfo, declarator: Option<Box<dyn Declarator>>| -> TypeInfo {
+            |specifier: TypeInfo, declarator: Option<Declarator>| -> TypeInfo {
                 if let Some(declarator) = declarator {
                     declarator.resolve_typeinfo(specifier).1
                 } else {
@@ -199,12 +199,10 @@ impl ASTParser {
         let declarators = self
             .declarator
             .clone()
-            .map(|d: Box<dyn Declarator>| -> Vec<Box<dyn Declarator>> { vec![d] })
+            .map(|d: Declarator| -> Vec<Declarator> { vec![d] })
             .reduce_left(
                 rp::seq!(rp::one(Token::Comma).void(), self.declarator.clone()),
-                |mut v: Vec<Box<dyn Declarator>>,
-                 d: Box<dyn Declarator>|
-                 -> Vec<Box<dyn Declarator>> {
+                |mut v: Vec<Declarator>, d: Declarator| -> Vec<Declarator> {
                     v.push(d);
                     v
                 },
@@ -216,9 +214,7 @@ impl ASTParser {
             rp::one(Token::SemiColon).void()
         )
         .map(
-            |specifier: TypeInfo,
-             declarators: Vec<Box<dyn Declarator>>|
-             -> Vec<(String, TypeInfo)> {
+            |specifier: TypeInfo, declarators: Vec<Declarator>| -> Vec<(String, TypeInfo)> {
                 let mut ret = Vec::new();
                 for declarator in declarators.into_iter() {
                     let var = declarator.resolve_typeinfo(specifier.clone());
@@ -400,7 +396,7 @@ impl ASTParser {
         */
         struct Enumerator {
             pub name: String,
-            pub value: Option<Box<dyn Expression>>,
+            pub value: Option<Expression>,
         }
         let enumerator = rp::seq!(
             rp::check(|t: Token| -> Option<String> {
@@ -416,7 +412,7 @@ impl ASTParser {
             )
             .optional()
         )
-        .map(|name: String, value: Option<Box<dyn Expression>>| Enumerator { name, value });
+        .map(|name: String, value: Option<Expression>| Enumerator { name, value });
 
         /*
         enumerator_list
@@ -537,72 +533,91 @@ impl ASTParser {
         ));
     }
     fn expression_parser(&mut self) {
-        let primary_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let primary_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let postfix_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let postfix_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let unary_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let unary_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let cast_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let cast_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let multiplicative_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let multiplicative_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let additive_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let additive_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let shift_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let shift_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let relational_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let relational_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let equality_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let equality_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let and_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let and_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> = Default::default();
+        let exclusive_or_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let exclusive_or_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let inclusive_or_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let inclusive_or_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let logical_and_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let logical_and_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let logical_or_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let logical_or_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
-            Default::default();
-        let conditional_expression: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let conditional_expression: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
 
         // =======================
         // Primary expression
         // =======================
         {
-            let identifier = rp::check(|t: Token| -> Option<Box<dyn Expression>> {
+            let identifier = rp::check(|t: Token| -> Option<Expression> {
                 if let Token::Identifier(s) = t {
-                    Some(Box::new(PrimaryIdentifier { name: s }))
+                    Some(Expression::PrimaryIdentifier(ExprPrimaryIdentifier {
+                        name: s,
+                    }))
                 } else {
                     None
                 }
             });
-            let integer_constant = rp::check(|t: Token| -> Option<Box<dyn Expression>> {
+            let integer_constant = rp::check(|t: Token| -> Option<Expression> {
                 match t {
-                    Token::ConstantUnsignedInteger(i) => {
-                        Some(Box::new(ConstantUnsignedInteger { value: i }))
+                    Token::ConstantUnsignedInteger(i) => Some(Expression::ConstantUnsignedInteger(
+                        ExprConstantUnsignedInteger { value: i },
+                    )),
+                    Token::ConstantInteger(i) => {
+                        Some(Expression::ConstantInteger(ExprConstantInteger {
+                            value: i,
+                        }))
                     }
-                    Token::ConstantInteger(i) => Some(Box::new(ConstantInteger { value: i })),
-                    Token::ConstantCharacter(ch) => Some(Box::new(ConstantCharacter { value: ch })),
-                    Token::ConstantLong(l) => Some(Box::new(ConstantLong { value: l })),
+                    Token::ConstantCharacter(ch) => {
+                        Some(Expression::ConstantCharacter(ExprConstantCharacter {
+                            value: ch,
+                        }))
+                    }
+                    Token::ConstantLong(l) => {
+                        Some(Expression::ConstantLong(ExprConstantLong { value: l }))
+                    }
                     Token::ConstantUnsignedLong(l) => {
-                        Some(Box::new(ConstantUnsignedLong { value: l }))
+                        Some(Expression::ConstantUnsignedLong(ExprConstantUnsignedLong {
+                            value: l,
+                        }))
                     }
                     _ => None,
                 }
             });
-            let float_constant = rp::check(|t: Token| -> Option<Box<dyn Expression>> {
+            let float_constant = rp::check(|t: Token| -> Option<Expression> {
                 match t {
-                    Token::ConstantFloat(f) => Some(Box::new(ConstantFloat { value: f })),
-                    Token::ConstantDouble(d) => Some(Box::new(ConstantDouble { value: d })),
+                    Token::ConstantFloat(f) => {
+                        Some(Expression::ConstantFloat(ExprConstantFloat { value: f }))
+                    }
+                    Token::ConstantDouble(d) => {
+                        Some(Expression::ConstantDouble(ExprConstantDouble { value: d }))
+                    }
                     _ => None,
                 }
             });
-            let string_literal = rp::check(|t: Token| -> Option<Box<dyn Expression>> {
+            let string_literal = rp::check(|t: Token| -> Option<Expression> {
                 match t {
-                    Token::StringLiteral(s) => Some(Box::new(StringLiteral { value: s })),
+                    Token::StringLiteral(s) => {
+                        Some(Expression::StringLiteral(ExprString { value: s }))
+                    }
                     _ => None,
                 }
             });
@@ -633,8 +648,8 @@ impl ASTParser {
         // =======================
         {
             enum PostfixType {
-                Bracket(Box<dyn Expression>),
-                Paren(Vec<Box<dyn Expression>>),
+                Bracket(Expression),
+                Paren(Vec<Expression>),
                 Dot(String),
                 Arrow(String),
                 Inc,
@@ -648,12 +663,12 @@ impl ASTParser {
                     panic!("Expected ']' after index expression");
                 })
             )
-            .map(|e: Box<dyn Expression>| PostfixType::Bracket(e));
+            .map(|e: Expression| PostfixType::Bracket(e));
 
             let argument_list1 = self
                 .assignment_expression
                 .clone()
-                .map(|e| -> Vec<Box<dyn Expression>> {
+                .map(|e| -> Vec<Expression> {
                     let mut ret = Vec::new();
                     ret.push(e);
                     ret
@@ -663,22 +678,21 @@ impl ASTParser {
                         rp::one(Token::Comma).void(),
                         self.assignment_expression.clone()
                     ),
-                    |mut v: Vec<Box<dyn Expression>>,
-                     e: Box<dyn Expression>|
-                     -> Vec<Box<dyn Expression>> {
+                    |mut v: Vec<Expression>, e: Expression| -> Vec<Expression> {
                         v.push(e);
                         v
                     },
                 );
-            let argument_list0 = argument_list1.optional().map(
-                |args: Option<Vec<Box<dyn Expression>>>| -> Vec<Box<dyn Expression>> {
-                    if let Some(args) = args {
-                        args
-                    } else {
-                        Vec::new()
-                    }
-                },
-            );
+            let argument_list0 =
+                argument_list1
+                    .optional()
+                    .map(|args: Option<Vec<Expression>>| -> Vec<Expression> {
+                        if let Some(args) = args {
+                            args
+                        } else {
+                            Vec::new()
+                        }
+                    });
 
             let paren = rp::seq!(
                 rp::one(Token::LeftParen).void(),
@@ -744,20 +758,30 @@ impl ASTParser {
                 .borrow_mut()
                 .assign(primary_expression.clone().reduce_left(
                     rp::or!(bracket, paren, dot, ptr_op, inc_op, dec_op),
-                    |lhs: Box<dyn Expression>, rhs: PostfixType| -> Box<dyn Expression> {
+                    |lhs: Expression, rhs: PostfixType| -> Expression {
                         match rhs {
-                            PostfixType::Bracket(e) => Box::new(PostBracket { src: lhs, index: e }),
-                            PostfixType::Paren(args) => Box::new(PostParen { src: lhs, args }),
-                            PostfixType::Dot(s) => Box::new(PostMember {
-                                src: lhs,
+                            PostfixType::Bracket(e) => Expression::PostBracket(ExprPostBracket {
+                                src: Box::new(lhs),
+                                index: Box::new(e),
+                            }),
+                            PostfixType::Paren(args) => Expression::PostParen(ExprPostParen {
+                                src: Box::new(lhs),
+                                args,
+                            }),
+                            PostfixType::Dot(s) => Expression::PostMember(ExprPostMember {
+                                src: Box::new(lhs),
                                 member: s,
                             }),
-                            PostfixType::Arrow(s) => Box::new(PostArrow {
-                                src: lhs,
+                            PostfixType::Arrow(s) => Expression::PostArrow(ExprPostArrow {
+                                src: Box::new(lhs),
                                 member: s,
                             }),
-                            PostfixType::Inc => Box::new(PostIncrement { src: lhs }),
-                            PostfixType::Dec => Box::new(PostDecrement { src: lhs }),
+                            PostfixType::Inc => {
+                                Expression::PostIncrement(ExprPostIncrement { src: Box::new(lhs) })
+                            }
+                            PostfixType::Dec => {
+                                Expression::PostDecrement(ExprPostDecrement { src: Box::new(lhs) })
+                            }
                         }
                     },
                 ));
@@ -798,11 +822,15 @@ impl ASTParser {
                     panic!("Expected ')' after sizeof(type)");
                 })
             )
-            .map(|typeinfo: TypeInfo| -> Box<dyn Expression> { Box::new(SizeofType { typeinfo }) });
+            .map(|typeinfo: TypeInfo| -> Expression {
+                Expression::SizeofType(ExprSizeOfType { typeinfo })
+            });
 
             let sizeof_expr = rp::seq!(rp::one(Token::Sizeof).void(), unary_expression.clone())
-                .map(|expr: Box<dyn Expression>| -> Box<dyn Expression> {
-                    Box::new(SizeofExpr { expr })
+                .map(|expr: Expression| -> Expression {
+                    Expression::SizeofExpr(ExprSizeOfExpr {
+                        expr: Box::new(expr),
+                    })
                 });
 
             /*
@@ -819,23 +847,26 @@ impl ASTParser {
                 sizeof_expr,
                 sizeof_type,
                 rp::seq!(unary_operator, cast_expression.clone()).map(
-                    |op: UnaryOperator, expr: Box<dyn Expression>| -> Box<dyn Expression> {
-                        Box::new(UnaryExpression { op, src: expr })
+                    |op: UnaryOperator, expr: Expression| -> Expression {
+                        Expression::Unary(ExprUnary {
+                            op,
+                            src: Box::new(expr),
+                        })
                     }
                 ),
                 rp::seq!(rp::one(Token::IncOp).void(), unary_expression.clone()).map(
-                    |expr: Box<dyn Expression>| -> Box<dyn Expression> {
-                        Box::new(UnaryExpression {
+                    |expr: Expression| -> Expression {
+                        Expression::Unary(ExprUnary {
                             op: UnaryOperator::Increment,
-                            src: expr,
+                            src: Box::new(expr),
                         })
                     }
                 ),
                 rp::seq!(rp::one(Token::DecOp).void(), unary_expression.clone()).map(
-                    |expr: Box<dyn Expression>| -> Box<dyn Expression> {
-                        Box::new(UnaryExpression {
+                    |expr: Expression| -> Expression {
+                        Expression::Unary(ExprUnary {
                             op: UnaryOperator::Decrement,
-                            src: expr,
+                            src: Box::new(expr),
                         })
                     }
                 ),
@@ -860,11 +891,9 @@ impl ASTParser {
                         self.type_name.clone(),
                         rp::one(Token::RightParen).void()
                     ),
-                    |typeinfo: TypeInfo,
-                     cast_expression: Box<dyn Expression>|
-                     -> Box<dyn Expression> {
-                        Box::new(CastExpression {
-                            src: cast_expression,
+                    |typeinfo: TypeInfo, cast_expression: Expression| -> Expression {
+                        Expression::Cast(ExprCast {
+                            src: Box::new(cast_expression),
                             typeinfo,
                         })
                     },
@@ -888,11 +917,12 @@ impl ASTParser {
 
             let multiplicative_ = cast_expression.clone().reduce_left(
                 rp::seq!(op, cast_expression.clone()),
-                |lhs: Box<dyn Expression>,
-                 op: BinaryOperator,
-                 rhs: Box<dyn Expression>|
-                 -> Box<dyn Expression> {
-                    Box::new(MultiplicativeExpression { op, lhs, rhs })
+                |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
+                    Expression::Multiplicative(ExprMultiplicative {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             multiplicative_expression
@@ -913,11 +943,12 @@ impl ASTParser {
             );
             let additive = multiplicative_expression.clone().reduce_left(
                 rp::seq!(op, multiplicative_expression.clone()),
-                |lhs: Box<dyn Expression>,
-                 op: BinaryOperator,
-                 rhs: Box<dyn Expression>|
-                 -> Box<dyn Expression> {
-                    Box::new(AdditiveExpression { op, lhs, rhs })
+                |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
+                    Expression::Additive(ExprAdditive {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             additive_expression.borrow_mut().assign(additive);
@@ -936,11 +967,12 @@ impl ASTParser {
             );
             let shift = additive_expression.clone().reduce_left(
                 rp::seq!(op, additive_expression.clone()),
-                |lhs: Box<dyn Expression>,
-                 op: BinaryOperator,
-                 rhs: Box<dyn Expression>|
-                 -> Box<dyn Expression> {
-                    Box::new(ShiftExpression { op, lhs, rhs })
+                |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
+                    Expression::Shift(ExprShift {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             shift_expression.borrow_mut().assign(shift);
@@ -963,11 +995,12 @@ impl ASTParser {
             );
             let relational = shift_expression.clone().reduce_left(
                 rp::seq!(op, shift_expression.clone()),
-                |lhs: Box<dyn Expression>,
-                 op: BinaryOperator,
-                 rhs: Box<dyn Expression>|
-                 -> Box<dyn Expression> {
-                    Box::new(ComparisonExpression { op, lhs, rhs })
+                |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
+                    Expression::Comparison(ExprComparison {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             relational_expression.borrow_mut().assign(relational);
@@ -986,11 +1019,12 @@ impl ASTParser {
             );
             let equality = relational_expression.clone().reduce_left(
                 rp::seq!(op, relational_expression.clone()),
-                |lhs: Box<dyn Expression>,
-                 op: BinaryOperator,
-                 rhs: Box<dyn Expression>|
-                 -> Box<dyn Expression> {
-                    Box::new(ComparisonExpression { op, lhs, rhs })
+                |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
+                    Expression::Comparison(ExprComparison {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             equality_expression.borrow_mut().assign(equality);
@@ -1005,11 +1039,12 @@ impl ASTParser {
             let op = rp::one(Token::Ampersand).output(BinaryOperator::BitwiseAnd);
             let and = equality_expression.clone().reduce_left(
                 rp::seq!(op, equality_expression.clone()),
-                |lhs: Box<dyn Expression>,
-                 op: BinaryOperator,
-                 rhs: Box<dyn Expression>|
-                 -> Box<dyn Expression> {
-                    Box::new(BitwiseExpression { op, lhs, rhs })
+                |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
+                    Expression::Bitwise(ExprBitwise {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             and_expression.borrow_mut().assign(and);
@@ -1024,11 +1059,12 @@ impl ASTParser {
             let op = rp::one(Token::Caret).output(BinaryOperator::BitwiseXor);
             let xor = and_expression.clone().reduce_left(
                 rp::seq!(op, and_expression.clone()),
-                |lhs: Box<dyn Expression>,
-                 op: BinaryOperator,
-                 rhs: Box<dyn Expression>|
-                 -> Box<dyn Expression> {
-                    Box::new(BitwiseExpression { op, lhs, rhs })
+                |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
+                    Expression::Bitwise(ExprBitwise {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             exclusive_or_expression.borrow_mut().assign(xor);
@@ -1043,11 +1079,12 @@ impl ASTParser {
             let op = rp::one(Token::Pipe).output(BinaryOperator::BitwiseOr);
             let or = exclusive_or_expression.clone().reduce_left(
                 rp::seq!(op, exclusive_or_expression.clone()),
-                |lhs: Box<dyn Expression>,
-                 op: BinaryOperator,
-                 rhs: Box<dyn Expression>|
-                 -> Box<dyn Expression> {
-                    Box::new(BitwiseExpression { op, lhs, rhs })
+                |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
+                    Expression::Bitwise(ExprBitwise {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             inclusive_or_expression.borrow_mut().assign(or);
@@ -1062,11 +1099,12 @@ impl ASTParser {
             let op = rp::one(Token::AndOp).output(BinaryOperator::LogicalAnd);
             let logical_and = inclusive_or_expression.clone().reduce_left(
                 rp::seq!(op, inclusive_or_expression.clone()),
-                |lhs: Box<dyn Expression>,
-                 op: BinaryOperator,
-                 rhs: Box<dyn Expression>|
-                 -> Box<dyn Expression> {
-                    Box::new(LogicalBinaryExpression { op, lhs, rhs })
+                |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
+                    Expression::LogicalBinary(ExprLogicalBinary {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             logical_and_expression.borrow_mut().assign(logical_and);
@@ -1082,11 +1120,12 @@ impl ASTParser {
             let op = rp::one(Token::OrOp).output(BinaryOperator::LogicalOr);
             let logical_or = logical_and_expression.clone().reduce_left(
                 rp::seq!(op, logical_and_expression.clone()),
-                |lhs: Box<dyn Expression>,
-                 op: BinaryOperator,
-                 rhs: Box<dyn Expression>|
-                 -> Box<dyn Expression> {
-                    Box::new(LogicalBinaryExpression { op, lhs, rhs })
+                |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
+                    Expression::LogicalBinary(ExprLogicalBinary {
+                        op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             logical_or_expression.borrow_mut().assign(logical_or);
@@ -1102,29 +1141,25 @@ impl ASTParser {
                 logical_or_expression.clone(),
                 rp::seq!(
                     rp::one(Token::Question).void(),
-                    self.expression.clone().or_else(|| -> Box<dyn Expression> {
+                    self.expression.clone().or_else(|| -> Expression {
                         panic!("Invalid expression after '?' in conditional expression");
                     }),
                     rp::one(Token::Colon).void().or_else(|| -> () {
                         panic!("Colon ':' expected after '?' in conditional expression");
                     }),
-                    conditional_expression
-                        .clone()
-                        .or_else(|| -> Box<dyn Expression> {
-                            panic!("Invalid expression after ':' in conditional expression");
-                        })
+                    conditional_expression.clone().or_else(|| -> Expression {
+                        panic!("Invalid expression after ':' in conditional expression");
+                    })
                 )
                 .optional()
             )
             .map(
-                |cond: Box<dyn Expression>,
-                 truefalse: Option<(Box<dyn Expression>, Box<dyn Expression>)>|
-                 -> Box<dyn Expression> {
+                |cond: Expression, truefalse: Option<(Expression, Expression)>| -> Expression {
                     if let Some((true_expr, false_expr)) = truefalse {
-                        Box::new(ConditionalExpression {
-                            cond,
-                            then_expr: true_expr,
-                            else_expr: false_expr,
+                        Expression::Conditional(ExprConditional {
+                            cond: Box::new(cond),
+                            then_expr: Box::new(true_expr),
+                            else_expr: Box::new(false_expr),
                         })
                     } else {
                         cond
@@ -1177,14 +1212,18 @@ impl ASTParser {
                     self.assignment_expression.clone()
                 )
                 .map(
-                    |lhs: Box<dyn Expression>,
-                     op: BinaryOperator,
-                     rhs: Box<dyn Expression>|
-                     -> Box<dyn Expression> {
+                    |lhs: Expression, op: BinaryOperator, rhs: Expression| -> Expression {
                         if op == BinaryOperator::Assign {
-                            Box::new(AssignExpression { lhs, rhs })
+                            Expression::Assign(ExprAssign {
+                                lhs: Box::new(lhs),
+                                rhs: Box::new(rhs),
+                            })
                         } else {
-                            Box::new(AssignOpExpression { op, lhs, rhs })
+                            Expression::AssignOp(ExprAssignOp {
+                                op,
+                                lhs: Box::new(lhs),
+                                rhs: Box::new(rhs),
+                            })
                         }
                     }
                 ),
@@ -1201,8 +1240,11 @@ impl ASTParser {
             */
             let expression = self.assignment_expression.clone().reduce_left(
                 rp::seq!(rp::one(Token::Comma).void(), self.expression.clone()),
-                |lhs: Box<dyn Expression>, rhs: Box<dyn Expression>| -> Box<dyn Expression> {
-                    Box::new(CommaExpression { lhs, rhs })
+                |lhs: Expression, rhs: Expression| -> Expression {
+                    Expression::Comma(ExprComma {
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    })
                 },
             );
             self.expression.borrow_mut().assign(expression);
@@ -1224,22 +1266,20 @@ impl ASTParser {
             let initalizer_list = self
                 .initializer
                 .clone()
-                .map(|e: Box<dyn Expression>| -> Vec<Box<dyn Expression>> {
+                .map(|e: Expression| -> Vec<Expression> {
                     let mut ret = Vec::new();
                     ret.push(e);
                     ret
                 })
                 .reduce_left(
                     rp::seq!(rp::one(Token::Comma).void(), self.initializer.clone()),
-                    |mut v: Vec<Box<dyn Expression>>,
-                     e: Box<dyn Expression>|
-                     -> Vec<Box<dyn Expression>> {
+                    |mut v: Vec<Expression>, e: Expression| -> Vec<Expression> {
                         v.push(e);
                         v
                     },
                 )
-                .map(|v: Vec<Box<dyn Expression>>| -> Box<dyn Expression> {
-                    Box::new(InitializerListExpression { initializers: v })
+                .map(|v: Vec<Expression>| -> Expression {
+                    Expression::InitializerList(ExprInitializerList { initializers: v })
                 });
 
             let initializer_ = rp::or!(
@@ -1275,8 +1315,8 @@ impl ASTParser {
         ;
         */
         let direct_declarator_leaf = rp::or!(
-            identifier.clone().map(|s: String| -> Box<dyn Declarator> {
-                Box::new(IdentifierDeclarator { name: s })
+            identifier.clone().map(|s: String| -> Declarator {
+                Declarator::Identifier(DeclIdentifier { name: s })
             }),
             rp::seq!(
                 rp::one(Token::LeftParen).void(),
@@ -1285,7 +1325,7 @@ impl ASTParser {
             )
         );
         enum DirectDeclaratorType {
-            Array(Option<Box<dyn Expression>>),        // length
+            Array(Option<Expression>),                 // length
             Function(Vec<(Option<String>, TypeInfo)>), // parameters
         }
         let direct_declarator = direct_declarator_leaf.reduce_left(
@@ -1295,7 +1335,7 @@ impl ASTParser {
                     self.constant_expression.clone(),
                     rp::one(Token::RightBracket).void()
                 )
-                .map(|len: Box<dyn Expression>| -> DirectDeclaratorType {
+                .map(|len: Expression| -> DirectDeclaratorType {
                     DirectDeclaratorType::Array(Some(len))
                 }),
                 rp::seq!(
@@ -1319,21 +1359,25 @@ impl ASTParser {
                     }
                 )
             ),
-            |lhs: Box<dyn Declarator>, op: DirectDeclaratorType| -> Box<dyn Declarator> {
+            |lhs: Declarator, op: DirectDeclaratorType| -> Declarator {
                 match op {
                     DirectDeclaratorType::Array(Some(len)) => {
-                        Box::new(DirectArrayFixedDeclarator {
-                            declarator: lhs,
+                        Declarator::DirectArrayFixed(DeclDirectArrayFixed {
+                            declarator: Box::new(lhs),
                             size: len,
                         })
                     }
                     DirectDeclaratorType::Array(None) => {
-                        Box::new(DirectArrayUnboundedDeclarator { declarator: lhs })
+                        Declarator::DirectArrayUnbounded(DeclDirectArrayUnbounded {
+                            declarator: Box::new(lhs),
+                        })
                     }
-                    DirectDeclaratorType::Function(params) => Box::new(DirectFunctionDeclarator {
-                        declarator: lhs,
-                        params,
-                    }),
+                    DirectDeclaratorType::Function(params) => {
+                        Declarator::DirectFunction(DeclDirectFunction {
+                            declarator: Box::new(lhs),
+                            params,
+                        })
+                    }
                 }
             },
         );
@@ -1382,11 +1426,19 @@ impl ASTParser {
 
         let declarator_ = rp::or!(
             rp::seq!(self.pointer.clone(), direct_declarator.clone()).map(
-                |ptr: Vec<Token>, mut decl: Box<dyn Declarator>| -> Box<dyn Declarator> {
+                |ptr: Vec<Token>, mut decl: Declarator| -> Declarator {
                     for t in ptr.iter() {
                         match t {
-                            Token::Star => decl = Box::new(PointerDeclarator { declarator: decl }),
-                            Token::Const => decl = Box::new(ConstDeclarator { declarator: decl }),
+                            Token::Star => {
+                                decl = Declarator::Pointer(DeclPointer {
+                                    declarator: Box::new(decl),
+                                })
+                            }
+                            Token::Const => {
+                                decl = Declarator::Const(DeclConst {
+                                    declarator: Box::new(decl),
+                                })
+                            }
                             _ => unreachable!("Invalid token in pointer or const"),
                         }
                     }
@@ -1408,14 +1460,12 @@ impl ASTParser {
             self.declarator.clone(),
             rp::seq!(rp::one(Token::Equal).void(), self.initializer.clone()).optional()
         )
-        .map(
-            |decl: Box<dyn Declarator>, init: Option<Box<dyn Expression>>| -> Box<InitDeclarator> {
-                Box::new(InitDeclarator {
-                    declarator: decl,
-                    initializer: init,
-                })
-            },
-        );
+        .map(|decl: Declarator, init: Option<Expression>| -> DeclInit {
+            DeclInit {
+                declarator: Box::new(decl),
+                initializer: init,
+            }
+        });
         self.init_declarator.borrow_mut().assign(init_declarator_);
         {
             /*
@@ -1434,12 +1484,11 @@ impl ASTParser {
             */
 
             enum DirectAbstractDeclaratorLeaf {
-                Array(Option<Box<dyn Expression>>),
+                Array(Option<Expression>),
                 Function(Vec<(Option<String>, TypeInfo)>),
             }
-            let direct_abstract_declarator: Rc<
-                RefCell<rp::DynBoxSlice<(Box<dyn Declarator>,), Token>>,
-            > = Default::default();
+            let direct_abstract_declarator: Rc<RefCell<rp::DynBoxSlice<(Declarator,), Token>>> =
+                Default::default();
 
             let direct_abstract_declarator_leaf_array = rp::or!(
                 rp::seq!(
@@ -1454,7 +1503,7 @@ impl ASTParser {
                     self.constant_expression.clone(),
                     rp::one(Token::RightBracket).void()
                 )
-                .map(|len: Box<dyn Expression>| -> DirectAbstractDeclaratorLeaf {
+                .map(|len: Expression| -> DirectAbstractDeclaratorLeaf {
                     DirectAbstractDeclaratorLeaf::Array(Some(len))
                 })
             );
@@ -1490,20 +1539,22 @@ impl ASTParser {
             let direct_abstract_declarator_leaf = rp::or!(
                 direct_abstract_declarator_leaf_paren,
                 direct_abstract_declarator_decorator.clone().map(
-                    |op: DirectAbstractDeclaratorLeaf| -> Box<dyn Declarator> {
+                    |op: DirectAbstractDeclaratorLeaf| -> Declarator {
                         match op {
                             DirectAbstractDeclaratorLeaf::Array(len) => {
                                 if let Some(len) = len {
-                                    Box::new(AbstractArrayFixedDeclarator {
+                                    Declarator::AbstractArrayFixed(DeclAbstractArrayFixed {
                                         declarator: None,
                                         size: len,
                                     })
                                 } else {
-                                    Box::new(AbstractArrayUnboundedDeclarator { declarator: None })
+                                    Declarator::AbstractArrayUnbounded(DeclAbstractArrayUnbounded {
+                                        declarator: None,
+                                    })
                                 }
                             }
                             DirectAbstractDeclaratorLeaf::Function(params) => {
-                                Box::new(AbstractFunctionDeclarator {
+                                Declarator::AbstractFunction(DeclAbstractFunction {
                                     declarator: None,
                                     params,
                                 })
@@ -1515,25 +1566,23 @@ impl ASTParser {
 
             let direct_abstract_declarator_ = direct_abstract_declarator_leaf.reduce_left(
                 direct_abstract_declarator_decorator,
-                |lhs: Box<dyn Declarator>,
-                 op: DirectAbstractDeclaratorLeaf|
-                 -> Box<dyn Declarator> {
+                |lhs: Declarator, op: DirectAbstractDeclaratorLeaf| -> Declarator {
                     match op {
                         DirectAbstractDeclaratorLeaf::Array(len) => {
                             if let Some(len) = len {
-                                Box::new(AbstractArrayFixedDeclarator {
-                                    declarator: Some(lhs),
+                                Declarator::AbstractArrayFixed(DeclAbstractArrayFixed {
+                                    declarator: Some(Box::new(lhs)),
                                     size: len,
                                 })
                             } else {
-                                Box::new(AbstractArrayUnboundedDeclarator {
-                                    declarator: Some(lhs),
+                                Declarator::AbstractArrayUnbounded(DeclAbstractArrayUnbounded {
+                                    declarator: Some(Box::new(lhs)),
                                 })
                             }
                         }
                         DirectAbstractDeclaratorLeaf::Function(params) => {
-                            Box::new(AbstractFunctionDeclarator {
-                                declarator: Some(lhs),
+                            Declarator::AbstractFunction(DeclAbstractFunction {
+                                declarator: Some(Box::new(lhs)),
                                 params,
                             })
                         }
@@ -1554,24 +1603,25 @@ impl ASTParser {
                 self.pointer.clone(),
                 direct_abstract_declarator.clone().optional()
             )
-            .map(
-                |ptr: Vec<Token>, decl: Option<Box<dyn Declarator>>| -> Box<dyn Declarator> {
-                    let mut decl = decl;
-                    for t in ptr.iter() {
-                        match t {
-                            Token::Star => {
-                                decl =
-                                    Some(Box::new(AbstractPointerDeclarator { declarator: decl }));
-                            }
-                            Token::Const => {
-                                decl = Some(Box::new(AbstractConstDeclarator { declarator: decl }));
-                            }
-                            _ => unreachable!("Invalid token in pointer"),
+            .map(|ptr: Vec<Token>, decl: Option<Declarator>| -> Declarator {
+                let mut decl = decl;
+                for t in ptr.iter() {
+                    match t {
+                        Token::Star => {
+                            decl = Some(Declarator::AbstractPointer(DeclAbstractPointer {
+                                declarator: decl.map(Box::new),
+                            }));
                         }
+                        Token::Const => {
+                            decl = Some(Declarator::AbstractConst(DeclAbstractConst {
+                                declarator: decl.map(Box::new),
+                            }));
+                        }
+                        _ => unreachable!("Invalid token in pointer"),
                     }
-                    decl.unwrap()
-                },
-            );
+                }
+                decl.unwrap()
+            });
             let abstract_declarator_ = rp::or!(pointered, direct_abstract_declarator.clone());
             self.abstract_declarator
                 .borrow_mut()
@@ -1587,16 +1637,15 @@ impl ASTParser {
                 None
             }
         });
-        let labeled_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Statement>,), Token>>> =
+        let labeled_statement: Rc<RefCell<rp::DynBoxSlice<(Statement,), Token>>> =
             Default::default();
-        let expression_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Expression>,), Token>>> =
+        let expression_statement: Rc<RefCell<rp::DynBoxSlice<(Expression,), Token>>> =
             Default::default();
-        let selection_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Statement>,), Token>>> =
+        let selection_statement: Rc<RefCell<rp::DynBoxSlice<(Statement,), Token>>> =
             Default::default();
-        let iteration_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Statement>,), Token>>> =
+        let iteration_statement: Rc<RefCell<rp::DynBoxSlice<(Statement,), Token>>> =
             Default::default();
-        let jump_statement: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Statement>,), Token>>> =
-            Default::default();
+        let jump_statement: Rc<RefCell<rp::DynBoxSlice<(Statement,), Token>>> = Default::default();
 
         {
             let parameter_declaration = rp::seq!(
@@ -1608,28 +1657,28 @@ impl ASTParser {
                 .clone()
                 .map(
                     |typeinfo: TypeInfo,
-                     declarator: Option<Box<dyn Declarator>>|
-                     -> Vec<(TypeInfo, Option<Box<dyn Declarator>>)> {
+                     declarator: Option<Declarator>|
+                     -> Vec<(TypeInfo, Option<Declarator>)> {
                         vec![(typeinfo, declarator)]
                     },
                 )
                 .reduce_left(
                     rp::seq!(rp::one(Token::Comma).void(), parameter_declaration),
-                    |mut v: Vec<(TypeInfo, Option<Box<dyn Declarator>>)>,
+                    |mut v: Vec<(TypeInfo, Option<Declarator>)>,
                      typeinfo: TypeInfo,
-                     declarator: Option<Box<dyn Declarator>>|
-                     -> Vec<(TypeInfo, Option<Box<dyn Declarator>>)> {
+                     declarator: Option<Declarator>|
+                     -> Vec<(TypeInfo, Option<Declarator>)> {
                         v.push((typeinfo, declarator));
                         v
                     },
                 )
                 .map(
-                    |v: Vec<(TypeInfo, Option<Box<dyn Declarator>>)>| -> Vec<(Option<String>, TypeInfo)> {
+                    |v: Vec<(TypeInfo, Option<Declarator>)>| -> Vec<(Option<String>, TypeInfo)> {
                         let mut ret = Vec::new();
                         for (typeinfo, declarator) in v.into_iter() {
                             if let Some(declarator) = declarator {
-                                let (name, typeinfo_) = declarator
-                                    .resolve_typeinfo(typeinfo.clone());
+                                let (name, typeinfo_) =
+                                    declarator.resolve_typeinfo(typeinfo.clone());
                                 ret.push((name, typeinfo_));
                             } else {
                                 ret.push((None, typeinfo));
@@ -1653,11 +1702,9 @@ impl ASTParser {
             ;
             */
             let statement = rp::or!(
-                expression_statement
-                    .clone()
-                    .map(|expr| -> Box<dyn Statement> {
-                        Box::new(ExpressionStatement { expression: expr })
-                    }),
+                expression_statement.clone().map(|expr| -> Statement {
+                    Statement::Expression(StmtExpression { expression: expr })
+                }),
                 self.declaration.clone(),
                 labeled_statement.clone(),
                 self.compound_statement.clone(),
@@ -1679,51 +1726,47 @@ impl ASTParser {
                 rp::seq!(
                     identifier,
                     rp::one(Token::Colon).void(),
-                    self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                    self.statement.clone().or_else(|| -> Statement {
                         panic!("Invalid Statement after label");
                     })
                 )
-                .map(
-                    |s: String, stmt: Box<dyn Statement>| -> Box<dyn Statement> {
-                        Box::new(LabeledStatement {
-                            label: s,
-                            statement: stmt,
-                        })
-                    }
-                ),
+                .map(|s: String, stmt: Statement| -> Statement {
+                    Statement::Labeled(StmtLabeled {
+                        label: s,
+                        statement: Box::new(stmt),
+                    })
+                }),
                 rp::seq!(
                     rp::one(Token::Case).void(),
-                    self.constant_expression
-                        .clone()
-                        .or_else(|| -> Box<dyn Expression> {
-                            panic!("Invalid expression after 'case'");
-                        }),
+                    self.constant_expression.clone().or_else(|| -> Expression {
+                        panic!("Invalid expression after 'case'");
+                    }),
                     rp::one(Token::Colon).void().or_else(|| -> () {
                         panic!(": is expected after 'case'");
                     }),
-                    self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                    self.statement.clone().or_else(|| -> Statement {
                         panic!("Invalid Statement after 'case'");
                     })
                 )
-                .map(
-                    |expr: Box<dyn Expression>, stmt: Box<dyn Statement>| -> Box<dyn Statement> {
-                        Box::new(CaseStatement {
-                            value: expr,
-                            statement: stmt,
-                        })
-                    }
-                ),
+                .map(|expr: Expression, stmt: Statement| -> Statement {
+                    Statement::Case(StmtCase {
+                        value: expr,
+                        statement: Box::new(stmt),
+                    })
+                }),
                 rp::seq!(
                     rp::one(Token::Default).void(),
                     rp::one(Token::Colon).void().or_else(|| -> () {
                         panic!(": is expected after 'default'");
                     }),
-                    self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                    self.statement.clone().or_else(|| -> Statement {
                         panic!("Invalid Statement after 'default'");
                     })
                 )
-                .map(|stmt: Box<dyn Statement>| -> Box<dyn Statement> {
-                    Box::new(DefaultStatement { statement: stmt })
+                .map(|stmt: Statement| -> Statement {
+                    Statement::Default(StmtDefault {
+                        statement: Box::new(stmt),
+                    })
                 })
             );
             labeled_statement.borrow_mut().assign(labeled_statement_);
@@ -1737,13 +1780,14 @@ impl ASTParser {
 
             let compound_statement_ = rp::seq!(
                 rp::one(Token::LeftBrace).void(),
-                self.statement.clone().repeat(0..).map(
-                    |compound: Vec<Box<dyn Statement>>| -> Box<dyn Statement> {
-                        Box::new(CompoundStatement {
+                self.statement
+                    .clone()
+                    .repeat(0..)
+                    .map(|compound: Vec<Statement>| -> Statement {
+                        Statement::Compound(StmtCompound {
                             statements: compound,
                         })
-                    }
-                ),
+                    }),
                 rp::one(Token::RightBrace).void()
             );
             self.compound_statement
@@ -1762,11 +1806,11 @@ impl ASTParser {
                 self.expression.clone().optional(),
                 rp::one(Token::SemiColon).void()
             )
-            .map(|expr: Option<Box<dyn Expression>>| -> Box<dyn Expression> {
+            .map(|expr: Option<Expression>| -> Expression {
                 if let Some(expr) = expr {
                     expr
                 } else {
-                    Box::new(VoidExpression {})
+                    Expression::Void(ExprVoid {})
                 }
             });
             expression_statement
@@ -1787,32 +1831,32 @@ impl ASTParser {
                     rp::one(Token::LeftParen).void().or_else(|| -> () {
                         panic!("'(' is expected after 'if'");
                     }),
-                    self.expression.clone().or_else(|| -> Box<dyn Expression> {
+                    self.expression.clone().or_else(|| -> Expression {
                         panic!("Invalid expression after 'if'");
                     }),
                     rp::one(Token::RightParen).void().or_else(|| -> () {
                         panic!("')' is expected after 'if'");
                     }),
-                    self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                    self.statement.clone().or_else(|| -> Statement {
                         panic!("Invalid body statement after 'if'");
                     }),
                     rp::seq!(
                         rp::one(Token::Else).void(),
-                        self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                        self.statement.clone().or_else(|| -> Statement {
                             panic!("Invalid body statement after 'else'");
                         })
                     )
                     .optional()
                 )
                 .map(
-                    |cond: Box<dyn Expression>,
-                     stmt: Box<dyn Statement>,
-                     else_stmt: Option<Box<dyn Statement>>|
-                     -> Box<dyn Statement> {
-                        Box::new(IfStatement {
+                    |cond: Expression,
+                     stmt: Statement,
+                     else_stmt: Option<Statement>|
+                     -> Statement {
+                        Statement::If(StmtIf {
                             cond,
-                            then_statement: stmt,
-                            else_statement: else_stmt,
+                            then_statement: Box::new(stmt),
+                            else_statement: else_stmt.map(Box::new),
                         })
                     }
                 ),
@@ -1821,24 +1865,22 @@ impl ASTParser {
                     rp::one(Token::LeftParen).void().or_else(|| -> () {
                         panic!("'(' is expected after 'switch'");
                     }),
-                    self.expression.clone().or_else(|| -> Box<dyn Expression> {
+                    self.expression.clone().or_else(|| -> Expression {
                         panic!("Invalid expression after 'switch'");
                     }),
                     rp::one(Token::RightParen).void().or_else(|| -> () {
                         panic!("')' is expected after 'switch'");
                     }),
-                    self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                    self.statement.clone().or_else(|| -> Statement {
                         panic!("Invalid body statement after 'switch'");
                     })
                 )
-                .map(
-                    |target: Box<dyn Expression>, stmt: Box<dyn Statement>| -> Box<dyn Statement> {
-                        Box::new(SwitchStatement {
-                            target,
-                            statement: stmt,
-                        })
-                    }
-                )
+                .map(|target: Expression, stmt: Statement| -> Statement {
+                    Statement::Switch(StmtSwitch {
+                        target,
+                        statement: Box::new(stmt),
+                    })
+                })
             );
             selection_statement
                 .borrow_mut()
@@ -1859,35 +1901,33 @@ impl ASTParser {
                 rp::one(Token::LeftParen).void().or_else(|| -> () {
                     panic!("'(' is expected after 'while'");
                 }),
-                self.expression.clone().or_else(|| -> Box<dyn Expression> {
+                self.expression.clone().or_else(|| -> Expression {
                     panic!("Invalid expression after 'while'");
                 }),
                 rp::one(Token::RightParen).void().or_else(|| -> () {
                     panic!("')' is expected after 'while'");
                 }),
-                self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                self.statement.clone().or_else(|| -> Statement {
                     panic!("Invalid body statement after 'while'");
                 })
             )
-            .map(
-                |cond: Box<dyn Expression>, stmt: Box<dyn Statement>| -> Box<dyn Statement> {
-                    Box::new(WhileStatement {
-                        cond,
-                        statement: stmt,
-                    })
-                },
-            );
+            .map(|cond: Expression, stmt: Statement| -> Statement {
+                Statement::While(StmtWhile {
+                    cond,
+                    statement: Box::new(stmt),
+                })
+            });
 
             let do_while_statement = rp::seq!(
                 rp::one(Token::Do).void(),
-                self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                self.statement.clone().or_else(|| -> Statement {
                     panic!("Invalid body statement for 'do-while'");
                 }),
                 rp::one(Token::While).void(),
                 rp::one(Token::LeftParen).void().or_else(|| -> () {
                     panic!("'(' is expected after 'do-while'");
                 }),
-                self.expression.clone().or_else(|| -> Box<dyn Expression> {
+                self.expression.clone().or_else(|| -> Expression {
                     panic!("Invalid expression after 'do-while'");
                 }),
                 rp::one(Token::RightParen).void().or_else(|| -> () {
@@ -1897,49 +1937,43 @@ impl ASTParser {
                     panic!("';' is expected after 'do-while'");
                 })
             )
-            .map(
-                |stmt: Box<dyn Statement>, cond: Box<dyn Expression>| -> Box<dyn Statement> {
-                    Box::new(DoWhileStatement {
-                        cond,
-                        statement: stmt,
-                    })
-                },
-            );
+            .map(|stmt: Statement, cond: Expression| -> Statement {
+                Statement::DoWhile(StmtDoWhile {
+                    cond,
+                    statement: Box::new(stmt),
+                })
+            });
 
             let for_statement = rp::seq!(
                 rp::one(Token::For).void(),
                 rp::one(Token::LeftParen).void().or_else(|| -> () {
                     panic!("'(' is expected after 'for'");
                 }),
-                expression_statement
-                    .clone()
-                    .or_else(|| -> Box<dyn Expression> {
-                        panic!("Invalid 1st statement for 'for' statement");
-                    }),
-                expression_statement
-                    .clone()
-                    .or_else(|| -> Box<dyn Expression> {
-                        panic!("Invalid 2nd statement for 'for' statement");
-                    }),
+                expression_statement.clone().or_else(|| -> Expression {
+                    panic!("Invalid 1st statement for 'for' statement");
+                }),
+                expression_statement.clone().or_else(|| -> Expression {
+                    panic!("Invalid 2nd statement for 'for' statement");
+                }),
                 self.expression.clone().optional(),
                 rp::one(Token::RightParen).void().or_else(|| -> () {
                     panic!("')' is expected after 'for'");
                 }),
-                self.statement.clone().or_else(|| -> Box<dyn Statement> {
+                self.statement.clone().or_else(|| -> Statement {
                     panic!("Invalid body statement for 'for' statement");
                 })
             )
             .map(
-                |init: Box<dyn Expression>,
-                 cond: Box<dyn Expression>,
-                 next: Option<Box<dyn Expression>>,
-                 stmt: Box<dyn Statement>|
-                 -> Box<dyn Statement> {
-                    Box::new(ForStatement {
+                |init: Expression,
+                 cond: Expression,
+                 next: Option<Expression>,
+                 stmt: Statement|
+                 -> Statement {
+                    Statement::For(StmtFor {
                         init,
                         cond,
                         next,
-                        statement: stmt,
+                        statement: Box::new(stmt),
                     })
                 },
             );
@@ -1970,7 +2004,7 @@ impl ASTParser {
                     panic!("';' is expected after 'goto'");
                 })
             )
-            .map(|s: String| -> Box<dyn Statement> { Box::new(GotoStatement { label: s }) });
+            .map(|s: String| -> Statement { Statement::Goto(StmtGoto { label: s }) });
 
             let continue_statement = rp::seq!(
                 rp::one(Token::Continue).void(),
@@ -1978,7 +2012,7 @@ impl ASTParser {
                     panic!("';' is expected after 'continue'");
                 })
             )
-            .map(|| -> Box<dyn Statement> { Box::new(ContinueStatement {}) });
+            .map(|| -> Statement { Statement::Continue(StmtContinue {}) });
 
             let break_statement = rp::seq!(
                 rp::one(Token::Break).void(),
@@ -1986,7 +2020,7 @@ impl ASTParser {
                     panic!("';' is expected after 'break'");
                 })
             )
-            .map(|| -> Box<dyn Statement> { Box::new(BreakStatement {}) });
+            .map(|| -> Statement { Statement::Break(StmtBreak {}) });
 
             let return_statement = rp::seq!(
                 rp::one(Token::Return).void(),
@@ -1995,8 +2029,8 @@ impl ASTParser {
                     panic!("';' is expected after 'return'");
                 })
             )
-            .map(|expr: Option<Box<dyn Expression>>| -> Box<dyn Statement> {
-                Box::new(ReturnStatement { expr })
+            .map(|expr: Option<Expression>| -> Statement {
+                Statement::Return(StmtReturn { expr })
             });
 
             let jump_statement_ = rp::or!(
@@ -2019,16 +2053,14 @@ impl ASTParser {
             let init_declarator_list = self
                 .init_declarator
                 .clone()
-                .map(|e: Box<InitDeclarator>| -> Vec<Box<InitDeclarator>> {
+                .map(|e: DeclInit| -> Vec<DeclInit> {
                     let mut ret = Vec::new();
                     ret.push(e);
                     ret
                 })
                 .reduce_left(
                     rp::seq!(rp::one(Token::Comma).void(), self.init_declarator.clone()),
-                    |mut v: Vec<Box<InitDeclarator>>,
-                     e: Box<InitDeclarator>|
-                     -> Vec<Box<InitDeclarator>> {
+                    |mut v: Vec<DeclInit>, e: DeclInit| -> Vec<DeclInit> {
                         v.push(e);
                         v
                     },
@@ -2046,9 +2078,7 @@ impl ASTParser {
                 rp::one(Token::SemiColon).void()
             )
             .map(
-                |typeinfo: TypeInfo,
-                 decls: Option<Vec<Box<InitDeclarator>>>|
-                 -> Box<dyn Statement> {
+                |typeinfo: TypeInfo, decls: Option<Vec<DeclInit>>| -> Statement {
                     if let Some(decls) = decls {
                         // variable definition
                         let mut ret = Vec::with_capacity(decls.len());
@@ -2063,17 +2093,17 @@ impl ASTParser {
                         // check if it's a function declaration
                         if ret.len() == 1 {
                             if let TypeInfo::Function(return_type, params) = &ret[0].1 {
-                                return Box::new(FunctionDeclaration {
+                                return Statement::FunctionDeclaration(StmtFunctionDeclaration {
                                     name: ret[0].0.clone(),
                                     return_type: *return_type.clone(),
                                     params: params.clone(),
                                 });
                             }
                         }
-                        Box::new(DeclarationStatement { vars: ret })
+                        Statement::Declaration(StmtDeclaration { vars: ret })
                     } else {
                         // type definition
-                        Box::new(TypeDefinition { typeinfo })
+                        Statement::StructDefinition(StmtStructDefinition { typeinfo })
                     }
                 },
             );
@@ -2082,32 +2112,28 @@ impl ASTParser {
                 self.type_specifier.clone().or_else(|| -> TypeInfo {
                     panic!("Typedef must have a type specifier");
                 }),
-                init_declarator_list
-                    .clone()
-                    .or_else(|| -> Vec<Box<InitDeclarator>> {
-                        panic!("Typedef must have a declarator");
-                    }),
+                init_declarator_list.clone().or_else(|| -> Vec<DeclInit> {
+                    panic!("Typedef must have a declarator");
+                }),
                 rp::one(Token::SemiColon).void().or_else(|| -> () {
                     panic!("';' is expected after 'typedef'");
                 })
             )
-            .map(
-                |typeinfo: TypeInfo, decls: Vec<Box<InitDeclarator>>| -> Box<dyn Statement> {
-                    if decls.len() != 1 {
-                        panic!("Typedef declaration must have exactly one declarator");
-                    }
-                    let decl = &decls[0];
-                    if decl.initializer.is_some() {
-                        panic!("Typedef declaration cannot have initializer");
-                    }
-                    let (name, typeinfo) = decl.declarator.resolve_typeinfo(typeinfo);
+            .map(|typeinfo: TypeInfo, decls: Vec<DeclInit>| -> Statement {
+                if decls.len() != 1 {
+                    panic!("Typedef declaration must have exactly one declarator");
+                }
+                let decl = &decls[0];
+                if decl.initializer.is_some() {
+                    panic!("Typedef declaration cannot have initializer");
+                }
+                let (name, typeinfo) = decl.declarator.resolve_typeinfo(typeinfo);
 
-                    Box::new(TypedefStatement {
-                        name: name.expect("Typedef must have a target name"),
-                        typeinfo,
-                    })
-                },
-            );
+                Statement::Typedef(StmtTypedef {
+                    name: name.expect("Typedef must have a target name"),
+                    typeinfo,
+                })
+            });
             self.declaration
                 .borrow_mut()
                 .assign(rp::or!(declaration, typedef_declaration));
@@ -2115,7 +2141,7 @@ impl ASTParser {
     }
 
     fn translation_unit_parser(&mut self) {
-        let function_definition: Rc<RefCell<rp::DynBoxSlice<(Box<dyn Statement>,), Token>>> =
+        let function_definition: Rc<RefCell<rp::DynBoxSlice<(Statement,), Token>>> =
             Default::default();
         {
             /*
@@ -2134,11 +2160,12 @@ impl ASTParser {
             let external_declaration =
                 rp::or!(function_definition.clone(), self.declaration.clone());
 
-            let translation_unit_ = external_declaration.repeat(1..).map(
-                |decls: Vec<Box<dyn Statement>>| -> Box<TranslationUnit> {
-                    Box::new(TranslationUnit { statements: decls })
-                },
-            );
+            let translation_unit_ =
+                external_declaration
+                    .repeat(1..)
+                    .map(|decls: Vec<Statement>| -> TranslationUnit {
+                        TranslationUnit { statements: decls }
+                    });
             self.translation_unit.borrow_mut().assign(translation_unit_);
         }
         {
@@ -2157,23 +2184,26 @@ impl ASTParser {
             )
             .map(
                 |returntype: Option<TypeInfo>,
-                 decl: Box<dyn Declarator>,
-                 stmt: Box<dyn Statement>|
-                 -> Box<dyn Statement> {
-                    let direct_func_decl = decl
-                        .as_any()
-                        .downcast_ref::<DirectFunctionDeclarator>()
-                        .expect("Function definition must have a function declarator");
-                    let name = &direct_func_decl
-                        .declarator
-                        .as_any()
-                        .downcast_ref::<IdentifierDeclarator>()
-                        .expect("Function definition must have a function declarator with an identifier").name;
-                    Box::new(FunctionDefinitionStatement {
+                 decl: Declarator,
+                 stmt: Statement|
+                 -> Statement {
+                    let direct_func_decl = match decl {
+                        Declarator::DirectFunction(direct_func_decl) => direct_func_decl,
+                        _ => {
+                            unreachable!("Function definition must have a function declarator");
+                        }
+                    };
+                    let name = match &*direct_func_decl.declarator {
+                        Declarator::Identifier(decl) => decl.name.clone(),
+                        _ => {
+                            unreachable!("Function definition must have a function declarator with an identifier");
+                        }
+                    };
+                    Statement::FunctionDefinition(StmtFunctionDefinition{
                         return_type: returntype.or(Some(TypeInfo::Void)).unwrap(),
                         name: name.clone(),
                         params: direct_func_decl.params.clone(),
-                        body: stmt,
+                        body: Box::new(stmt),
                     })
                 },
             );

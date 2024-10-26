@@ -1,14 +1,12 @@
 use std::io::{stdin, stdout, Read, Write};
 
 use virtualmachine::instruction::generation::InstructionGenerator;
-use virtualmachine::program::VirtualProgram;
+use virtualmachine::program::VirtualMachine;
 
 mod ast;
 mod preprocess;
 mod token;
 mod virtualmachine;
-
-use ast::statement::Statement;
 
 fn main() {
     println!("Enter your code (and ^D for EOF):");
@@ -100,8 +98,8 @@ fn main() {
     println!("{:=^80}", "");
     println!("{:=^80}", "Phase6: Executing Instructions");
     println!("{:=^80}", "");
-    let mut program: VirtualProgram = VirtualProgram::new();
-    program.execute(&mut instructions);
+    let mut vm: VirtualMachine = VirtualMachine::new();
+    vm.execute(&mut instructions);
 
     stdout().flush().expect("Failed to flush stdout");
 }

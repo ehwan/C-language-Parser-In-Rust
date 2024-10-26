@@ -1,106 +1,228 @@
 use super::typename::TypeInfo;
-use crate::virtualmachine::instruction::binary::*;
 use crate::virtualmachine::instruction::generation::InstructionGenerator;
 use crate::virtualmachine::instruction::generation::VariableOffset;
 use crate::virtualmachine::instruction::operand::Operand;
-use crate::virtualmachine::instruction::unary::*;
 use crate::virtualmachine::instruction::*;
 use crate::virtualmachine::program::STACK_POINTER_BASE_REGISTER;
 use crate::virtualmachine::program::STACK_POINTER_REGISTER;
 use crate::virtualmachine::program::TEXT_SIZE_REGISTER;
 use crate::virtualmachine::variable::VariableData;
 
-use core::panic;
-use std::any::Any;
+#[derive(Debug, Clone)]
+pub enum Expression {
+    Void(ExprVoid),
+    PrimaryIdentifier(ExprPrimaryIdentifier),
+    PostMember(ExprPostMember),
+    ConstantInteger(ExprConstantInteger),
+    ConstantUnsignedInteger(ExprConstantUnsignedInteger),
+    ConstantCharacter(ExprConstantCharacter),
+    ConstantLong(ExprConstantLong),
+    ConstantUnsignedLong(ExprConstantUnsignedLong),
+    ConstantFloat(ExprConstantFloat),
+    ConstantDouble(ExprConstantDouble),
+    StringLiteral(ExprString),
+    PostBracket(ExprPostBracket),
+    PostParen(ExprPostParen),
+    PostIncrement(ExprPostIncrement),
+    PostDecrement(ExprPostDecrement),
+    Cast(ExprCast),
+    SizeofType(ExprSizeOfType),
+    SizeofExpr(ExprSizeOfExpr),
+    Unary(ExprUnary),
+    LogicalBinary(ExprLogicalBinary),
+    Comparison(ExprComparison),
+    Assign(ExprAssign),
+    AssignOp(ExprAssignOp),
 
-/// base trait for all expressions
-pub trait Expression: std::fmt::Debug + Any {
-    /// push instruction that eval expression and store result in rax (register0)
-    fn emit(&self, instructions: &mut InstructionGenerator);
+    Additive(ExprAdditive),
+    Multiplicative(ExprMultiplicative),
+    Shift(ExprShift),
+    Bitwise(ExprBitwise),
+    PostArrow(ExprPostArrow),
+    Conditional(ExprConditional),
+    Comma(ExprComma),
+    InitializerList(ExprInitializerList),
+}
 
-    fn as_any(&self) -> &dyn Any;
-
-    /// true if this expression returns reference;
-    /// note C language does not have reference,
-    /// but I use the term 'reference' to represent the expression that returns address of variable
-    /// so it must be dereferenced to get the value
-    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool;
-
-    /// if this expression is compile-time evaluable, return the value
-    fn get_constant_i64(&self) -> Result<i64, String> {
-        Err(format!("get_constant_i64 not implemented for {:?}", self))
+impl Expression {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        match self {
+            Expression::Void(expr) => expr.emit(instructions),
+            Expression::PrimaryIdentifier(expr) => expr.emit(instructions),
+            Expression::PostMember(expr) => expr.emit(instructions),
+            Expression::ConstantInteger(expr) => expr.emit(instructions),
+            Expression::ConstantUnsignedInteger(expr) => expr.emit(instructions),
+            Expression::ConstantCharacter(expr) => expr.emit(instructions),
+            Expression::ConstantLong(expr) => expr.emit(instructions),
+            Expression::ConstantUnsignedLong(expr) => expr.emit(instructions),
+            Expression::ConstantFloat(expr) => expr.emit(instructions),
+            Expression::ConstantDouble(expr) => expr.emit(instructions),
+            Expression::StringLiteral(expr) => expr.emit(instructions),
+            Expression::PostBracket(expr) => expr.emit(instructions),
+            Expression::PostParen(expr) => expr.emit(instructions),
+            Expression::PostIncrement(expr) => expr.emit(instructions),
+            Expression::PostDecrement(expr) => expr.emit(instructions),
+            Expression::Cast(expr) => expr.emit(instructions),
+            Expression::SizeofType(expr) => expr.emit(instructions),
+            Expression::SizeofExpr(expr) => expr.emit(instructions),
+            Expression::Unary(expr) => expr.emit(instructions),
+            Expression::LogicalBinary(expr) => expr.emit(instructions),
+            Expression::Comparison(expr) => expr.emit(instructions),
+            Expression::Assign(expr) => expr.emit(instructions),
+            Expression::AssignOp(expr) => expr.emit(instructions),
+            Expression::Additive(expr) => expr.emit(instructions),
+            Expression::Multiplicative(expr) => expr.emit(instructions),
+            Expression::Shift(expr) => expr.emit(instructions),
+            Expression::Bitwise(expr) => expr.emit(instructions),
+            Expression::PostArrow(expr) => expr.emit(instructions),
+            Expression::Conditional(expr) => expr.emit(instructions),
+            Expression::Comma(expr) => expr.emit(instructions),
+            Expression::InitializerList(expr) => expr.emit(instructions),
+        }
     }
-
-    /// get typeinfo of this expression
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo;
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        match self {
+            Expression::Void(expr) => expr.get_typeinfo(instructions),
+            Expression::PrimaryIdentifier(expr) => expr.get_typeinfo(instructions),
+            Expression::PostMember(expr) => expr.get_typeinfo(instructions),
+            Expression::ConstantInteger(expr) => expr.get_typeinfo(instructions),
+            Expression::ConstantUnsignedInteger(expr) => expr.get_typeinfo(instructions),
+            Expression::ConstantCharacter(expr) => expr.get_typeinfo(instructions),
+            Expression::ConstantLong(expr) => expr.get_typeinfo(instructions),
+            Expression::ConstantUnsignedLong(expr) => expr.get_typeinfo(instructions),
+            Expression::ConstantFloat(expr) => expr.get_typeinfo(instructions),
+            Expression::ConstantDouble(expr) => expr.get_typeinfo(instructions),
+            Expression::StringLiteral(expr) => expr.get_typeinfo(instructions),
+            Expression::PostBracket(expr) => expr.get_typeinfo(instructions),
+            Expression::PostParen(expr) => expr.get_typeinfo(instructions),
+            Expression::PostIncrement(expr) => expr.get_typeinfo(instructions),
+            Expression::PostDecrement(expr) => expr.get_typeinfo(instructions),
+            Expression::Cast(expr) => expr.get_typeinfo(instructions),
+            Expression::SizeofType(expr) => expr.get_typeinfo(instructions),
+            Expression::SizeofExpr(expr) => expr.get_typeinfo(instructions),
+            Expression::Unary(expr) => expr.get_typeinfo(instructions),
+            Expression::LogicalBinary(expr) => expr.get_typeinfo(instructions),
+            Expression::Comparison(expr) => expr.get_typeinfo(instructions),
+            Expression::Assign(expr) => expr.get_typeinfo(instructions),
+            Expression::AssignOp(expr) => expr.get_typeinfo(instructions),
+            Expression::Additive(expr) => expr.get_typeinfo(instructions),
+            Expression::Multiplicative(expr) => expr.get_typeinfo(instructions),
+            Expression::Shift(expr) => expr.get_typeinfo(instructions),
+            Expression::Bitwise(expr) => expr.get_typeinfo(instructions),
+            Expression::PostArrow(expr) => expr.get_typeinfo(instructions),
+            Expression::Conditional(expr) => expr.get_typeinfo(instructions),
+            Expression::Comma(expr) => expr.get_typeinfo(instructions),
+            Expression::InitializerList(expr) => expr.get_typeinfo(instructions),
+        }
+    }
+    pub fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+        match self {
+            Expression::Void(expr) => expr.is_return_reference(instructions),
+            Expression::PrimaryIdentifier(expr) => expr.is_return_reference(instructions),
+            Expression::PostMember(expr) => expr.is_return_reference(instructions),
+            Expression::ConstantInteger(expr) => expr.is_return_reference(instructions),
+            Expression::ConstantUnsignedInteger(expr) => expr.is_return_reference(instructions),
+            Expression::ConstantCharacter(expr) => expr.is_return_reference(instructions),
+            Expression::ConstantLong(expr) => expr.is_return_reference(instructions),
+            Expression::ConstantUnsignedLong(expr) => expr.is_return_reference(instructions),
+            Expression::ConstantFloat(expr) => expr.is_return_reference(instructions),
+            Expression::ConstantDouble(expr) => expr.is_return_reference(instructions),
+            Expression::StringLiteral(expr) => expr.is_return_reference(instructions),
+            Expression::PostBracket(expr) => expr.is_return_reference(instructions),
+            Expression::PostParen(expr) => expr.is_return_reference(instructions),
+            Expression::PostIncrement(expr) => expr.is_return_reference(instructions),
+            Expression::PostDecrement(expr) => expr.is_return_reference(instructions),
+            Expression::Cast(expr) => expr.is_return_reference(instructions),
+            Expression::SizeofType(expr) => expr.is_return_reference(instructions),
+            Expression::SizeofExpr(expr) => expr.is_return_reference(instructions),
+            Expression::Unary(expr) => expr.is_return_reference(instructions),
+            Expression::LogicalBinary(expr) => expr.is_return_reference(instructions),
+            Expression::Comparison(expr) => expr.is_return_reference(instructions),
+            Expression::Assign(expr) => expr.is_return_reference(instructions),
+            Expression::AssignOp(expr) => expr.is_return_reference(instructions),
+            Expression::Additive(expr) => expr.is_return_reference(instructions),
+            Expression::Multiplicative(expr) => expr.is_return_reference(instructions),
+            Expression::Shift(expr) => expr.is_return_reference(instructions),
+            Expression::Bitwise(expr) => expr.is_return_reference(instructions),
+            Expression::PostArrow(expr) => expr.is_return_reference(instructions),
+            Expression::Conditional(expr) => expr.is_return_reference(instructions),
+            Expression::Comma(expr) => expr.is_return_reference(instructions),
+            Expression::InitializerList(expr) => expr.is_return_reference(instructions),
+        }
+    }
+    pub fn get_constant_i64(&self) -> Result<i64, String> {
+        match self {
+            Expression::ConstantInteger(expr) => expr.get_constant_i64(),
+            Expression::ConstantUnsignedInteger(expr) => expr.get_constant_i64(),
+            Expression::ConstantCharacter(expr) => expr.get_constant_i64(),
+            Expression::ConstantLong(expr) => expr.get_constant_i64(),
+            Expression::ConstantUnsignedLong(expr) => expr.get_constant_i64(),
+            Expression::SizeofType(expr) => expr.get_constant_i64(),
+            _ => Err("Not a constant expression".to_string()),
+        }
+    }
 }
 
 /// expression that always returns true int32(1)
 #[derive(Debug, Clone)]
-pub struct VoidExpression {}
-impl Expression for VoidExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(MoveRegister {
+pub struct ExprVoid {}
+impl ExprVoid {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::Int32(1)),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int32
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// for variable
 #[derive(Debug, Clone)]
-pub struct PrimaryIdentifier {
+pub struct ExprPrimaryIdentifier {
     pub name: String,
 }
 // push pointer
-impl Expression for PrimaryIdentifier {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprPrimaryIdentifier {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let offset = instructions
             .search_variable(&self.name)
             .expect(format!("Variable {} not found", self.name).as_str())
             .1;
         match offset {
             VariableOffset::Global(absolute_offset) => {
-                instructions.push(MoveRegister {
+                instructions.push(Instruction::MoveRegister(MoveRegister {
                     operand_from: Operand::Value(VariableData::UInt64(absolute_offset as u64)),
                     operand_to: Operand::Register(0),
-                });
-                instructions.push(AddAssign {
+                }));
+                instructions.push(Instruction::AddAssign(AddAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(TEXT_SIZE_REGISTER),
-                });
+                }));
             }
             VariableOffset::Local(relative_offset) => {
-                instructions.push(MoveRegister {
+                instructions.push(Instruction::MoveRegister(MoveRegister {
                     operand_from: Operand::Register(STACK_POINTER_BASE_REGISTER),
                     operand_to: Operand::Register(0),
-                });
-                instructions.push(AddAssign {
+                }));
+                instructions.push(Instruction::AddAssign(AddAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Value(VariableData::Int64(relative_offset as i64)),
-                });
+                }));
             }
         }
     }
-    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         match self.get_typeinfo(instructions).remove_const() {
             TypeInfo::Array(_, _) => false,
             _ => true,
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         instructions
             .search_variable(&self.name)
             .expect(format!("Variable {} not found", self.name).as_str())
@@ -109,13 +231,13 @@ impl Expression for PrimaryIdentifier {
 }
 
 /// for struct member access
-#[derive(Debug)]
-pub struct PostMember {
-    pub src: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct ExprPostMember {
+    pub src: Box<Expression>,
     pub member: String,
 }
-impl Expression for PostMember {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprPostMember {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let member_offset = match self.src.get_typeinfo(instructions).remove_const() {
             TypeInfo::Struct(sinfo) => {
                 let mut member_offset: Option<usize> = None;
@@ -130,15 +252,12 @@ impl Expression for PostMember {
             _ => panic!("PostMember on non-struct type"),
         };
         self.src.emit(instructions);
-        instructions.push(AddAssign {
+        instructions.push(Instruction::AddAssign(AddAssign {
             lhs: Operand::Register(0),
             rhs: Operand::Value(VariableData::UInt64(member_offset as u64)),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         let src_type = self.src.get_typeinfo(instructions);
         match src_type.remove_const() {
             TypeInfo::Struct(sinfo) => {
@@ -160,7 +279,7 @@ impl Expression for PostMember {
             _ => panic!("PostMember on non-struct type"),
         }
     }
-    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         match self.get_typeinfo(instructions).remove_const() {
             TypeInfo::Array(_, _) => false,
             _ => true,
@@ -170,187 +289,166 @@ impl Expression for PostMember {
 
 /// constant integer
 #[derive(Debug, Clone)]
-pub struct ConstantInteger {
+pub struct ExprConstantInteger {
     pub value: i32,
 }
-impl Expression for ConstantInteger {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(MoveRegister {
+impl ExprConstantInteger {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::Int32(self.value)),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_constant_i64(&self) -> Result<i64, String> {
+    pub fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.value as i64)
     }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int32
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// constant unsigned integer
 #[derive(Debug, Clone)]
-pub struct ConstantUnsignedInteger {
+pub struct ExprConstantUnsignedInteger {
     pub value: u32,
 }
-impl Expression for ConstantUnsignedInteger {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(MoveRegister {
+impl ExprConstantUnsignedInteger {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::UInt32(self.value)),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_constant_i64(&self) -> Result<i64, String> {
+    pub fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.value as i64)
     }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt32
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// 'c' character
 #[derive(Debug, Clone)]
-pub struct ConstantCharacter {
+pub struct ExprConstantCharacter {
     pub value: i8,
 }
-impl Expression for ConstantCharacter {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(MoveRegister {
+impl ExprConstantCharacter {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::Int8(self.value)),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_constant_i64(&self) -> Result<i64, String> {
+    pub fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.value as i64)
     }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int8
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// constant long
 #[derive(Debug, Clone)]
-pub struct ConstantLong {
+pub struct ExprConstantLong {
     pub value: i64,
 }
-impl Expression for ConstantLong {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(MoveRegister {
+impl ExprConstantLong {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::Int64(self.value)),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_constant_i64(&self) -> Result<i64, String> {
+    pub fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.value as i64)
     }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Int64
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// constant unsigned long
 #[derive(Debug, Clone)]
-pub struct ConstantUnsignedLong {
+pub struct ExprConstantUnsignedLong {
     pub value: u64,
 }
-impl Expression for ConstantUnsignedLong {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(MoveRegister {
+impl ExprConstantUnsignedLong {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::UInt64(self.value)),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_constant_i64(&self) -> Result<i64, String> {
+    pub fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.value as i64)
     }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt64
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// constant float
 #[derive(Debug, Clone)]
-pub struct ConstantFloat {
+pub struct ExprConstantFloat {
     pub value: f32,
 }
-impl Expression for ConstantFloat {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(MoveRegister {
+impl ExprConstantFloat {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::Float32(self.value)),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Float32
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// constant double
 #[derive(Debug, Clone)]
-pub struct ConstantDouble {
+pub struct ExprConstantDouble {
     pub value: f64,
 }
-impl Expression for ConstantDouble {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(MoveRegister {
+impl ExprConstantDouble {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::Float64(self.value)),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Float64
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// for string literal
 #[derive(Debug, Clone)]
-pub struct StringLiteral {
+pub struct ExprString {
     pub value: String,
 }
-impl Expression for StringLiteral {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprString {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         // store string to global text section
         let offset = instructions.text_section.len(); // <-- this will be absolute address
 
@@ -361,30 +459,27 @@ impl Expression for StringLiteral {
             .append(&mut null_terminated.as_bytes().to_vec());
 
         // put its address to register0
-        instructions.push(MoveRegister {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::UInt64(offset as u64)),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::Pointer(Box::new(TypeInfo::Const(Box::new(TypeInfo::Int8))))
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// src[index]
-#[derive(Debug)]
-pub struct PostBracket {
-    pub src: Box<dyn Expression>,
-    pub index: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct ExprPostBracket {
+    pub src: Box<Expression>,
+    pub index: Box<Expression>,
 }
-impl Expression for PostBracket {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprPostBracket {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         match self.src.get_typeinfo(instructions).remove_const() {
             TypeInfo::Array(_, _) => {}
             TypeInfo::Pointer(_) => {}
@@ -392,57 +487,54 @@ impl Expression for PostBracket {
         }
         self.index.emit(instructions);
         if self.index.is_return_reference(instructions) {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Register(0),
-            });
+            }));
         }
         // register0 = src
         self.src.emit(instructions);
         if self.src.is_return_reference(instructions) {
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
-            });
+            }));
         }
         // register1 = index
-        instructions.push(PopStack {
+        instructions.push(Instruction::PopStack(PopStack {
             operand: Operand::Register(1),
-        });
+        }));
 
         match self.src.get_typeinfo(instructions).remove_const() {
             TypeInfo::Array(t, _) => {
                 let move_size = t.number_of_primitives();
-                instructions.push(MulAssign {
+                instructions.push(Instruction::MulAssign(MulAssign {
                     lhs: Operand::Register(1),
                     rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
-                });
-                instructions.push(AddAssign {
+                }));
+                instructions.push(Instruction::AddAssign(AddAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             TypeInfo::Pointer(t) => {
                 let move_size = t.number_of_primitives();
-                instructions.push(MulAssign {
+                instructions.push(Instruction::MulAssign(MulAssign {
                     lhs: Operand::Register(1),
                     rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
-                });
-                instructions.push(AddAssign {
+                }));
+                instructions.push(Instruction::AddAssign(AddAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             _ => panic!("Bracket is only available at array or pointer type"),
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         let src_type = self.src.get_typeinfo(instructions);
         match src_type.remove_const() {
             TypeInfo::Array(t, _) => {
@@ -456,25 +548,24 @@ impl Expression for PostBracket {
             _ => panic!("Bracket is only available at array or pointer type"),
         }
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         true
     }
 }
 
 /// src( args... )
-#[derive(Debug)]
-pub struct PostParen {
-    pub src: Box<dyn Expression>,
-    pub args: Vec<Box<dyn Expression>>,
+#[derive(Debug, Clone)]
+pub struct ExprPostParen {
+    pub src: Box<Expression>,
+    pub args: Vec<Expression>,
 }
 // currently only for function call
-impl Expression for PostParen {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        let identifier = self
-            .src
-            .as_any()
-            .downcast_ref::<PrimaryIdentifier>()
-            .expect("FunctionCall must be called on `Identifier`");
+impl ExprPostParen {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        let identifier = match &*self.src {
+            Expression::PrimaryIdentifier(identifier) => identifier,
+            _ => panic!("FunctionCall must be called on `Identifier`"),
+        };
         let name = identifier.name.clone();
 
         // check if it is a built-in function, print or print_str
@@ -482,19 +573,19 @@ impl Expression for PostParen {
             for arg in self.args.iter().rev() {
                 arg.emit(instructions);
                 if arg.is_return_reference(instructions) {
-                    instructions.push(PushStack {
+                    instructions.push(Instruction::PushStack(PushStack {
                         operand: Operand::Derefed(0, 0),
-                    });
+                    }));
                 } else {
-                    instructions.push(PushStack {
+                    instructions.push(Instruction::PushStack(PushStack {
                         operand: Operand::Register(0),
-                    });
+                    }));
                 }
             }
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Value(VariableData::UInt64(self.args.len() as u64)),
-            });
-            instructions.push(Print {});
+            }));
+            instructions.push(Instruction::Print(Print {}));
         } else if &name == "print_str" {
             if self.args.len() != 1 {
                 panic!(
@@ -504,14 +595,14 @@ impl Expression for PostParen {
             }
             self.args[0].emit(instructions);
             if self.args[0].is_return_reference(instructions) {
-                instructions.push(MoveRegister {
+                instructions.push(Instruction::MoveRegister(MoveRegister {
                     operand_from: Operand::Derefed(0, 0),
                     operand_to: Operand::Register(0),
-                });
+                }));
             }
-            instructions.push(PrintStr {
+            instructions.push(Instruction::PrintStr(PrintStr {
                 str: Operand::Register(0),
-            });
+            }));
         } else {
             let funcdata = instructions
                 .functions
@@ -531,37 +622,33 @@ impl Expression for PostParen {
             for param in self.args.iter().rev() {
                 param.emit(instructions);
                 if param.is_return_reference(instructions) {
-                    instructions.push(PushStack {
+                    instructions.push(Instruction::PushStack(PushStack {
                         operand: Operand::Derefed(0, 0),
-                    });
+                    }));
                 } else {
-                    instructions.push(PushStack {
+                    instructions.push(Instruction::PushStack(PushStack {
                         operand: Operand::Register(0),
-                    });
+                    }));
                 }
             }
 
             // call function
-            instructions.push(Call {
+            instructions.push(Instruction::Call(Call {
                 label: name.clone(),
-            });
+            }));
 
             // pop arguments from stack
-            instructions.push(SubAssign {
+            instructions.push(Instruction::SubAssign(SubAssign {
                 lhs: Operand::Register(STACK_POINTER_REGISTER),
                 rhs: Operand::Value(VariableData::UInt64(funcdata.params.len() as u64)),
-            });
+            }));
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
-        let identifier = self
-            .src
-            .as_any()
-            .downcast_ref::<PrimaryIdentifier>()
-            .expect("FunctionCall must be called on `Identifier`");
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+        let identifier = match &*self.src {
+            Expression::PrimaryIdentifier(identifier) => identifier,
+            _ => panic!("FunctionCall must be called on `Identifier`"),
+        };
         let name = identifier.name.clone();
         let funcdata = &instructions
             .functions
@@ -571,18 +658,18 @@ impl Expression for PostParen {
             .get_true_typeinfo(&funcdata.return_type)
             .clone()
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// src++
-#[derive(Debug)]
-pub struct PostIncrement {
-    pub src: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct ExprPostIncrement {
+    pub src: Box<Expression>,
 }
-impl Expression for PostIncrement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprPostIncrement {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         if self.src.is_return_reference(instructions) == false {
             panic!("PostIncrement on non-lhs");
         }
@@ -590,45 +677,42 @@ impl Expression for PostIncrement {
             panic!("PostIncrement on const variable");
         }
         self.src.emit(instructions);
-        instructions.push(MoveRegister {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Register(0),
             operand_to: Operand::Register(1),
-        });
-        instructions.push(MoveRegister {
+        }));
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Derefed(1, 0),
             operand_to: Operand::Register(0),
-        });
+        }));
         if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
             let move_size = t.number_of_primitives();
-            instructions.push(AddAssign {
+            instructions.push(Instruction::AddAssign(AddAssign {
                 lhs: Operand::Derefed(1, 0),
                 rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
-            });
+            }));
         } else {
-            instructions.push(AddAssign {
+            instructions.push(Instruction::AddAssign(AddAssign {
                 lhs: Operand::Derefed(1, 0),
                 rhs: Operand::Value(VariableData::UInt8(1)),
-            });
+            }));
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.src.get_typeinfo(instructions)
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// src--
-#[derive(Debug)]
-pub struct PostDecrement {
-    pub src: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct ExprPostDecrement {
+    pub src: Box<Expression>,
 }
-impl Expression for PostDecrement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprPostDecrement {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         if self.src.is_return_reference(instructions) == false {
             panic!("PostDecrement on non-lhs");
         }
@@ -636,126 +720,114 @@ impl Expression for PostDecrement {
             panic!("PostDecrement on const variable");
         }
         self.src.emit(instructions);
-        instructions.push(MoveRegister {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Register(0),
             operand_to: Operand::Register(1),
-        });
-        instructions.push(MoveRegister {
+        }));
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Derefed(1, 0),
             operand_to: Operand::Register(0),
-        });
+        }));
 
         if let TypeInfo::Pointer(t) = self.src.get_typeinfo(instructions) {
             let move_size = t.number_of_primitives();
-            instructions.push(SubAssign {
+            instructions.push(Instruction::SubAssign(SubAssign {
                 lhs: Operand::Derefed(1, 0),
                 rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
-            });
+            }));
         } else {
-            instructions.push(SubAssign {
+            instructions.push(Instruction::SubAssign(SubAssign {
                 lhs: Operand::Derefed(1, 0),
                 rhs: Operand::Value(VariableData::UInt8(1)),
-            });
+            }));
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.src.get_typeinfo(instructions)
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// (typeinfo)src
-#[derive(Debug)]
-pub struct CastExpression {
-    pub src: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct ExprCast {
+    pub src: Box<Expression>,
     pub typeinfo: TypeInfo,
 }
-impl Expression for CastExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprCast {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         self.src.emit(instructions);
         if self.src.is_return_reference(instructions) {
-            instructions.push(Cast {
+            instructions.push(Instruction::Cast(Cast {
                 info: instructions
                     .get_true_typeinfo(&self.typeinfo)
                     .remove_const(),
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
-            });
+            }));
         } else {
-            instructions.push(Cast {
+            instructions.push(Instruction::Cast(Cast {
                 info: instructions
                     .get_true_typeinfo(&self.typeinfo)
                     .remove_const(),
                 operand_from: Operand::Register(0),
                 operand_to: Operand::Register(0),
-            });
+            }));
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         instructions
             .get_true_typeinfo(&self.typeinfo)
             .remove_const()
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// sizeof(typeinfo)
-#[derive(Debug)]
-pub struct SizeofType {
+#[derive(Debug, Clone)]
+pub struct ExprSizeOfType {
     pub typeinfo: TypeInfo,
 }
-impl Expression for SizeofType {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(MoveRegister {
+impl ExprSizeOfType {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::UInt64(self.typeinfo.sizeof() as u64)),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_constant_i64(&self) -> Result<i64, String> {
+    pub fn get_constant_i64(&self) -> Result<i64, String> {
         Ok(self.typeinfo.sizeof() as i64)
     }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt64
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
 /// sizeof(expr)
-#[derive(Debug)]
-pub struct SizeofExpr {
-    pub expr: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct ExprSizeOfExpr {
+    pub expr: Box<Expression>,
 }
-impl Expression for SizeofExpr {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(MoveRegister {
+impl ExprSizeOfExpr {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::UInt64(
                 self.expr.get_typeinfo(instructions).sizeof() as u64,
             )),
             operand_to: Operand::Register(0),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         TypeInfo::UInt64
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
@@ -771,13 +843,13 @@ pub enum UnaryOperator {
     Increment,
     Decrement,
 }
-#[derive(Debug)]
-pub struct UnaryExpression {
+#[derive(Debug, Clone)]
+pub struct ExprUnary {
     pub op: UnaryOperator,
-    pub src: Box<dyn Expression>,
+    pub src: Box<Expression>,
 }
-impl Expression for UnaryExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprUnary {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         self.src.emit(instructions);
 
         let src_type = self.src.get_typeinfo(instructions);
@@ -798,10 +870,10 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Pointer(_)
                     | TypeInfo::Array(_, _) => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(MoveRegister {
+                            instructions.push(Instruction::MoveRegister(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
-                            });
+                            }));
                         }
                     }
                     _ => panic!(
@@ -824,14 +896,14 @@ impl Expression for UnaryExpression {
                 | TypeInfo::Pointer(_)
                 | TypeInfo::Array(_, _) => {
                     if self.src.is_return_reference(instructions) {
-                        instructions.push(MoveRegister {
+                        instructions.push(Instruction::MoveRegister(MoveRegister {
                             operand_from: Operand::Derefed(0, 0),
                             operand_to: Operand::Register(0),
-                        });
+                        }));
                     }
-                    instructions.push(Negate {
+                    instructions.push(Instruction::Negate(Negate {
                         operand: Operand::Register(0),
-                    });
+                    }));
                 }
                 _ => panic!(
                     "Unary Minus not implemented for {:?}",
@@ -851,14 +923,14 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Pointer(_)
                     | TypeInfo::Array(_, _) => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(MoveRegister {
+                            instructions.push(Instruction::MoveRegister(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
-                            });
+                            }));
                         }
-                        instructions.push(LogicalNot {
+                        instructions.push(Instruction::LogicalNot(LogicalNot {
                             operand: Operand::Register(0),
-                        });
+                        }));
                     }
                     _ => panic!(
                         "Unary LogicalNot not implemented for {:?}",
@@ -877,14 +949,14 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int64
                     | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(MoveRegister {
+                            instructions.push(Instruction::MoveRegister(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
-                            });
+                            }));
                         }
-                        instructions.push(BitwiseNot {
+                        instructions.push(Instruction::BitwiseNot(BitwiseNot {
                             operand: Operand::Register(0),
-                        });
+                        }));
                     }
                     _ => panic!(
                         "Unary BitwiseNot not implemented for {:?}",
@@ -895,15 +967,15 @@ impl Expression for UnaryExpression {
             UnaryOperator::Dereference => {
                 if let TypeInfo::Pointer(_) = src_type.remove_const() {
                     if self.src.is_return_reference(instructions) {
-                        instructions.push(MoveRegister {
+                        instructions.push(Instruction::MoveRegister(MoveRegister {
                             operand_from: Operand::Derefed(0, 0),
                             operand_to: Operand::Register(0),
-                        });
+                        }));
                     } else {
-                        instructions.push(MoveRegister {
+                        instructions.push(Instruction::MoveRegister(MoveRegister {
                             operand_from: Operand::Register(0),
                             operand_to: Operand::Register(0),
-                        });
+                        }));
                     }
                 } else {
                     panic!(
@@ -931,14 +1003,14 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int64
                     | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(AddAssign {
+                            instructions.push(Instruction::AddAssign(AddAssign {
                                 lhs: Operand::Derefed(0, 0),
                                 rhs: Operand::Value(VariableData::UInt8(1)),
-                            });
-                            instructions.push(MoveRegister {
+                            }));
+                            instructions.push(Instruction::MoveRegister(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
-                            });
+                            }));
                         } else {
                             panic!("Increment on non-reference");
                         }
@@ -946,14 +1018,14 @@ impl Expression for UnaryExpression {
                     TypeInfo::Pointer(t) => {
                         let move_size = t.number_of_primitives();
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(AddAssign {
+                            instructions.push(Instruction::AddAssign(AddAssign {
                                 lhs: Operand::Derefed(0, 0),
                                 rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
-                            });
-                            instructions.push(MoveRegister {
+                            }));
+                            instructions.push(Instruction::MoveRegister(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
-                            });
+                            }));
                         } else {
                             panic!("Increment on non-reference");
                         }
@@ -978,14 +1050,14 @@ impl Expression for UnaryExpression {
                     | TypeInfo::Int64
                     | TypeInfo::UInt64 => {
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(SubAssign {
+                            instructions.push(Instruction::SubAssign(SubAssign {
                                 lhs: Operand::Derefed(0, 0),
                                 rhs: Operand::Value(VariableData::UInt8(1)),
-                            });
-                            instructions.push(MoveRegister {
+                            }));
+                            instructions.push(Instruction::MoveRegister(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
-                            });
+                            }));
                         } else {
                             panic!("Decrement on non-reference");
                         }
@@ -993,14 +1065,14 @@ impl Expression for UnaryExpression {
                     TypeInfo::Pointer(t) => {
                         let move_size = t.number_of_primitives();
                         if self.src.is_return_reference(instructions) {
-                            instructions.push(SubAssign {
+                            instructions.push(Instruction::SubAssign(SubAssign {
                                 lhs: Operand::Derefed(0, 0),
                                 rhs: Operand::Value(VariableData::UInt64(move_size as u64)),
-                            });
-                            instructions.push(MoveRegister {
+                            }));
+                            instructions.push(Instruction::MoveRegister(MoveRegister {
                                 operand_from: Operand::Derefed(0, 0),
                                 operand_to: Operand::Register(0),
-                            });
+                            }));
                         } else {
                             panic!("Decrement on non-reference");
                         }
@@ -1013,10 +1085,7 @@ impl Expression for UnaryExpression {
             }
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         let srctype = self.src.get_typeinfo(instructions);
         match self.op {
             UnaryOperator::Plus => srctype.remove_const(),
@@ -1063,7 +1132,7 @@ impl Expression for UnaryExpression {
             UnaryOperator::Increment | UnaryOperator::Decrement => srctype.remove_const(),
         }
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         match self.op {
             UnaryOperator::Dereference => true,
             _ => false,
@@ -1105,14 +1174,14 @@ pub enum BinaryOperator {
 }
 
 /// for logical and, or
-#[derive(Debug)]
-pub struct LogicalBinaryExpression {
+#[derive(Debug, Clone)]
+pub struct ExprLogicalBinary {
     pub op: BinaryOperator,
-    pub lhs: Box<dyn Expression>,
-    pub rhs: Box<dyn Expression>,
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
-impl Expression for LogicalBinaryExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprLogicalBinary {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let lhs_type = self.lhs.get_typeinfo(instructions);
         let rhs_type = self.rhs.get_typeinfo(instructions);
         match lhs_type.remove_const() {
@@ -1152,82 +1221,82 @@ impl Expression for LogicalBinaryExpression {
 
         self.lhs.emit(instructions);
         if self.lhs.is_return_reference(instructions) {
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
-            });
+            }));
         }
         match self.op {
             BinaryOperator::LogicalAnd => {
                 let zero_label = instructions.get_unique_label();
                 let end_label = instructions.get_unique_label();
-                instructions.push(JumpZero {
+                instructions.push(Instruction::JumpZero(JumpZero {
                     operand_cond: Operand::Register(0),
                     label: zero_label.clone(),
-                });
+                }));
 
                 // lhs is true here
                 // eval rhs
                 self.rhs.emit(instructions);
                 if self.rhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
+                    instructions.push(Instruction::MoveRegister(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(0),
-                    });
+                    }));
                 }
-                instructions.push(JumpZero {
+                instructions.push(Instruction::JumpZero(JumpZero {
                     label: zero_label.clone(),
                     operand_cond: Operand::Register(0),
-                });
-                instructions.push(MoveRegister {
+                }));
+                instructions.push(Instruction::MoveRegister(MoveRegister {
                     operand_from: Operand::Value(VariableData::UInt8(1)),
                     operand_to: Operand::Register(0),
-                });
-                instructions.push(Jump {
+                }));
+                instructions.push(Instruction::Jump(Jump {
                     label: end_label.clone(),
-                });
+                }));
 
                 instructions.set_label(&zero_label);
-                instructions.push(MoveRegister {
+                instructions.push(Instruction::MoveRegister(MoveRegister {
                     operand_from: Operand::Value(VariableData::UInt8(0)),
                     operand_to: Operand::Register(0),
-                });
+                }));
                 instructions.set_label(&end_label);
             }
             BinaryOperator::LogicalOr => {
                 let one_label = instructions.get_unique_label();
                 let end_label = instructions.get_unique_label();
-                instructions.push(JumpNonZero {
+                instructions.push(Instruction::JumpNonZero(JumpNonZero {
                     operand_cond: Operand::Register(0),
                     label: one_label.clone(),
-                });
+                }));
 
                 // lhs is false here
                 // eval rhs
                 self.rhs.emit(instructions);
                 if self.rhs.is_return_reference(instructions) {
-                    instructions.push(MoveRegister {
+                    instructions.push(Instruction::MoveRegister(MoveRegister {
                         operand_from: Operand::Derefed(0, 0),
                         operand_to: Operand::Register(0),
-                    });
+                    }));
                 }
-                instructions.push(JumpNonZero {
+                instructions.push(Instruction::JumpNonZero(JumpNonZero {
                     label: one_label.clone(),
                     operand_cond: Operand::Register(0),
-                });
-                instructions.push(MoveRegister {
+                }));
+                instructions.push(Instruction::MoveRegister(MoveRegister {
                     operand_from: Operand::Value(VariableData::UInt8(0)),
                     operand_to: Operand::Register(0),
-                });
-                instructions.push(Jump {
+                }));
+                instructions.push(Instruction::Jump(Jump {
                     label: end_label.clone(),
-                });
+                }));
 
                 instructions.set_label(&one_label);
-                instructions.push(MoveRegister {
+                instructions.push(Instruction::MoveRegister(MoveRegister {
                     operand_from: Operand::Value(VariableData::UInt8(1)),
                     operand_to: Operand::Register(0),
-                });
+                }));
                 instructions.set_label(&end_label);
             }
             _ => {
@@ -1238,13 +1307,10 @@ impl Expression for LogicalBinaryExpression {
             }
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         match self.lhs.get_typeinfo(instructions).remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
@@ -1284,14 +1350,14 @@ impl Expression for LogicalBinaryExpression {
     }
 }
 
-#[derive(Debug)]
-pub struct ComparisonExpression {
+#[derive(Debug, Clone)]
+pub struct ExprComparison {
     pub op: BinaryOperator,
-    pub lhs: Box<dyn Expression>,
-    pub rhs: Box<dyn Expression>,
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
-impl Expression for ComparisonExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprComparison {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         match self.lhs.get_typeinfo(instructions).remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
@@ -1334,28 +1400,28 @@ impl Expression for ComparisonExpression {
         // eval lhs and push to stack
         self.lhs.emit(instructions);
         if self.lhs.is_return_reference(instructions) {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Register(0),
-            });
+            }));
         }
 
         // eval rhs
         self.rhs.emit(instructions);
         if self.rhs.is_return_reference(instructions) {
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
-            });
+            }));
         }
 
         // pop lhs from stack
-        instructions.push(PopStack {
+        instructions.push(Instruction::PopStack(PopStack {
             operand: Operand::Register(1),
-        });
+        }));
 
         let lhs_register = Operand::Register(1);
         let rhs_register = Operand::Register(0);
@@ -1363,70 +1429,67 @@ impl Expression for ComparisonExpression {
         match self.op {
             BinaryOperator::LessThan => {
                 // lhs < rhs
-                instructions.push(LessThan {
+                instructions.push(Instruction::LessThan(LessThan {
                     lhs: lhs_register,
                     rhs: rhs_register,
                     to: Operand::Register(0),
-                });
+                }));
             }
             BinaryOperator::GreaterThan => {
                 // lhs > rhs
-                instructions.push(LessThan {
+                instructions.push(Instruction::LessThan(LessThan {
                     lhs: rhs_register,
                     rhs: lhs_register,
                     to: Operand::Register(0),
-                });
+                }));
             }
             BinaryOperator::LessThanOrEqual => {
                 // lhs <= rhs
                 // !( lhs > rhs )
-                instructions.push(LessThan {
+                instructions.push(Instruction::LessThan(LessThan {
                     lhs: rhs_register,
                     rhs: lhs_register,
                     to: Operand::Register(0),
-                });
-                instructions.push(LogicalNot {
+                }));
+                instructions.push(Instruction::LogicalNot(LogicalNot {
                     operand: Operand::Register(0),
-                });
+                }));
             }
             BinaryOperator::GreaterThanOrEqual => {
                 // lhs >= rhs
                 // !( lhs < rhs )
-                instructions.push(LessThan {
+                instructions.push(Instruction::LessThan(LessThan {
                     lhs: lhs_register,
                     rhs: rhs_register,
                     to: Operand::Register(0),
-                });
-                instructions.push(LogicalNot {
+                }));
+                instructions.push(Instruction::LogicalNot(LogicalNot {
                     operand: Operand::Register(0),
-                });
+                }));
             }
             BinaryOperator::Equal => {
                 // lhs == rhs
-                instructions.push(Equal {
+                instructions.push(Instruction::Equal(Equal {
                     lhs: lhs_register,
                     rhs: rhs_register,
                     to: Operand::Register(0),
-                });
+                }));
             }
             BinaryOperator::NotEqual => {
                 // !(lhs == rhs )
-                instructions.push(Equal {
+                instructions.push(Instruction::Equal(Equal {
                     lhs: lhs_register,
                     rhs: rhs_register,
                     to: Operand::Register(0),
-                });
-                instructions.push(LogicalNot {
+                }));
+                instructions.push(Instruction::LogicalNot(LogicalNot {
                     operand: Operand::Register(0),
-                });
+                }));
             }
             _ => panic!("Invalid operator for ComparisonExpression: {:?}", self.op),
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         match self.lhs.get_typeinfo(instructions).remove_const() {
             TypeInfo::UInt8
             | TypeInfo::Int8
@@ -1468,18 +1531,18 @@ impl Expression for ComparisonExpression {
 
         TypeInfo::UInt8
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 // lhs = rhs
-#[derive(Debug)]
-pub struct AssignExpression {
-    pub lhs: Box<dyn Expression>,
-    pub rhs: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct ExprAssign {
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
-impl Expression for AssignExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprAssign {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let lhs_type = self.lhs.get_typeinfo(instructions);
         // check lhs is not const
         if lhs_type.is_const() {
@@ -1503,20 +1566,20 @@ impl Expression for AssignExpression {
                 }
                 // struct = struct assignment
                 self.rhs.emit(instructions);
-                instructions.push(PushStack {
+                instructions.push(Instruction::PushStack(PushStack {
                     operand: Operand::Register(0),
-                });
+                }));
                 self.lhs.emit(instructions);
-                instructions.push(PopStack {
+                instructions.push(Instruction::PopStack(PopStack {
                     operand: Operand::Register(1),
-                });
+                }));
 
                 let count = lhs_type.number_of_primitives();
-                instructions.push(AssignStruct {
+                instructions.push(Instruction::AssignStruct(AssignStruct {
                     count,
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             } else {
                 // struct = other assignment; panic
                 panic!(
@@ -1533,46 +1596,43 @@ impl Expression for AssignExpression {
             }
             self.rhs.emit(instructions);
             if self.rhs.is_return_reference(instructions) {
-                instructions.push(PushStack {
+                instructions.push(Instruction::PushStack(PushStack {
                     operand: Operand::Derefed(0, 0),
-                });
+                }));
             } else {
-                instructions.push(PushStack {
+                instructions.push(Instruction::PushStack(PushStack {
                     operand: Operand::Register(0),
-                });
+                }));
             }
             self.lhs.emit(instructions);
-            instructions.push(PopStack {
+            instructions.push(Instruction::PopStack(PopStack {
                 operand: Operand::Register(1),
-            });
-            instructions.push(Assign {
+            }));
+            instructions.push(Instruction::Assign(Assign {
                 lhs_type: self.lhs.get_typeinfo(instructions),
                 lhs: Operand::Derefed(0, 0),
                 rhs: Operand::Register(1),
-            });
+            }));
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         self.lhs.is_return_reference(instructions)
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.lhs.get_typeinfo(instructions)
     }
 }
 
 // += -= *= /= %=
 // <<= >>= &= |= ^=
-#[derive(Debug)]
-pub struct AssignOpExpression {
+#[derive(Debug, Clone)]
+pub struct ExprAssignOp {
     pub op: BinaryOperator,
-    pub lhs: Box<dyn Expression>,
-    pub rhs: Box<dyn Expression>,
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
-impl Expression for AssignOpExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprAssignOp {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let lhs_type = self.lhs.get_typeinfo(instructions);
         if self.lhs.is_return_reference(instructions) == false {
             panic!("{:?} on non-reference", self.op);
@@ -1583,243 +1643,237 @@ impl Expression for AssignOpExpression {
 
         self.rhs.emit(instructions);
         if self.rhs.is_return_reference(instructions) {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Register(0),
-            });
+            }));
         }
         self.lhs.emit(instructions);
-        instructions.push(PopStack {
+        instructions.push(Instruction::PopStack(PopStack {
             operand: Operand::Register(1),
-        });
+        }));
         match self.op {
             BinaryOperator::AddAssign => {
                 if let TypeInfo::Pointer(t) = lhs_type {
                     let move_size = t.number_of_primitives();
-                    instructions.push(MoveRegister {
+                    instructions.push(Instruction::MoveRegister(MoveRegister {
                         operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
                         operand_to: Operand::Register(2),
-                    });
-                    instructions.push(MulAssign {
+                    }));
+                    instructions.push(Instruction::MulAssign(MulAssign {
                         lhs: Operand::Register(2),
                         rhs: Operand::Register(1),
-                    });
-                    instructions.push(AddAssign {
+                    }));
+                    instructions.push(Instruction::AddAssign(AddAssign {
                         lhs: Operand::Derefed(0, 0),
                         rhs: Operand::Register(2),
-                    });
+                    }));
                 } else {
-                    instructions.push(AddAssign {
+                    instructions.push(Instruction::AddAssign(AddAssign {
                         lhs: Operand::Derefed(0, 0),
                         rhs: Operand::Register(1),
-                    });
+                    }));
                 }
             }
             BinaryOperator::SubAssign => {
                 if let TypeInfo::Pointer(t) = lhs_type {
                     let move_size = t.number_of_primitives();
-                    instructions.push(MoveRegister {
+                    instructions.push(Instruction::MoveRegister(MoveRegister {
                         operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
                         operand_to: Operand::Register(2),
-                    });
-                    instructions.push(MulAssign {
+                    }));
+                    instructions.push(Instruction::MulAssign(MulAssign {
                         lhs: Operand::Register(2),
                         rhs: Operand::Register(1),
-                    });
-                    instructions.push(SubAssign {
+                    }));
+                    instructions.push(Instruction::SubAssign(SubAssign {
                         lhs: Operand::Derefed(0, 0),
                         rhs: Operand::Register(2),
-                    });
+                    }));
                 } else {
-                    instructions.push(SubAssign {
+                    instructions.push(Instruction::SubAssign(SubAssign {
                         lhs: Operand::Derefed(0, 0),
                         rhs: Operand::Register(1),
-                    });
+                    }));
                 }
             }
             BinaryOperator::MulAssign => {
-                instructions.push(MulAssign {
+                instructions.push(Instruction::MulAssign(MulAssign {
                     lhs: Operand::Derefed(0, 0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::DivAssign => {
-                instructions.push(DivAssign {
+                instructions.push(Instruction::DivAssign(DivAssign {
                     lhs: Operand::Derefed(0, 0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::ModAssign => {
-                instructions.push(ModAssign {
+                instructions.push(Instruction::ModAssign(ModAssign {
                     lhs: Operand::Derefed(0, 0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::ShiftLeftAssign => {
-                instructions.push(ShiftLeftAssign {
+                instructions.push(Instruction::ShiftLeftAssign(ShiftLeftAssign {
                     lhs: Operand::Derefed(0, 0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::ShiftRightAssign => {
-                instructions.push(ShiftRightAssign {
+                instructions.push(Instruction::ShiftRightAssign(ShiftRightAssign {
                     lhs: Operand::Derefed(0, 0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::BitwiseAndAssign => {
-                instructions.push(BitwiseAndAssign {
+                instructions.push(Instruction::BitwiseAndAssign(BitwiseAndAssign {
                     lhs: Operand::Derefed(0, 0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::BitwiseOrAssign => {
-                instructions.push(BitwiseOrAssign {
+                instructions.push(Instruction::BitwiseOrAssign(BitwiseOrAssign {
                     lhs: Operand::Derefed(0, 0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::BitwiseXorAssign => {
-                instructions.push(BitwiseXorAssign {
+                instructions.push(Instruction::BitwiseXorAssign(BitwiseXorAssign {
                     lhs: Operand::Derefed(0, 0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             _ => panic!("Invalid operator for AssignExpression: {:?}", self.op),
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         self.lhs.is_return_reference(instructions)
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.lhs.get_typeinfo(instructions)
     }
 }
 
-#[derive(Debug)]
-pub struct AdditiveExpression {
+#[derive(Debug, Clone)]
+pub struct ExprAdditive {
     pub op: BinaryOperator,
-    pub lhs: Box<dyn Expression>,
-    pub rhs: Box<dyn Expression>,
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
-impl Expression for AdditiveExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprAdditive {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         // for type-check panic
         self.get_typeinfo(instructions);
 
         self.rhs.emit(instructions);
         if self.rhs.is_return_reference(instructions) {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Register(0),
-            });
+            }));
         }
 
         self.lhs.emit(instructions);
         if self.lhs.is_return_reference(instructions) {
-            instructions.push(Assign {
+            instructions.push(Instruction::Assign(Assign {
                 lhs_type: self.get_typeinfo(instructions),
                 lhs: Operand::Register(0),
                 rhs: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(Assign {
+            instructions.push(Instruction::Assign(Assign {
                 lhs_type: self.get_typeinfo(instructions),
                 lhs: Operand::Register(0),
                 rhs: Operand::Register(0),
-            });
+            }));
         }
-        instructions.push(PopStack {
+        instructions.push(Instruction::PopStack(PopStack {
             operand: Operand::Register(1),
-        });
+        }));
 
         // pointer arithmetic
         if let TypeInfo::Pointer(t) = self.lhs.get_typeinfo(instructions).remove_const() {
             let move_size = t.number_of_primitives();
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
                 operand_to: Operand::Register(2),
-            });
-            instructions.push(MulAssign {
+            }));
+            instructions.push(Instruction::MulAssign(MulAssign {
                 lhs: Operand::Register(2),
                 rhs: Operand::Register(1),
-            });
+            }));
 
             match self.op {
                 BinaryOperator::Add => {
-                    instructions.push(AddAssign {
+                    instructions.push(Instruction::AddAssign(AddAssign {
                         lhs: Operand::Register(0),
                         rhs: Operand::Register(2),
-                    });
+                    }));
                 }
                 BinaryOperator::Sub => {
-                    instructions.push(SubAssign {
+                    instructions.push(Instruction::SubAssign(SubAssign {
                         lhs: Operand::Register(0),
                         rhs: Operand::Register(2),
-                    });
+                    }));
                 }
                 _ => panic!("Invalid operator for AdditiveExpression: {:?}", self.op),
             }
         } else if let TypeInfo::Array(t, _) = self.lhs.get_typeinfo(instructions).remove_const() {
             let move_size = t.number_of_primitives();
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Value(VariableData::Int64(move_size as i64)),
                 operand_to: Operand::Register(2),
-            });
-            instructions.push(MulAssign {
+            }));
+            instructions.push(Instruction::MulAssign(MulAssign {
                 lhs: Operand::Register(2),
                 rhs: Operand::Register(1),
-            });
+            }));
 
             match self.op {
                 BinaryOperator::Add => {
-                    instructions.push(AddAssign {
+                    instructions.push(Instruction::AddAssign(AddAssign {
                         lhs: Operand::Register(0),
                         rhs: Operand::Register(2),
-                    });
+                    }));
                 }
                 BinaryOperator::Sub => {
-                    instructions.push(SubAssign {
+                    instructions.push(Instruction::SubAssign(SubAssign {
                         lhs: Operand::Register(0),
                         rhs: Operand::Register(2),
-                    });
+                    }));
                 }
                 _ => panic!("Invalid operator for AdditiveExpression: {:?}", self.op),
             }
         } else {
             match self.op {
                 BinaryOperator::Add => {
-                    instructions.push(AddAssign {
+                    instructions.push(Instruction::AddAssign(AddAssign {
                         lhs: Operand::Register(0),
                         rhs: Operand::Register(1),
-                    });
+                    }));
                 }
                 BinaryOperator::Sub => {
-                    instructions.push(SubAssign {
+                    instructions.push(Instruction::SubAssign(SubAssign {
                         lhs: Operand::Register(0),
                         rhs: Operand::Register(1),
-                    });
+                    }));
                 }
                 _ => panic!("Invalid operator for AdditiveExpression: {:?}", self.op),
             }
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         let lhs_type = self.lhs.get_typeinfo(instructions).remove_const();
         let rhs_type = self.rhs.get_typeinfo(instructions).remove_const();
         // choose bigger-precision type
@@ -1941,61 +1995,61 @@ impl Expression for AdditiveExpression {
         }
     }
 }
-#[derive(Debug)]
-pub struct MultiplicativeExpression {
+#[derive(Debug, Clone)]
+pub struct ExprMultiplicative {
     pub op: BinaryOperator,
-    pub lhs: Box<dyn Expression>,
-    pub rhs: Box<dyn Expression>,
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
-impl Expression for MultiplicativeExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprMultiplicative {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         self.rhs.emit(instructions);
         if self.rhs.is_return_reference(instructions) {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Register(0),
-            });
+            }));
         }
 
         self.lhs.emit(instructions);
         if self.lhs.is_return_reference(instructions) {
-            instructions.push(Assign {
+            instructions.push(Instruction::Assign(Assign {
                 lhs_type: self.get_typeinfo(instructions),
                 lhs: Operand::Register(0),
                 rhs: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(Assign {
+            instructions.push(Instruction::Assign(Assign {
                 lhs_type: self.get_typeinfo(instructions),
                 lhs: Operand::Register(0),
                 rhs: Operand::Register(0),
-            });
+            }));
         }
-        instructions.push(PopStack {
+        instructions.push(Instruction::PopStack(PopStack {
             operand: Operand::Register(1),
-        });
+        }));
 
         match self.op {
             BinaryOperator::Mul => {
-                instructions.push(MulAssign {
+                instructions.push(Instruction::MulAssign(MulAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::Div => {
-                instructions.push(DivAssign {
+                instructions.push(Instruction::DivAssign(DivAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::Mod => {
-                instructions.push(ModAssign {
+                instructions.push(Instruction::ModAssign(ModAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             _ => panic!(
                 "Invalid operator for MultiplicativeExpression: {:?}",
@@ -2003,13 +2057,10 @@ impl Expression for MultiplicativeExpression {
             ),
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         let lhs_type = self.lhs.get_typeinfo(instructions).remove_const();
         let rhs_type = self.rhs.get_typeinfo(instructions).remove_const();
         // choose bigger-precision type
@@ -2107,129 +2158,123 @@ impl Expression for MultiplicativeExpression {
         }
     }
 }
-#[derive(Debug)]
-pub struct ShiftExpression {
+#[derive(Debug, Clone)]
+pub struct ExprShift {
     pub op: BinaryOperator,
-    pub lhs: Box<dyn Expression>,
-    pub rhs: Box<dyn Expression>,
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
-impl Expression for ShiftExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprShift {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         self.rhs.emit(instructions);
         if self.rhs.is_return_reference(instructions) {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Register(0),
-            });
+            }));
         }
 
         self.lhs.emit(instructions);
         if self.lhs.is_return_reference(instructions) {
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
-            });
+            }));
         }
 
-        instructions.push(PopStack {
+        instructions.push(Instruction::PopStack(PopStack {
             operand: Operand::Register(1),
-        });
+        }));
 
         match self.op {
             BinaryOperator::ShiftLeft => {
-                instructions.push(ShiftLeftAssign {
+                instructions.push(Instruction::ShiftLeftAssign(ShiftLeftAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::ShiftRight => {
-                instructions.push(ShiftRightAssign {
+                instructions.push(Instruction::ShiftRightAssign(ShiftRightAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             _ => panic!("Invalid operator for ShiftExpression: {:?}", self.op),
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.lhs.get_typeinfo(instructions)
     }
 }
-#[derive(Debug)]
-pub struct BitwiseExpression {
+#[derive(Debug, Clone)]
+pub struct ExprBitwise {
     pub op: BinaryOperator,
-    pub lhs: Box<dyn Expression>,
-    pub rhs: Box<dyn Expression>,
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
-impl Expression for BitwiseExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprBitwise {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         self.rhs.emit(instructions);
         if self.rhs.is_return_reference(instructions) {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Register(0),
-            });
+            }));
         }
 
         self.lhs.emit(instructions);
         if self.lhs.is_return_reference(instructions) {
-            instructions.push(Assign {
+            instructions.push(Instruction::Assign(Assign {
                 lhs_type: self.get_typeinfo(instructions),
                 lhs: Operand::Register(0),
                 rhs: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(Assign {
+            instructions.push(Instruction::Assign(Assign {
                 lhs_type: self.get_typeinfo(instructions),
                 lhs: Operand::Register(0),
                 rhs: Operand::Register(0),
-            });
+            }));
         }
-        instructions.push(PopStack {
+        instructions.push(Instruction::PopStack(PopStack {
             operand: Operand::Register(1),
-        });
+        }));
 
         match self.op {
             BinaryOperator::BitwiseAnd => {
-                instructions.push(BitwiseAndAssign {
+                instructions.push(Instruction::BitwiseAndAssign(BitwiseAndAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::BitwiseOr => {
-                instructions.push(BitwiseOrAssign {
+                instructions.push(Instruction::BitwiseOrAssign(BitwiseOrAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             BinaryOperator::BitwiseXor => {
-                instructions.push(BitwiseXorAssign {
+                instructions.push(Instruction::BitwiseXorAssign(BitwiseXorAssign {
                     lhs: Operand::Register(0),
                     rhs: Operand::Register(1),
-                });
+                }));
             }
             _ => panic!("Invalid operator for BitwiseExpression: {:?}", self.op),
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         let lhs_type = self.lhs.get_typeinfo(instructions).remove_const();
         let rhs_type = self.rhs.get_typeinfo(instructions).remove_const();
         // choose bigger-precision type
@@ -2292,13 +2337,13 @@ impl Expression for BitwiseExpression {
     }
 }
 
-#[derive(Debug)]
-pub struct PostArrow {
-    pub src: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct ExprPostArrow {
+    pub src: Box<Expression>,
     pub member: String,
 }
-impl Expression for PostArrow {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprPostArrow {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let member_offset = match self.src.get_typeinfo(instructions).remove_const() {
             TypeInfo::Pointer(t) => match instructions.get_true_typeinfo(t.as_ref()).remove_const()
             {
@@ -2322,20 +2367,17 @@ impl Expression for PostArrow {
 
         self.src.emit(instructions);
         if self.src.is_return_reference(instructions) {
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(0),
-            });
+            }));
         }
-        instructions.push(AddAssign {
+        instructions.push(Instruction::AddAssign(AddAssign {
             lhs: Operand::Register(0),
             rhs: Operand::Value(VariableData::UInt64(member_offset as u64)),
-        });
+        }));
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         match self.src.get_typeinfo(instructions).remove_const() {
             TypeInfo::Pointer(t) => {
                 let t_type = instructions.get_true_typeinfo(t.as_ref());
@@ -2365,7 +2407,7 @@ impl Expression for PostArrow {
             ),
         }
     }
-    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         match self.get_typeinfo(instructions).remove_const() {
             TypeInfo::Array(_, _) => false,
             _ => true,
@@ -2373,105 +2415,96 @@ impl Expression for PostArrow {
     }
 }
 
-#[derive(Debug)]
-pub struct ConditionalExpression {
-    pub cond: Box<dyn Expression>,
-    pub then_expr: Box<dyn Expression>,
-    pub else_expr: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct ExprConditional {
+    pub cond: Box<Expression>,
+    pub then_expr: Box<Expression>,
+    pub else_expr: Box<Expression>,
 }
-impl Expression for ConditionalExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprConditional {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let else_label = instructions.get_unique_label();
         let end_label = instructions.get_unique_label();
 
         self.cond.emit(instructions);
         if self.cond.is_return_reference(instructions) {
-            instructions.push(JumpZero {
+            instructions.push(Instruction::JumpZero(JumpZero {
                 label: else_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(JumpZero {
+            instructions.push(Instruction::JumpZero(JumpZero {
                 label: else_label.clone(),
                 operand_cond: Operand::Register(0),
-            });
+            }));
         }
 
         self.then_expr.emit(instructions);
         if self.then_expr.is_return_reference(instructions) {
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(1),
-            });
-            instructions.push(MoveRegister {
+            }));
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Register(1),
                 operand_to: Operand::Register(0),
-            });
+            }));
         }
-        instructions.push(Jump {
+        instructions.push(Instruction::Jump(Jump {
             label: end_label.clone(),
-        });
+        }));
         instructions.set_label(&else_label);
         self.else_expr.emit(instructions);
         if self.else_expr.is_return_reference(instructions) {
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(1),
-            });
-            instructions.push(MoveRegister {
+            }));
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Register(1),
                 operand_to: Operand::Register(0),
-            });
+            }));
         }
         instructions.set_label(&end_label);
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.then_expr.get_typeinfo(instructions)
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         false
     }
 }
 
-#[derive(Debug)]
-pub struct CommaExpression {
-    pub lhs: Box<dyn Expression>,
-    pub rhs: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct ExprComma {
+    pub lhs: Box<Expression>,
+    pub rhs: Box<Expression>,
 }
-impl Expression for CommaExpression {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl ExprComma {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         self.lhs.emit(instructions);
         self.rhs.emit(instructions);
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, instructions: &InstructionGenerator) -> bool {
         self.rhs.is_return_reference(instructions)
     }
-    fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, instructions: &InstructionGenerator) -> TypeInfo {
         self.rhs.get_typeinfo(instructions)
     }
 }
 
-#[derive(Debug)]
-pub struct InitializerListExpression {
-    pub initializers: Vec<Box<dyn Expression>>,
+#[derive(Debug, Clone)]
+pub struct ExprInitializerList {
+    pub initializers: Vec<Expression>,
 }
-impl Expression for InitializerListExpression {
-    fn emit(&self, _instructions: &mut InstructionGenerator) {
+impl ExprInitializerList {
+    pub fn emit(&self, _instructions: &mut InstructionGenerator) {
         panic!("InitializerListExpression.eval not implemented");
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
+    pub fn get_typeinfo(&self, _instructions: &InstructionGenerator) -> TypeInfo {
         panic!("InitializerListExpression.get_typeinfo not implemented");
     }
-    fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
+    pub fn is_return_reference(&self, _instructions: &InstructionGenerator) -> bool {
         panic!("InitializerListExpression.is_return_reference not implemented");
     }
 }

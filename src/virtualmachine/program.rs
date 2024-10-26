@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 /// Virtual Program
 /// have stack, registers, labels
-pub struct VirtualProgram {
+pub struct VirtualMachine {
     pub label_map: HashMap<String, usize>,
     pub stack: Vec<VariableData>,
 
@@ -29,9 +29,9 @@ pub const RAX: usize = 0; // index of register for use as rax
 pub const RBX: usize = 1; // index of register for use as rax
 pub const RCX: usize = 2; // index of register for use as rax
 pub const RDX: usize = 3; // index of register for use as rax
-impl VirtualProgram {
-    pub fn new() -> VirtualProgram {
-        let mut ret = VirtualProgram {
+impl VirtualMachine {
+    pub fn new() -> VirtualMachine {
+        let mut ret = VirtualMachine {
             label_map: HashMap::new(),
             stack: Vec::new(),
 

@@ -1,6 +1,4 @@
-use super::expression::InitializerListExpression;
 use super::{expression::Expression, typename::TypeInfo};
-use crate::virtualmachine::instruction::binary::*;
 use crate::virtualmachine::instruction::generation::FunctionInfo;
 use crate::virtualmachine::instruction::generation::InstructionGenerator;
 use crate::virtualmachine::instruction::operand::Operand;
@@ -10,62 +8,98 @@ use crate::virtualmachine::program::STACK_POINTER_REGISTER;
 use crate::virtualmachine::scope::FunctionScope;
 use crate::virtualmachine::variable::VariableData;
 
-use std::any::Any;
+#[derive(Debug, Clone)]
+pub enum Statement {
+    Null(StmtNull),
+    Expression(StmtExpression),
+    Labeled(StmtLabeled),
+    Compound(StmtCompound),
+    If(StmtIf),
+    Switch(StmtSwitch),
+    Case(StmtCase),
+    Default(StmtDefault),
+    Continue(StmtContinue),
+    Break(StmtBreak),
+    While(StmtWhile),
+    DoWhile(StmtDoWhile),
+    For(StmtFor),
+    Goto(StmtGoto),
+    Return(StmtReturn),
+    StructDefinition(StmtStructDefinition),
+    FunctionDeclaration(StmtFunctionDeclaration),
+    Declaration(StmtDeclaration),
+    Typedef(StmtTypedef),
+    FunctionDefinition(StmtFunctionDefinition),
+    TranslationUnit(TranslationUnit),
+}
 
-/// Base trait for all statements
-pub trait Statement: core::fmt::Debug + Any {
-    fn emit(&self, instructions: &mut InstructionGenerator);
-    fn as_any(&self) -> &dyn Any;
+impl Statement {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        match self {
+            Statement::Null(stmt) => stmt.emit(instructions),
+            Statement::Expression(stmt) => stmt.emit(instructions),
+            Statement::Labeled(stmt) => stmt.emit(instructions),
+            Statement::Compound(stmt) => stmt.emit(instructions),
+            Statement::If(stmt) => stmt.emit(instructions),
+            Statement::Switch(stmt) => stmt.emit(instructions),
+            Statement::Case(stmt) => stmt.emit(instructions),
+            Statement::Default(stmt) => stmt.emit(instructions),
+            Statement::Continue(stmt) => stmt.emit(instructions),
+            Statement::Break(stmt) => stmt.emit(instructions),
+            Statement::While(stmt) => stmt.emit(instructions),
+            Statement::DoWhile(stmt) => stmt.emit(instructions),
+            Statement::For(stmt) => stmt.emit(instructions),
+            Statement::Goto(stmt) => stmt.emit(instructions),
+            Statement::Return(stmt) => stmt.emit(instructions),
+            Statement::StructDefinition(stmt) => stmt.emit(instructions),
+            Statement::FunctionDeclaration(stmt) => stmt.emit(instructions),
+            Statement::Declaration(stmt) => stmt.emit(instructions),
+            Statement::Typedef(stmt) => stmt.emit(instructions),
+            Statement::FunctionDefinition(stmt) => stmt.emit(instructions),
+            Statement::TranslationUnit(stmt) => stmt.emit(instructions),
+        }
+    }
 }
 
 /// Statements that do nothing
-#[derive(Debug)]
-pub struct NullStatement;
-impl Statement for NullStatement {
-    fn emit(&self, _instructions: &mut InstructionGenerator) {}
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+#[derive(Debug, Clone)]
+pub struct StmtNull;
+impl StmtNull {
+    pub fn emit(&self, _instructions: &mut InstructionGenerator) {}
 }
 
 /// for any expression ends with semicolon ';'
-#[derive(Debug)]
-pub struct ExpressionStatement {
-    pub expression: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct StmtExpression {
+    pub expression: Expression,
 }
-impl Statement for ExpressionStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtExpression {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         self.expression.emit(instructions);
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
 
 /// label:
 ///    statement
-#[derive(Debug)]
-pub struct LabeledStatement {
+#[derive(Debug, Clone)]
+pub struct StmtLabeled {
     pub label: String,
-    pub statement: Box<dyn Statement>,
+    pub statement: Box<Statement>,
 }
-impl Statement for LabeledStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtLabeled {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         instructions.set_label(&self.label);
         self.statement.emit(instructions);
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
 
 /// { statements ... }
-#[derive(Debug)]
-pub struct CompoundStatement {
-    pub statements: Vec<Box<dyn Statement>>,
+#[derive(Debug, Clone)]
+pub struct StmtCompound {
+    pub statements: Vec<Statement>,
 }
-impl Statement for CompoundStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtCompound {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         instructions.push_scope();
 
         for statement in &self.statements {
@@ -74,52 +108,46 @@ impl Statement for CompoundStatement {
 
         instructions.pop_scope();
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 /// if ( condition_expression ) then_statement else else_statement
 /// no else if statement
-#[derive(Debug)]
-pub struct IfStatement {
-    pub cond: Box<dyn Expression>,
-    pub then_statement: Box<dyn Statement>,
-    pub else_statement: Option<Box<dyn Statement>>,
+#[derive(Debug, Clone)]
+pub struct StmtIf {
+    pub cond: Expression,
+    pub then_statement: Box<Statement>,
+    pub else_statement: Option<Box<Statement>>,
 }
-impl Statement for IfStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtIf {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let else_label = instructions.get_unique_label();
         let end_label = instructions.get_unique_label();
 
         self.cond.emit(instructions);
-        instructions.push(JumpZero {
+        instructions.push(Instruction::JumpZero(JumpZero {
             label: else_label.clone(),
             operand_cond: Operand::Register(0),
-        });
+        }));
         self.then_statement.emit(instructions);
-        instructions.push(Jump {
+        instructions.push(Instruction::Jump(Jump {
             label: end_label.clone(),
-        });
+        }));
         instructions.set_label(&else_label);
         if let Some(else_statement) = &self.else_statement {
             else_statement.emit(instructions);
         }
         instructions.set_label(&end_label);
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 /// switch ( target_expression ) body_statement
-#[derive(Debug)]
-pub struct SwitchStatement {
-    pub target: Box<dyn Expression>,
-    pub statement: Box<dyn Statement>,
+#[derive(Debug, Clone)]
+pub struct StmtSwitch {
+    pub target: Expression,
+    pub statement: Box<Statement>,
 }
-impl Statement for SwitchStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtSwitch {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let end_label = instructions.get_unique_label();
         let default_label = instructions.get_unique_label();
         instructions
@@ -129,126 +157,120 @@ impl Statement for SwitchStatement {
         // push target to stack
         self.target.emit(instructions);
         if self.target.is_return_reference(instructions) {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(PushStack {
+            instructions.push(Instruction::PushStack(PushStack {
                 operand: Operand::Register(0),
-            });
+            }));
         }
         // and push variable for 'if the pattern matched already?'
-        instructions.push(PushStack {
+        instructions.push(Instruction::PushStack(PushStack {
             operand: Operand::Value(VariableData::UInt8(0)),
-        });
+        }));
 
         // body
         self.statement.emit(instructions);
         // check if the pattern matched and default is defined
         if instructions.labels.get(&default_label).is_some() {
             // if not matched, set pattern matched to true and goto default
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Derefed(STACK_POINTER_REGISTER, -1),
                 operand_to: Operand::Register(0),
-            });
-            instructions.push(JumpZero {
+            }));
+            instructions.push(Instruction::JumpZero(JumpZero {
                 label: default_label.clone(),
                 operand_cond: Operand::Register(0),
-            });
+            }));
         }
 
         // end label here, cleanup
         instructions.set_label(&end_label);
         // pop pattern-matched state and target from stack
-        instructions.push(SubAssign {
+        instructions.push(Instruction::SubAssign(SubAssign {
             lhs: Operand::Register(STACK_POINTER_REGISTER),
             rhs: Operand::Value(VariableData::UInt64(2)),
-        });
+        }));
 
         instructions
             .label_stack
             .pop()
             .expect("Switch: label_stack is empty");
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 /// case value: statement
-#[derive(Debug)]
-pub struct CaseStatement {
-    pub value: Box<dyn Expression>,
-    pub statement: Box<dyn Statement>,
+#[derive(Debug, Clone)]
+pub struct StmtCase {
+    pub value: Expression,
+    pub statement: Box<Statement>,
 }
-impl Statement for CaseStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtCase {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let case_end_label = instructions.get_unique_label();
         let comparison_skip_label = instructions.get_unique_label();
 
         // copy state from stack
-        instructions.push(MoveRegister {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Derefed(STACK_POINTER_REGISTER, -1),
             operand_to: Operand::Register(0),
-        });
+        }));
         // if the pattern matched already, skip comparison
-        instructions.push(JumpNonZero {
+        instructions.push(Instruction::JumpNonZero(JumpNonZero {
             label: comparison_skip_label.clone(),
             operand_cond: Operand::Register(0),
-        });
+        }));
 
         // comparison start here
         // evaluate value
         self.value.emit(instructions);
         // register1 = value
         if self.value.is_return_reference(instructions) {
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Derefed(0, 0),
                 operand_to: Operand::Register(1),
-            });
+            }));
         } else {
-            instructions.push(MoveRegister {
+            instructions.push(Instruction::MoveRegister(MoveRegister {
                 operand_from: Operand::Register(0),
                 operand_to: Operand::Register(1),
-            });
+            }));
         }
         // register0 = target
-        instructions.push(MoveRegister {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Derefed(STACK_POINTER_REGISTER, -2),
             operand_to: Operand::Register(0),
-        });
+        }));
         // register2 = result of comparison
-        instructions.push(Equal {
+        instructions.push(Instruction::Equal(Equal {
             lhs: Operand::Register(0),
             rhs: Operand::Register(1),
             to: Operand::Register(2),
-        });
-        instructions.push(JumpZero {
+        }));
+        instructions.push(Instruction::JumpZero(JumpZero {
             label: case_end_label.clone(),
             operand_cond: Operand::Register(2),
-        });
+        }));
 
-        instructions.push(MoveRegister {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::UInt8(1)),
             operand_to: Operand::Derefed(STACK_POINTER_REGISTER, -1),
-        });
+        }));
 
         instructions.set_label(&comparison_skip_label);
         self.statement.emit(instructions);
 
         instructions.set_label(&case_end_label);
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 /// default: statement
-#[derive(Debug)]
-pub struct DefaultStatement {
-    pub statement: Box<dyn Statement>,
+#[derive(Debug, Clone)]
+pub struct StmtDefault {
+    pub statement: Box<Statement>,
 }
-impl Statement for DefaultStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtDefault {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let default_end_label = instructions.get_unique_label();
         let (default_label, _) = instructions
             .label_stack
@@ -256,68 +278,59 @@ impl Statement for DefaultStatement {
             .expect("Default: label_stack is empty")
             .clone();
         // skip default statement
-        instructions.push(Jump {
+        instructions.push(Instruction::Jump(Jump {
             label: default_end_label.clone(),
-        });
+        }));
         instructions.set_label(&default_label);
         // set pattern matched
-        instructions.push(MoveRegister {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Value(VariableData::UInt8(1)),
             operand_to: Operand::Derefed(STACK_POINTER_REGISTER, -1),
-        });
+        }));
         self.statement.emit(instructions);
         instructions.set_label(&default_end_label);
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
 
 /// continue;
-#[derive(Debug)]
-pub struct ContinueStatement;
-impl Statement for ContinueStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+#[derive(Debug, Clone)]
+pub struct StmtContinue;
+impl StmtContinue {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let continue_label = &instructions
             .label_stack
             .last()
             .expect("Continue: label_stack is empty")
             .0;
-        instructions.push(Jump {
+        instructions.push(Instruction::Jump(Jump {
             label: continue_label.clone(),
-        });
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
+        }));
     }
 }
 
 /// break;
-#[derive(Debug)]
-pub struct BreakStatement;
-impl Statement for BreakStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+#[derive(Debug, Clone)]
+pub struct StmtBreak;
+impl StmtBreak {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let end_label = &instructions
             .label_stack
             .last()
             .expect("Break: label_stack is empty")
             .1;
-        instructions.push(Jump {
+        instructions.push(Instruction::Jump(Jump {
             label: end_label.clone(),
-        });
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
+        }));
     }
 }
 
 /// while ( condition_expression ) statement
-#[derive(Debug)]
-pub struct WhileStatement {
-    pub cond: Box<dyn Expression>,
-    pub statement: Box<dyn Statement>,
+#[derive(Debug, Clone)]
+pub struct StmtWhile {
+    pub cond: Expression,
+    pub statement: Box<Statement>,
 }
-impl Statement for WhileStatement {
+impl StmtWhile {
     fn emit(&self, instructions: &mut InstructionGenerator) {
         let start_label = instructions.get_unique_label();
         let end_label = instructions.get_unique_label();
@@ -328,20 +341,20 @@ impl Statement for WhileStatement {
         instructions.set_label(&start_label);
         self.cond.emit(instructions);
         if self.cond.is_return_reference(instructions) {
-            instructions.push(JumpZero {
+            instructions.push(Instruction::JumpZero(JumpZero {
                 label: end_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(JumpZero {
+            instructions.push(Instruction::JumpZero(JumpZero {
                 label: end_label.clone(),
                 operand_cond: Operand::Register(0),
-            });
+            }));
         }
         self.statement.emit(instructions);
-        instructions.push(Jump {
+        instructions.push(Instruction::Jump(Jump {
             label: start_label.clone(),
-        });
+        }));
         instructions.set_label(&end_label);
 
         instructions
@@ -349,20 +362,17 @@ impl Statement for WhileStatement {
             .pop()
             .expect("While: label_stack is empty");
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 /// do statement while ( condition_expression );
 
-#[derive(Debug)]
-pub struct DoWhileStatement {
-    pub cond: Box<dyn Expression>,
-    pub statement: Box<dyn Statement>,
+#[derive(Debug, Clone)]
+pub struct StmtDoWhile {
+    pub cond: Expression,
+    pub statement: Box<Statement>,
 }
-impl Statement for DoWhileStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtDoWhile {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let start_label = instructions.get_unique_label();
         let continue_label = instructions.get_unique_label();
         let end_label = instructions.get_unique_label();
@@ -383,15 +393,15 @@ impl Statement for DoWhileStatement {
         instructions.set_label(&continue_label);
         self.cond.emit(instructions);
         if self.cond.is_return_reference(instructions) {
-            instructions.push(JumpNonZero {
+            instructions.push(Instruction::JumpNonZero(JumpNonZero {
                 label: start_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(JumpNonZero {
+            instructions.push(Instruction::JumpNonZero(JumpNonZero {
                 label: start_label.clone(),
                 operand_cond: Operand::Register(0),
-            });
+            }));
         }
         instructions.set_label(&end_label);
 
@@ -400,22 +410,19 @@ impl Statement for DoWhileStatement {
             .pop()
             .expect("DoWhile: label_stack is empty");
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 /// for ( init; cond; next ) statement
 /// since init is expression, must declare variable before entering for loop
-#[derive(Debug)]
-pub struct ForStatement {
-    pub init: Box<dyn Expression>,
-    pub cond: Box<dyn Expression>,
-    pub next: Option<Box<dyn Expression>>,
-    pub statement: Box<dyn Statement>,
+#[derive(Debug, Clone)]
+pub struct StmtFor {
+    pub init: Expression,
+    pub cond: Expression,
+    pub next: Option<Expression>,
+    pub statement: Box<Statement>,
 }
-impl Statement for ForStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtFor {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let cond_label = instructions.get_unique_label();
         let end_label = instructions.get_unique_label();
         let continue_label = instructions.get_unique_label();
@@ -436,24 +443,24 @@ impl Statement for ForStatement {
         instructions.set_label(&cond_label);
         self.cond.emit(instructions);
         if self.cond.is_return_reference(instructions) {
-            instructions.push(JumpZero {
+            instructions.push(Instruction::JumpZero(JumpZero {
                 label: end_label.clone(),
                 operand_cond: Operand::Derefed(0, 0),
-            });
+            }));
         } else {
-            instructions.push(JumpZero {
+            instructions.push(Instruction::JumpZero(JumpZero {
                 label: end_label.clone(),
                 operand_cond: Operand::Register(0),
-            });
+            }));
         }
         self.statement.emit(instructions);
         instructions.set_label(&continue_label);
         if let Some(next) = &self.next {
             next.emit(instructions);
         }
-        instructions.push(Jump {
+        instructions.push(Instruction::Jump(Jump {
             label: cond_label.clone(),
-        });
+        }));
         instructions.set_label(&end_label);
 
         instructions
@@ -461,58 +468,49 @@ impl Statement for ForStatement {
             .pop()
             .expect("For: label_stack is empty");
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 /// goto label;
-#[derive(Debug)]
-pub struct GotoStatement {
+#[derive(Debug, Clone)]
+pub struct StmtGoto {
     pub label: String,
 }
-impl Statement for GotoStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
-        instructions.push(Jump {
+impl StmtGoto {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
+        instructions.push(Instruction::Jump(Jump {
             label: self.label.clone(),
-        });
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
+        }));
     }
 }
 
 /// return; or return expression;
-#[derive(Debug)]
-pub struct ReturnStatement {
-    pub expr: Option<Box<dyn Expression>>,
+#[derive(Debug, Clone)]
+pub struct StmtReturn {
+    pub expr: Option<Expression>,
 }
-impl Statement for ReturnStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtReturn {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         if let Some(expr) = &self.expr {
             expr.emit(instructions);
             // force return as value
             if expr.is_return_reference(instructions) {
-                instructions.push(MoveRegister {
+                instructions.push(Instruction::MoveRegister(MoveRegister {
                     operand_from: Operand::Derefed(0, 0),
                     operand_to: Operand::Register(0),
-                });
+                }));
             }
         }
-        instructions.push(Return {});
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
+        instructions.push(Instruction::Return(Return {}));
     }
 }
 
 /// type definition of struct, union, enum
-#[derive(Debug)]
-pub struct TypeDefinition {
+#[derive(Debug, Clone)]
+pub struct StmtStructDefinition {
     pub typeinfo: TypeInfo,
 }
-impl Statement for TypeDefinition {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtStructDefinition {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         match &self.typeinfo {
             TypeInfo::Struct(t) => {
                 if t.name.is_none() {
@@ -536,20 +534,17 @@ impl Statement for TypeDefinition {
             _ => panic!("Invalid type for type declaration: {:?}", self.typeinfo),
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 /// return_type function_name ( params );
-#[derive(Debug)]
-pub struct FunctionDeclaration {
+#[derive(Debug, Clone)]
+pub struct StmtFunctionDeclaration {
     pub return_type: TypeInfo,
     pub name: String,
     pub params: Vec<TypeInfo>,
 }
-impl Statement for FunctionDeclaration {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtFunctionDeclaration {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         // check if its already declared
         let old = instructions.functions.get(&self.name);
         if let Some(old) = old {
@@ -593,19 +588,16 @@ impl Statement for FunctionDeclaration {
                 .insert(self.name.clone(), function_data);
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 /// typename var1, var2, var3, ...,;
 /// var_i can be decorated with qualifiers; pointer, const ...
-#[derive(Debug)]
-pub struct DeclarationStatement {
-    pub vars: Vec<(String, TypeInfo, Option<Box<dyn Expression>>)>, // name, type, initializer
+#[derive(Debug, Clone)]
+pub struct StmtDeclaration {
+    pub vars: Vec<(String, TypeInfo, Option<Expression>)>, // name, type, initializer
 }
-impl Statement for DeclarationStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtDeclaration {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         for declaration in &self.vars {
             // variable declaration
             if let Some(initial_value) = &declaration.2 {
@@ -636,10 +628,10 @@ impl Statement for DeclarationStatement {
                     // array
                     TypeInfo::Array(type_, size) => {
                         // initializer must be initializer list
-                        let initial_value = initial_value
-                            .as_any()
-                            .downcast_ref::<InitializerListExpression>()
-                            .expect("Array initializer must be initializer list");
+                        let initial_value = match initial_value {
+                            Expression::InitializerList(initial_value) => initial_value,
+                            _ => unreachable!("Array initializer must be initializer list"),
+                        };
 
                         let size = match size {
                             Some(size) => {
@@ -749,18 +741,15 @@ impl Statement for DeclarationStatement {
             }
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
-#[derive(Debug)]
-pub struct TypedefStatement {
+#[derive(Debug, Clone)]
+pub struct StmtTypedef {
     pub name: String,
     pub typeinfo: TypeInfo,
 }
-impl Statement for TypedefStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtTypedef {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         let old = if instructions.scopes.is_empty() {
             &mut instructions.global_scope
         } else {
@@ -772,20 +761,17 @@ impl Statement for TypedefStatement {
             panic!("Type {} already exists", self.name);
         }
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
-#[derive(Debug)]
-pub struct FunctionDefinitionStatement {
+#[derive(Debug, Clone)]
+pub struct StmtFunctionDefinition {
     pub return_type: TypeInfo,
     pub name: String,
     pub params: Vec<(Option<String>, TypeInfo)>,
-    pub body: Box<dyn Statement>,
+    pub body: Box<Statement>,
 }
-impl Statement for FunctionDefinitionStatement {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl StmtFunctionDefinition {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         if instructions.function_scope.is_some() {
             panic!("nested function is not allowed");
         }
@@ -856,15 +842,15 @@ impl Statement for FunctionDefinitionStatement {
         }
 
         // push base pointer
-        instructions.push(PushStack {
+        instructions.push(Instruction::PushStack(PushStack {
             operand: Operand::Register(STACK_POINTER_BASE_REGISTER),
-        });
+        }));
         // move base
         // rbp = rsp
-        instructions.push(MoveRegister {
+        instructions.push(Instruction::MoveRegister(MoveRegister {
             operand_from: Operand::Register(STACK_POINTER_REGISTER),
             operand_to: Operand::Register(STACK_POINTER_BASE_REGISTER),
-        });
+        }));
         // here, [rbp-1] is old base pointer
         // here, [rbp-2] is return address
 
@@ -876,32 +862,29 @@ impl Statement for FunctionDefinitionStatement {
         // else, add panic statement for missing return statement
         if instructions.get_true_typeinfo(&self.return_type) == TypeInfo::Void {
             // force add return statement
-            let return_statement = ReturnStatement { expr: None };
+            let return_statement = StmtReturn { expr: None };
             return_statement.emit(instructions);
         } else {
             // panic
-            instructions.push(Panic {
+            instructions.push(Instruction::Panic(Panic {
                 message: format!(
                     "Function {} must return a {:?} value",
                     &self.name, &self.return_type
                 ),
-            });
+            }));
         }
 
         instructions.pop_scope();
         instructions.function_scope = None;
     }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TranslationUnit {
-    pub statements: Vec<Box<dyn Statement>>,
+    pub statements: Vec<Statement>,
 }
-impl Statement for TranslationUnit {
-    fn emit(&self, instructions: &mut InstructionGenerator) {
+impl TranslationUnit {
+    pub fn emit(&self, instructions: &mut InstructionGenerator) {
         for statement in &self.statements {
             statement.emit(instructions);
         }
@@ -914,11 +897,8 @@ impl Statement for TranslationUnit {
 
         let startaddress = instructions.instructions.len();
         instructions.start_address = startaddress;
-        instructions.push(Call {
+        instructions.push(Instruction::Call(Call {
             label: "main".to_string(),
-        });
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
+        }));
     }
 }

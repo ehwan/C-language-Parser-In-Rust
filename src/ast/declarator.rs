@@ -1,47 +1,60 @@
 use super::expression::Expression;
 use super::typename::TypeInfo;
 
-use std::any::Any;
 use std::vec::Vec;
 
-/// base trait for all declarators
-/// this trait will not be visible in emitting sessions.
-/// this will be used no AST Building sessions, to resolve type and variable informations.
-pub trait Declarator: std::fmt::Debug + Any {
-    fn as_any(&self) -> &dyn Any;
+#[derive(Debug, Clone)]
+pub enum Declarator {
+    Identifier(DeclIdentifier),
+    DirectArrayFixed(DeclDirectArrayFixed),
+    DirectArrayUnbounded(DeclDirectArrayUnbounded),
+    DirectFunction(DeclDirectFunction),
+    Const(DeclConst),
+    Pointer(DeclPointer),
+    Init(DeclInit),
+    AbstractArrayFixed(DeclAbstractArrayFixed),
+    AbstractArrayUnbounded(DeclAbstractArrayUnbounded),
+    AbstractFunction(DeclAbstractFunction),
+    AbstractPointer(DeclAbstractPointer),
+    AbstractConst(DeclAbstractConst),
+}
 
-    // get (variable_name, real_type) from (direct|abstract) declarator and type info
-    fn resolve_typeinfo(&self, _info: TypeInfo) -> (Option<String>, TypeInfo) {
-        panic!(
-            "get_direct_typeinfo_from_declarator not implemented for {:?}",
-            self
-        );
+impl Declarator {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+        match self {
+            Declarator::Identifier(decl) => decl.resolve_typeinfo(info),
+            Declarator::DirectArrayFixed(decl) => decl.resolve_typeinfo(info),
+            Declarator::DirectArrayUnbounded(decl) => decl.resolve_typeinfo(info),
+            Declarator::DirectFunction(decl) => decl.resolve_typeinfo(info),
+            Declarator::Const(decl) => decl.resolve_typeinfo(info),
+            Declarator::Pointer(decl) => decl.resolve_typeinfo(info),
+            Declarator::Init(decl) => decl.resolve_typeinfo(info),
+            Declarator::AbstractArrayFixed(decl) => decl.resolve_typeinfo(info),
+            Declarator::AbstractArrayUnbounded(decl) => decl.resolve_typeinfo(info),
+            Declarator::AbstractFunction(decl) => decl.resolve_typeinfo(info),
+            Declarator::AbstractPointer(decl) => decl.resolve_typeinfo(info),
+            Declarator::AbstractConst(decl) => decl.resolve_typeinfo(info),
+        }
     }
 }
 
-#[derive(Debug)]
-pub struct IdentifierDeclarator {
+#[derive(Debug, Clone)]
+pub struct DeclIdentifier {
     pub name: String,
 }
-impl Declarator for IdentifierDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclIdentifier {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         (Some(self.name.clone()), info)
     }
 }
 
-#[derive(Debug)]
-pub struct DirectArrayFixedDeclarator {
-    pub declarator: Box<dyn Declarator>,
-    pub size: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct DeclDirectArrayFixed {
+    pub declarator: Box<Declarator>,
+    pub size: Expression,
 }
-impl Declarator for DirectArrayFixedDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclDirectArrayFixed {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         let (name, info) = self.declarator.resolve_typeinfo(info);
         let size = self
             .size
@@ -51,30 +64,24 @@ impl Declarator for DirectArrayFixedDeclarator {
     }
 }
 
-#[derive(Debug)]
-pub struct DirectArrayUnboundedDeclarator {
-    pub declarator: Box<dyn Declarator>,
+#[derive(Debug, Clone)]
+pub struct DeclDirectArrayUnbounded {
+    pub declarator: Box<Declarator>,
 }
-impl Declarator for DirectArrayUnboundedDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclDirectArrayUnbounded {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         let (name, info) = self.declarator.resolve_typeinfo(info);
         (name, TypeInfo::Array(Box::new(info), None))
     }
 }
 
-#[derive(Debug)]
-pub struct DirectFunctionDeclarator {
-    pub declarator: Box<dyn Declarator>,
+#[derive(Debug, Clone)]
+pub struct DeclDirectFunction {
+    pub declarator: Box<Declarator>,
     pub params: Vec<(Option<String>, TypeInfo)>,
 }
-impl Declarator for DirectFunctionDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclDirectFunction {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         let (name, return_type) = self.declarator.resolve_typeinfo(info);
         let mut params = Vec::new();
         for (_, param_type) in &self.params {
@@ -83,58 +90,46 @@ impl Declarator for DirectFunctionDeclarator {
         (name, TypeInfo::Function(Box::new(return_type), params))
     }
 }
-#[derive(Debug)]
-pub struct ConstDeclarator {
-    pub declarator: Box<dyn Declarator>,
+#[derive(Debug, Clone)]
+pub struct DeclConst {
+    pub declarator: Box<Declarator>,
 }
-impl Declarator for ConstDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclConst {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         let (name, info) = self.declarator.resolve_typeinfo(info);
         (name, TypeInfo::Const(Box::new(info)))
     }
 }
 
-#[derive(Debug)]
-pub struct PointerDeclarator {
-    pub declarator: Box<dyn Declarator>,
+#[derive(Debug, Clone)]
+pub struct DeclPointer {
+    pub declarator: Box<Declarator>,
 }
-impl Declarator for PointerDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclPointer {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         let (name, info) = self.declarator.resolve_typeinfo(info);
         (name, TypeInfo::Pointer(Box::new(info)))
     }
 }
 
-#[derive(Debug)]
-pub struct InitDeclarator {
-    pub declarator: Box<dyn Declarator>,
-    pub initializer: Option<Box<dyn Expression>>,
+#[derive(Debug, Clone)]
+pub struct DeclInit {
+    pub declarator: Box<Declarator>,
+    pub initializer: Option<Expression>,
 }
-impl Declarator for InitDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclInit {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         self.declarator.resolve_typeinfo(info)
     }
 }
 
-#[derive(Debug)]
-pub struct AbstractArrayFixedDeclarator {
-    pub declarator: Option<Box<dyn Declarator>>,
-    pub size: Box<dyn Expression>,
+#[derive(Debug, Clone)]
+pub struct DeclAbstractArrayFixed {
+    pub declarator: Option<Box<Declarator>>,
+    pub size: Expression,
 }
-impl Declarator for AbstractArrayFixedDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclAbstractArrayFixed {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         let (name, info_) = if let Some(decl) = &self.declarator {
             decl.resolve_typeinfo(info)
         } else {
@@ -148,15 +143,12 @@ impl Declarator for AbstractArrayFixedDeclarator {
     }
 }
 
-#[derive(Debug)]
-pub struct AbstractArrayUnboundedDeclarator {
-    pub declarator: Option<Box<dyn Declarator>>,
+#[derive(Debug, Clone)]
+pub struct DeclAbstractArrayUnbounded {
+    pub declarator: Option<Box<Declarator>>,
 }
-impl Declarator for AbstractArrayUnboundedDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclAbstractArrayUnbounded {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         let (name, info_) = if let Some(decl) = &self.declarator {
             decl.resolve_typeinfo(info)
         } else {
@@ -166,16 +158,13 @@ impl Declarator for AbstractArrayUnboundedDeclarator {
     }
 }
 
-#[derive(Debug)]
-pub struct AbstractFunctionDeclarator {
-    pub declarator: Option<Box<dyn Declarator>>,
+#[derive(Debug, Clone)]
+pub struct DeclAbstractFunction {
+    pub declarator: Option<Box<Declarator>>,
     pub params: Vec<(Option<String>, TypeInfo)>,
 }
-impl Declarator for AbstractFunctionDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclAbstractFunction {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         let (name, return_type) = if let Some(decl) = &self.declarator {
             decl.resolve_typeinfo(info)
         } else {
@@ -191,15 +180,12 @@ impl Declarator for AbstractFunctionDeclarator {
     }
 }
 
-#[derive(Debug)]
-pub struct AbstractPointerDeclarator {
-    pub declarator: Option<Box<dyn Declarator>>,
+#[derive(Debug, Clone)]
+pub struct DeclAbstractPointer {
+    pub declarator: Option<Box<Declarator>>,
 }
-impl Declarator for AbstractPointerDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclAbstractPointer {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         let (name, info_) = if let Some(decl) = &self.declarator {
             decl.resolve_typeinfo(info)
         } else {
@@ -209,15 +195,12 @@ impl Declarator for AbstractPointerDeclarator {
     }
 }
 
-#[derive(Debug)]
-pub struct AbstractConstDeclarator {
-    pub declarator: Option<Box<dyn Declarator>>,
+#[derive(Debug, Clone)]
+pub struct DeclAbstractConst {
+    pub declarator: Option<Box<Declarator>>,
 }
-impl Declarator for AbstractConstDeclarator {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
+impl DeclAbstractConst {
+    pub fn resolve_typeinfo(&self, info: TypeInfo) -> (Option<String>, TypeInfo) {
         let (name, info_) = if let Some(decl) = &self.declarator {
             decl.resolve_typeinfo(info)
         } else {

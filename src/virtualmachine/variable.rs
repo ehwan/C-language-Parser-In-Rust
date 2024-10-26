@@ -161,7 +161,6 @@ impl VariableData {
                 TypeInfo::Float64 => Some(VariableData::Float64(*lf64)),
                 _ => None,
             },
-            _ => None,
         }
     }
 
@@ -238,7 +237,6 @@ impl VariableData {
             VariableData::UInt64(i) => *i as f64,
             VariableData::Float32(f) => *f as f64,
             VariableData::Float64(f) => *f,
-            _ => panic!("VariableData::to_f64: {:?}", self),
         }
     }
 

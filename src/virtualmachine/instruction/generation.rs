@@ -21,7 +21,7 @@ pub enum VariableOffset {
 #[derive(Debug)]
 pub struct InstructionGenerator {
     /// generated instructions
-    pub instructions: Vec<Box<dyn Instruction>>,
+    pub instructions: Vec<Instruction>,
 
     /// function map
     pub functions: HashMap<String, FunctionInfo>,
@@ -71,8 +71,8 @@ impl InstructionGenerator {
         }
     }
     /// push new instruction
-    pub fn push<I: Instruction + 'static>(&mut self, instruction: I) {
-        self.instructions.push(Box::new(instruction));
+    pub fn push(&mut self, instruction: Instruction) {
+        self.instructions.push(instruction);
     }
 
     /// for unique label generation
@@ -231,8 +231,8 @@ impl InstructionGenerator {
         if let Some(_) = old {
             panic!("label {} is already defined", label);
         }
-        self.push(DefineLabel {
+        self.push(Instruction::DefineLabel(DefineLabel {
             label: label.to_string(),
-        });
+        }));
     }
 }

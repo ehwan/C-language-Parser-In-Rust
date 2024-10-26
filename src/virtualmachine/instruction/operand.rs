@@ -1,4 +1,4 @@
-use crate::virtualmachine::program::VirtualProgram;
+use crate::virtualmachine::program::VirtualMachine;
 use crate::virtualmachine::variable::VariableData;
 
 /// Type for Operand
@@ -14,7 +14,7 @@ pub enum Operand {
 /// helper function
 pub(crate) fn get_operand_value<'a>(
     // helper function
-    program: &'a VirtualProgram,
+    program: &'a VirtualMachine,
     operand: &'a Operand,
 ) -> &'a VariableData {
     match operand {
@@ -28,7 +28,7 @@ pub(crate) fn get_operand_value<'a>(
 /// helper function
 pub(crate) fn get_operand_value_mut<'a>(
     // helper function
-    program: &'a mut VirtualProgram,
+    program: &'a mut VirtualMachine,
     operand: &'a Operand,
 ) -> &'a mut VariableData {
     match operand {
