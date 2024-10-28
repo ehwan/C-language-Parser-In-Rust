@@ -4,6 +4,7 @@ use virtualmachine::instruction::generation::InstructionGenerator;
 use virtualmachine::program::VirtualMachine;
 
 mod ast;
+mod ast2;
 mod preprocess;
 mod token;
 mod virtualmachine;
