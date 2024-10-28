@@ -11,3 +11,4 @@ categories = ["parser-implementations", "compilers"]
 
 [dependencies]
 rusty_parser = "1.1.0"
+rusty_lr = "3.3.1"

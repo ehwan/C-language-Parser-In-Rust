@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub enum Token {
     Others(char), // any other character that failed to parse;
     Identifier(String),
@@ -100,6 +100,20 @@ pub enum Token {
     Pipe,
     Question,
     Whitespace, // one or more whitespaces
+
+    Eof,
+}
+
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
+    }
+}
+impl Eq for Token {}
+impl std::hash::Hash for Token {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        std::mem::discriminant(self).hash(state);
+    }
 }
 
 use rusty_parser as rp;

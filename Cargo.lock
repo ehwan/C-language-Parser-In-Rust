@@ -6,7 +6,63 @@ version = 3
 name = "mini-c-parser"
 version = "0.12.2"
 dependencies = [
+ "rusty_lr",
  "rusty_parser",
+]
+
+[[package]]
+name = "proc-macro2"
+version = "1.0.89"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f139b0662de085916d1fb67d2b4169d1addddda1919e696f3252b740b629986e"
+dependencies = [
+ "unicode-ident",
+]
+
+[[package]]
+name = "quote"
+version = "1.0.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5b9d34b8991d19d98081b46eacdd8eb58c6f2b201139f7c5f643cc155a633af"
+dependencies = [
+ "proc-macro2",
+]
+
+[[package]]
+name = "rusty_lr"
+version = "3.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95fa482f4c998edbbfeff2fcb96b69567809fbc8fd1622a2de37bd028a4e250f"
+dependencies = [
+ "rusty_lr_core",
+ "rusty_lr_derive",
+]
+
+[[package]]
+name = "rusty_lr_core"
+version = "3.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5bd65ae873d5a464a7e13da4726ce9c2673b2883bbef3c33e1e8457b453e531c"
+
+[[package]]
+name = "rusty_lr_derive"
+version = "2.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcfbb05383747127509a3d5b22b799f41f5becc61afe35cba3718da1a052e77c"
+dependencies = [
+ "proc-macro2",
+ "rusty_lr_parser",
+]
+
+[[package]]
+name = "rusty_lr_parser"
+version = "3.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "825ccff885cbc05b28054300a9eaa816e575ab5bf04b8637b7c18f1821061d32"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "rusty_lr_core",
 ]
 
 [[package]]
@@ -14,3 +70,9 @@ name = "rusty_parser"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0d4bd88bbc485acc1f3d26157ad5dd519e08c0e5a265a9601a8245b4eb195cd"
+
+[[package]]
+name = "unicode-ident"
+version = "1.0.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
