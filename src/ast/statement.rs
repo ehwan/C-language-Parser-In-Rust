@@ -112,7 +112,7 @@ pub struct StmtDoWhile {
 /// since init is expression, must declare variable before entering for loop
 #[derive(Debug, Clone)]
 pub struct StmtFor {
-    pub init: Expression,
+    pub init: Box<Statement>,
     pub cond: Expression,
     pub next: Option<Expression>,
     pub statement: Box<Statement>,

@@ -708,20 +708,18 @@ iteration_statement( Statement )
         })
     }
     | for_ lparen init=expression_statement cond=expression_statement rparen body=statement {
-        let Statement::Expression(init) = init else { unreachable!() };
         let Statement::Expression(cond) = cond else { unreachable!() };
         Statement::For( statement::StmtFor{
-            init: init.expression,
+            init: Box::new(init),
             cond: cond.expression,
             next: None,
             statement: Box::new(body),
         })
     }
     | for_ lparen init=expression_statement cond=expression_statement next=expression rparen body=statement {
-        let Statement::Expression(init) = init else { unreachable!() };
         let Statement::Expression(cond) = cond else { unreachable!() };
         Statement::For( statement::StmtFor{
-            init: init.expression,
+            init: Box::new(init),
             cond: cond.expression,
             next: Some(next),
             statement: Box::new(body),

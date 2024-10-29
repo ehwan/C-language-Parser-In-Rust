@@ -1,177 +1,132 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use super::expression;
 use super::statement;
+use super::ArrayType;
 use super::CVType;
 use super::CombinedDeclarator;
 use super::ConversionError;
 use super::Expression;
+use super::FunctionType;
+use super::PrimitiveType;
 use super::Statement;
+use super::StmtSwitchCase;
 use crate::ast;
 
-pub struct Context {
-    // pub function_scope: Option<FunctionScope>,
-    // pub scopes: Vec<Scope>,
-    // pub scope_counter: usize,
+use super::scope::BlockScope;
+use super::scope::FunctionScope;
+use super::scope::GlobalScope;
+use super::scope::LoopScope;
+use super::scope::Scope;
+use super::scope::SwitchScope;
+use super::scope::VariableScope;
 
-    // pub labels: HashMap<String, Rc<RefCell<LabelInfo>>>,
+use super::LabelInfo;
+
+pub struct Context {
+    /// for unique scope id generation
+    pub scope_counter: usize,
+    pub global_scope: GlobalScope,
+    pub function_scope: Option<FunctionScope>,
+    pub scopes: Vec<Scope>,
 }
 
 impl Context {
     pub fn new() -> Self {
         Context {
-            // scopes: Vec::new(),
-            // scope_counter: 0,
-            // labels: Default::default(),
+            scope_counter: 0,
+            global_scope: GlobalScope::new(),
+            function_scope: None,
+            scopes: Vec::new(),
         }
     }
 
-    /// return index on local stack for new variable
-    /*
-    fn new_offset(&self) -> usize {
-        for parent in self.scopes.iter().rev() {
-            match parent {
-                Scope::Block(blk) => return blk.offset + blk.variables.len(),
-                Scope::Function(_) => return 0,
-            }
-        }
-        0
-    }
-    pub fn begin_scope(&mut self, is_loop: bool) {
-        let offset = self.new_offset();
+    /// generate unique scope id
+    fn generate_scope_id(&mut self) -> usize {
         self.scope_counter += 1;
-        self.scopes.push(Scope::Block(ScopeBlock {
-            id: self.scope_counter,
-            max_variables: 0,
-            offset,
-            variables: Vec::new(),
-            is_loop,
-            labels: Vec::new(),
-        }));
+        self.scope_counter
     }
-    /// close all local variable scopes, count up variables and re calculate stack size.
-    fn end_scope(&mut self) -> Scope {
-        let scope = self.scopes.pop().unwrap();
-
-        if let Scope::Block(blk) = &scope {
-            for label in blk.labels.iter() {
-                self.labels.remove(label);
-            }
-            match self.scopes.last_mut() {
-                Some(Scope::Block(parent)) => {
-                    let vars = parent.variables.len() + blk.max_variables;
-                    parent.max_variables = parent.max_variables.max(vars);
-                }
-                Some(Scope::Function(parent)) => {
-                    parent.max_variables = parent.max_variables.max(blk.max_variables);
-                }
-                _ => {}
-            }
-        } else {
-            unreachable!("end_scope - block scope not opened?");
-        }
-
-        scope
+    fn begin_switch_scope(&mut self) -> Result<(), ConversionError> {
+        let scope = SwitchScope {
+            id: self.generate_scope_id(),
+            default: false,
+        };
+        self.scopes.push(Scope::Switch(scope));
+        Ok(())
     }
-    /// return local stack offset
-    fn begin_variable_scope(&mut self, name: String) -> Rc<RefCell<VariableInfo>> {
-        if let Some(Scope::Block(blk)) = self.scopes.last_mut() {
-            let offset = blk.offset + blk.variables.len();
-            let varinfo = Rc::new(RefCell::new(VariableInfo {
-                name,
-                is_reference: false,
-                offset,
-            }));
-            blk.variables.push(Rc::clone(&varinfo));
-            blk.max_variables = blk.max_variables.max(blk.variables.len());
-            varinfo
-        } else {
-            unreachable!("begin_variable_scope - block scope not opened?");
-        }
-    }
-    /// search for local variable name `name`
-    fn search_local_variable(&mut self, name: &str) -> Option<ExprLocalVariable> {
-        let mut function_scopes = Vec::new();
-        let mut found = None;
-        'a: for scope in self.scopes.iter_mut().rev() {
-            match scope {
-                Scope::Block(blk) => {
-                    for var in blk.variables.iter().rev() {
-                        if var.borrow().name == name {
-                            found = Some(ExprLocalVariable::Stack(
-                                var.borrow().offset,
-                                name.to_string(),
-                            ));
-                            break 'a;
-                        }
-                    }
-                }
-                Scope::Function(func) => {
-                    for (upvalue_idx, upvalue) in func.upvalues.iter().enumerate() {
-                        if upvalue.name.as_str() == name {
-                            found = Some(ExprLocalVariable::Upvalue(upvalue_idx, name.to_string()));
-                            break 'a;
-                        }
-                    }
-                    function_scopes.push(func);
-                }
-            }
-        }
-        if let Some(mut found) = found {
-            for scope in function_scopes.into_iter().rev() {
-                let upvalue_idx = scope.upvalues.len();
-                scope.upvalues.push(UpvalueInfo {
-                    name: name.to_string(),
-                    from: found,
-                });
-                found = ExprLocalVariable::Upvalue(upvalue_idx, name.to_string());
-            }
-            Some(found)
-        } else {
-            None
-        }
-    }
-    fn begin_function_scope(&mut self, variadic: bool) {
-        self.scope_counter += 1;
-        self.scopes.push(Scope::Function(ScopeFunction {
-            id: self.scope_counter,
-            max_variables: 0,
-            upvalues: Vec::new(),
-            variadic,
-        }));
-    }
-    fn end_function_scope(&mut self) -> ScopeFunction {
-        if let Some(Scope::Function(scope)) = self.scopes.pop() {
-            scope
-        } else {
-            unreachable!("end_function_scope - function scope not opened? - 2");
-        }
-    }
-    fn nearest_function_scope(&mut self) -> Option<&mut ScopeFunction> {
+    fn nearest_switch_scope(&mut self) -> Option<&mut SwitchScope> {
         for scope in self.scopes.iter_mut().rev() {
             match scope {
-                Scope::Function(func) => return Some(func),
+                Scope::Switch(scope) => return Some(scope),
                 _ => {}
             }
         }
         None
     }
+    fn end_switch_scope(&mut self) -> Result<SwitchScope, ConversionError> {
+        unimplemented!("end_switch_scope")
+        // must pop every variable scope until switch scope
+    }
+    fn begin_loop_scope(&mut self) -> Result<(), ConversionError> {
+        let scope = LoopScope {
+            id: self.generate_scope_id(),
+        };
+        self.scopes.push(Scope::Loop(scope));
+        Ok(())
+    }
+    fn end_loop_scope(&mut self) -> Result<LoopScope, ConversionError> {
+        unimplemented!("end_loop_scope")
+        // must pop every variable scope until loop scope
+    }
 
-    fn scope_tree(&self) -> Vec<usize> {
-        let mut tree = Vec::new();
+    fn begin_scope(&mut self) -> Result<(), ConversionError> {
+        let scope = BlockScope {
+            id: self.generate_scope_id(),
+        };
+        self.scopes.push(Scope::Block(scope));
+        Ok(())
+    }
+    fn end_scope(&mut self) -> Result<BlockScope, ConversionError> {
+        unimplemented!("end_scope")
+    }
+
+    fn begin_function_scope(
+        &mut self,
+        name: String,
+        type_: FunctionType,
+    ) -> Result<(), ConversionError> {
+        unimplemented!("begin_function_scope")
+    }
+    fn end_function_scope(&mut self) -> Result<FunctionScope, ConversionError> {
+        unimplemented!("end_function_scope")
+    }
+
+    fn begin_variable_scope(&mut self, name: String) -> Result<(), ConversionError> {
+        unimplemented!("begin_variable_scope")
+    }
+
+    fn can_continue(&self) -> bool {
         for scope in self.scopes.iter().rev() {
             match scope {
-                Scope::Block(blk) => tree.push(blk.id),
-                Scope::Function(_) => break,
+                Scope::Loop(_) => return true,
+                _ => {}
             }
         }
-        tree.reverse();
-        tree
+        false
     }
-    */
-
-    // pub fn process(&mut self, block: lua_parser::Block) -> Result<crate::Block, ProcessError> {
-    //     self.begin_scope(false);
-    //     self.process_block(block, false, false)
-    // }
+    fn can_break(&self) -> bool {
+        for scope in self.scopes.iter().rev() {
+            match scope {
+                Scope::Loop(_) | Scope::Switch(_) => return true,
+                _ => {}
+            }
+        }
+        false
+    }
+    fn can_return(&self) -> bool {
+        self.function_scope.is_some()
+    }
 
     pub fn process_statement(
         &mut self,
@@ -257,81 +212,262 @@ impl Context {
     }
 }
 
+// for statements
 impl Context {
     pub(crate) fn process_statement_null(
         &mut self,
-        stmt: ast::StmtNull,
+        _stmt: ast::StmtNull,
     ) -> Result<Statement, ConversionError> {
+        Ok(Statement::None)
     }
     pub(crate) fn process_statement_expression(
         &mut self,
         stmt: ast::StmtExpression,
     ) -> Result<Statement, ConversionError> {
+        Ok(Statement::Expression(statement::StmtExpression {
+            expression: self.process_expression(stmt.expression)?,
+        }))
     }
     pub(crate) fn process_statement_labeled(
         &mut self,
         stmt: ast::StmtLabeled,
     ) -> Result<Statement, ConversionError> {
-    }
-    pub(crate) fn process_statement_compound(
-        &mut self,
-        stmt: ast::StmtCompound,
-    ) -> Result<Statement, ConversionError> {
-    }
-    pub(crate) fn process_statement_if(
-        &mut self,
-        stmt: ast::StmtIf,
-    ) -> Result<Statement, ConversionError> {
-    }
-    pub(crate) fn process_statement_switch(
-        &mut self,
-        stmt: ast::StmtSwitch,
-    ) -> Result<Statement, ConversionError> {
-    }
-    pub(crate) fn process_statement_case(
-        &mut self,
-        stmt: ast::StmtCase,
-    ) -> Result<Statement, ConversionError> {
-    }
-    pub(crate) fn process_statement_default(
-        &mut self,
-        stmt: ast::StmtDefault,
-    ) -> Result<Statement, ConversionError> {
-    }
-    pub(crate) fn process_statement_continue(
-        &mut self,
-        stmt: ast::StmtContinue,
-    ) -> Result<Statement, ConversionError> {
-    }
-    pub(crate) fn process_statement_break(
-        &mut self,
-        stmt: ast::StmtBreak,
-    ) -> Result<Statement, ConversionError> {
-    }
-    pub(crate) fn process_statement_while(
-        &mut self,
-        stmt: ast::StmtWhile,
-    ) -> Result<Statement, ConversionError> {
-    }
-    pub(crate) fn process_statement_dowhile(
-        &mut self,
-        stmt: ast::StmtDoWhile,
-    ) -> Result<Statement, ConversionError> {
-    }
-    pub(crate) fn process_statement_for(
-        &mut self,
-        stmt: ast::StmtFor,
-    ) -> Result<Statement, ConversionError> {
+        if let Some(function_scope) = &mut self.function_scope {
+            let label_info = LabelInfo {
+                name: stmt.label.clone(),
+            };
+            let label_info = Rc::new(RefCell::new(label_info));
+            if let Some(old) = function_scope
+                .labels
+                .insert(stmt.label.clone(), Rc::clone(&label_info))
+            {
+                let label = old.borrow().name.clone();
+                Err(ConversionError::MultipleLabelDefinition(label))
+            } else {
+                Ok(Statement::Labeled(statement::StmtLabeled {
+                    label: label_info,
+                    statement: Box::new(self.process_statement(*stmt.statement)?),
+                }))
+            }
+        } else {
+            Err(ConversionError::LabelDefinitionOutsideFunction)
+        }
     }
     pub(crate) fn process_statement_goto(
         &mut self,
         stmt: ast::StmtGoto,
     ) -> Result<Statement, ConversionError> {
+        if let Some(function_scope) = &mut self.function_scope {
+            if let Some(label) = function_scope.labels.get(&stmt.label) {
+                Ok(Statement::Goto(statement::StmtGoto {
+                    label: Rc::clone(label),
+                }))
+            } else {
+                Err(ConversionError::GotoInvalidLabel(stmt.label))
+            }
+        } else {
+            Err(ConversionError::GotoOutsideFunction)
+        }
+    }
+    pub(crate) fn process_statement_compound(
+        &mut self,
+        stmt: ast::StmtCompound,
+    ) -> Result<Statement, ConversionError> {
+        self.begin_scope()?;
+
+        let compound = statement::StmtCompound {
+            statements: stmt
+                .statements
+                .into_iter()
+                .map(|stmt| self.process_statement(stmt))
+                .collect::<Result<Vec<_>, _>>()?,
+        };
+
+        self.end_scope()?;
+        Ok(Statement::Compound(compound))
+    }
+    pub(crate) fn process_statement_if(
+        &mut self,
+        stmt: ast::StmtIf,
+    ) -> Result<Statement, ConversionError> {
+        let cond = self.process_expression(stmt.cond)?;
+        let then = self.process_statement(*stmt.then_statement)?;
+        let else_ = if let Some(stmt) = stmt.else_statement {
+            Some(Box::new(self.process_statement(*stmt)?))
+        } else {
+            None
+        };
+
+        Ok(Statement::If(statement::StmtIf {
+            condition: cond,
+            then: Box::new(then),
+            else_,
+        }))
+    }
+    pub(crate) fn process_statement_switch(
+        &mut self,
+        stmt: ast::StmtSwitch,
+    ) -> Result<Statement, ConversionError> {
+        self.begin_switch_scope()?;
+        let value = self.process_expression(stmt.target)?;
+        let body = self.process_statement(*stmt.statement)?;
+        self.end_switch_scope()?;
+
+        let Statement::Compound(body) = body else {
+            return Err(ConversionError::InvalidSwitchBody);
+        };
+
+        let mut cases: Vec<StmtSwitchCase> = Vec::new();
+        for s in body.statements.into_iter() {
+            match s {
+                Statement::_Case(c) => {
+                    cases.push(StmtSwitchCase {
+                        value: Some(c.value),
+                        statements: vec![*c.statement],
+                    });
+                }
+                Statement::_Default(d) => {
+                    cases.push(StmtSwitchCase {
+                        value: None,
+                        statements: vec![*d.statement],
+                    });
+                }
+                s => {
+                    if let Some(last) = cases.last_mut() {
+                        last.statements.push(s);
+                    } else {
+                        return Err(ConversionError::InvalidSwitchBody);
+                    }
+                }
+            }
+        }
+        Ok(Statement::Switch(statement::StmtSwitch { value, cases }))
+    }
+    pub(crate) fn process_statement_case(
+        &mut self,
+        stmt: ast::StmtCase,
+    ) -> Result<Statement, ConversionError> {
+        let value = self.process_expression(stmt.value)?;
+        let statement = self.process_statement(*stmt.statement)?;
+        if self.nearest_switch_scope().is_none() {
+            return Err(ConversionError::InvalidCase);
+        }
+
+        Ok(Statement::_Case(statement::StmtCase {
+            value,
+            statement: Box::new(statement),
+        }))
+    }
+    pub(crate) fn process_statement_default(
+        &mut self,
+        stmt: ast::StmtDefault,
+    ) -> Result<Statement, ConversionError> {
+        let statement = self.process_statement(*stmt.statement)?;
+        if let Some(scope) = self.nearest_switch_scope() {
+            if scope.default {
+                return Err(ConversionError::MultipleDefault);
+            }
+        } else {
+            return Err(ConversionError::InvalidDefault);
+        }
+
+        Ok(Statement::_Default(statement::StmtDefault {
+            statement: Box::new(statement),
+        }))
+    }
+    pub(crate) fn process_statement_continue(
+        &mut self,
+        _stmt: ast::StmtContinue,
+    ) -> Result<Statement, ConversionError> {
+        if !self.can_continue() {
+            return Err(ConversionError::InvalidContinue);
+        }
+
+        Ok(Statement::Continue)
+    }
+    pub(crate) fn process_statement_break(
+        &mut self,
+        _stmt: ast::StmtBreak,
+    ) -> Result<Statement, ConversionError> {
+        if !self.can_break() {
+            return Err(ConversionError::InvalidBreak);
+        }
+
+        Ok(Statement::Break)
+    }
+    pub(crate) fn process_statement_while(
+        &mut self,
+        stmt: ast::StmtWhile,
+    ) -> Result<Statement, ConversionError> {
+        self.begin_loop_scope()?;
+
+        let cond = self.process_expression(stmt.cond)?;
+        let body = self.process_statement(*stmt.statement)?;
+
+        self.end_loop_scope()?;
+
+        Ok(Statement::While(statement::StmtWhile {
+            condition: cond,
+            body: Box::new(body),
+        }))
+    }
+    pub(crate) fn process_statement_dowhile(
+        &mut self,
+        stmt: ast::StmtDoWhile,
+    ) -> Result<Statement, ConversionError> {
+        self.begin_loop_scope()?;
+
+        let body = self.process_statement(*stmt.statement)?;
+        let cond = self.process_expression(stmt.cond)?;
+
+        self.end_loop_scope()?;
+
+        Ok(Statement::DoWhile(statement::StmtDoWhile {
+            body: Box::new(body),
+            condition: cond,
+        }))
+    }
+    pub(crate) fn process_statement_for(
+        &mut self,
+        stmt: ast::StmtFor,
+    ) -> Result<Statement, ConversionError> {
+        self.begin_loop_scope()?;
+
+        let init = self.process_statement(*stmt.init)?;
+        let cond = self.process_expression(stmt.cond)?;
+        let next = if let Some(expr) = stmt.next {
+            Some(self.process_expression(expr)?)
+        } else {
+            None
+        };
+        let body = self.process_statement(*stmt.statement)?;
+
+        self.end_loop_scope()?;
+
+        Ok(Statement::For(statement::StmtFor {
+            init: Box::new(init),
+            condition: cond,
+            next,
+            body: Box::new(body),
+        }))
     }
     pub(crate) fn process_statement_return(
         &mut self,
         stmt: ast::StmtReturn,
     ) -> Result<Statement, ConversionError> {
+        if !self.can_return() {
+            return Err(ConversionError::InvalidReturn);
+        }
+        // @TODO type check
+
+        let expr = if let Some(expr) = stmt.expr {
+            Some(self.process_expression(expr)?)
+        } else {
+            None
+        };
+        Ok(Statement::Return(statement::StmtReturn {
+            expression: expr,
+        }))
     }
     pub(crate) fn process_statement_declaration(
         &mut self,
@@ -342,9 +478,34 @@ impl Context {
         &mut self,
         stmt: ast::StmtFunctionDefinition,
     ) -> Result<Statement, ConversionError> {
+        let base_type = match stmt.specs {
+            Some(specs) => self.process_decl_specs(specs.into_iter())?,
+            None => CVType::from_primitive(PrimitiveType::Void),
+        };
+        let decl = self.process_declarator(stmt.decl, base_type)?;
+        let name = match decl.name {
+            Some(name) => name,
+            None => return Err(ConversionError::NoFunctionName),
+        };
+        match decl.type_.type_ {
+            PrimitiveType::Function(func) => {
+                self.begin_function_scope(name.clone(), func.clone())?;
+                let body = self.process_statement(*stmt.body)?;
+                let scope = self.end_function_scope()?;
+                let statement = Statement::FunctionDefinition(statement::StmtFunctionDefinition {
+                    name,
+                    definition: func,
+                    body: Box::new(body),
+                    stack_size: scope.stack_size,
+                });
+                Ok(statement)
+            }
+            _ => return Err(ConversionError::InvalidFunctionDefinition),
+        }
     }
 }
 
+// for expressions
 impl Context {
     pub(crate) fn process_expression_identifier(
         &mut self,
@@ -430,6 +591,14 @@ impl Context {
         &mut self,
         expr: ast::ExprConditional,
     ) -> Result<Expression, ConversionError> {
+        let cond = self.process_expression(*expr.cond)?;
+        let then = self.process_expression(*expr.then_expr)?;
+        let else_ = self.process_expression(*expr.else_expr)?;
+        Ok(Expression::Conditional(expression::ExprConditional {
+            cond: Box::new(cond),
+            then_expr: Box::new(then),
+            else_expr: Box::new(else_),
+        }))
     }
     pub(crate) fn process_expression_unary(
         &mut self,
@@ -445,27 +614,80 @@ impl Context {
         &mut self,
         expr: ast::ExprInitializerList,
     ) -> Result<Expression, ConversionError> {
+        Ok(Expression::InitializerList(
+            expression::ExprInitializerList {
+                exprs: expr
+                    .initializers
+                    .into_iter()
+                    .map(|expr| self.process_expression(expr))
+                    .collect::<Result<Vec<_>, _>>()?,
+            },
+        ))
     }
 }
 
+// for declarators
 impl Context {
+    pub(crate) fn process_specs(
+        &mut self,
+        mut specs: impl Iterator<Item = ast::SpecifierQualifier>,
+    ) -> Result<CVType, ConversionError> {
+        unimplemented!("process_specs")
+    }
+    pub(crate) fn process_decl_specs(
+        &mut self,
+        mut specs: impl Iterator<Item = ast::DeclarationSpecifier>,
+    ) -> Result<CVType, ConversionError> {
+        unimplemented!("process_specs")
+    }
     pub(crate) fn process_declarator_identifier(
         &mut self,
         decl: ast::DeclIdentifier,
         base_type: CVType,
     ) -> Result<CombinedDeclarator, ConversionError> {
+        Ok(CombinedDeclarator {
+            name: Some(decl.name),
+            type_: base_type,
+        })
     }
     pub(crate) fn process_declarator_pointer(
         &mut self,
         decl: ast::DeclPointer,
         base_type: CVType,
     ) -> Result<CombinedDeclarator, ConversionError> {
+        if let Some(decl) = decl.declarator {
+            let mut res = self.process_declarator(*decl, base_type)?;
+            res.type_ = CVType::from_primitive(PrimitiveType::Pointer(Box::new(res.type_)));
+            Ok(res)
+        } else {
+            Ok(CombinedDeclarator {
+                name: None,
+                type_: CVType::from_primitive(PrimitiveType::Pointer(Box::new(base_type))),
+            })
+        }
     }
     pub(crate) fn process_declarator_array_fixed(
         &mut self,
         decl: ast::DeclArrayFixed,
         base_type: CVType,
     ) -> Result<CombinedDeclarator, ConversionError> {
+        let size = self.process_expression(decl.size)?;
+        if let Some(decl) = decl.declarator {
+            let mut res = self.process_declarator(*decl, base_type)?;
+            res.type_ = CVType::from_primitive(PrimitiveType::Array(ArrayType {
+                type_: Box::new(res.type_),
+                size: size,
+            }));
+            Ok(res)
+        } else {
+            Ok(CombinedDeclarator {
+                name: None,
+                type_: CVType::from_primitive(PrimitiveType::Array(ArrayType {
+                    type_: Box::new(base_type),
+                    size: size,
+                })),
+            })
+        }
     }
     pub(crate) fn process_declarator_array_unbounded(
         &mut self,
@@ -482,13 +704,35 @@ impl Context {
     pub(crate) fn process_declarator_const(
         &mut self,
         decl: ast::DeclConst,
-        base_type: CVType,
+        mut base_type: CVType,
     ) -> Result<CombinedDeclarator, ConversionError> {
+        if let Some(decl) = decl.declarator {
+            let mut res = self.process_declarator(*decl, base_type)?;
+            res.type_.const_ = true;
+            Ok(res)
+        } else {
+            base_type.const_ = true;
+            Ok(CombinedDeclarator {
+                name: None,
+                type_: base_type,
+            })
+        }
     }
     pub(crate) fn process_declarator_volatile(
         &mut self,
         decl: ast::DeclVolatile,
-        base_type: CVType,
+        mut base_type: CVType,
     ) -> Result<CombinedDeclarator, ConversionError> {
+        if let Some(decl) = decl.declarator {
+            let mut res = self.process_declarator(*decl, base_type)?;
+            res.type_.volatile = true;
+            Ok(res)
+        } else {
+            base_type.volatile = true;
+            Ok(CombinedDeclarator {
+                name: None,
+                type_: base_type,
+            })
+        }
     }
 }

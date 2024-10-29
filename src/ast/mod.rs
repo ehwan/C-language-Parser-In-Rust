@@ -25,8 +25,10 @@ pub use declarator::StructOrUnionSpecifier;
 pub use declarator::TypeQualifier;
 pub use declarator::TypeSpecifier;
 pub use declarator::Typename;
+
 pub use expression::ExprArrow;
 pub use expression::ExprBinary;
+pub use expression::ExprBinaryOperator;
 pub use expression::ExprBracket;
 pub use expression::ExprCast;
 pub use expression::ExprConditional;
@@ -45,7 +47,9 @@ pub use expression::ExprSizeOfExpr;
 pub use expression::ExprSizeOfType;
 pub use expression::ExprString;
 pub use expression::ExprUnary;
+pub use expression::ExprUnaryOperator;
 pub use expression::Expression;
+
 pub use statement::Statement;
 pub use statement::StmtBreak;
 pub use statement::StmtCase;

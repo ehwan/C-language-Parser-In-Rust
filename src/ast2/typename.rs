@@ -31,6 +31,7 @@ pub struct FunctionType {
     // maybe no need CV qualifier for return type?
     pub return_type: Box<CVType>,
     pub args: Vec<CVType>,
+    pub variadic: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -38,4 +39,31 @@ pub struct CVType {
     pub type_: PrimitiveType,
     pub const_: bool,
     pub volatile: bool,
+}
+impl CVType {
+    pub fn from_primitive(type_: PrimitiveType) -> Self {
+        Self {
+            type_,
+            const_: false,
+            volatile: false,
+        }
+    }
+
+    pub fn into_pointer(self) -> Self {
+        Self {
+            type_: PrimitiveType::Pointer(Box::new(self)),
+            const_: false,
+            volatile: false,
+        }
+    }
+    pub fn into_array(self, size: usize) -> Self {
+        Self {
+            type_: PrimitiveType::Array(ArrayType {
+                type_: Box::new(self),
+                size,
+            }),
+            const_: false,
+            volatile: false,
+        }
+    }
 }
