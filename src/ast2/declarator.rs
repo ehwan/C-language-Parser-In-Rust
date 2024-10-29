@@ -4,5 +4,5 @@ use super::CVType;
 pub struct CombinedDeclarator {
     /// variable name, for direct declarator
     pub name: Option<String>,
-    pub type_: CVType,
+    pub cv_type: CVType,
 }

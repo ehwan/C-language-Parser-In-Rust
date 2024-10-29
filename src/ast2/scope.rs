@@ -1,6 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use super::{FunctionType, LabelInfo};
+use super::VariablePool;
+use super::{FunctionType, LabelInfo, VariableInfo};
 
 #[derive(Debug, Clone)]
 pub enum Scope {
@@ -32,32 +33,44 @@ pub struct BlockScope {
 #[derive(Debug, Clone)]
 pub struct VariableScope {
     pub name: String,
+    pub info: VariableInfo,
 }
 
 #[derive(Clone)]
 pub struct FunctionScope {
     pub name: String,
     pub type_: FunctionType,
-    pub stack_size: usize,
     pub labels: HashMap<String, Rc<RefCell<LabelInfo>>>,
+    pub pool: VariablePool,
 }
 impl FunctionScope {
     pub fn new(name: String, type_: FunctionType) -> Self {
         FunctionScope {
             name,
             type_,
-            stack_size: 0,
             labels: HashMap::new(),
+            pool: VariablePool::new(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct GlobalScope {
+pub struct FunctionDefinition {
+    pub body: Box<super::Statement>,
     pub stack_size: usize,
+}
+#[derive(Debug, Clone)]
+pub struct GlobalScope {
+    pub variables: HashMap<String, VariableInfo>,
+    pub pool: VariablePool,
+    pub functions: Vec<Rc<RefCell<Option<FunctionDefinition>>>>,
 }
 impl GlobalScope {
     pub fn new() -> Self {
-        GlobalScope { stack_size: 0 }
+        GlobalScope {
+            variables: HashMap::new(),
+            pool: VariablePool::new(),
+            functions: Vec::new(),
+        }
     }
 }

@@ -1,5 +1,5 @@
 #[derive(Debug, Clone)]
-pub enum ConversionError {
+pub enum CompileError {
     InvalidCase,
     InvalidContinue,
     InvalidBreak,
@@ -18,4 +18,26 @@ pub enum ConversionError {
 
     GotoOutsideFunction,
     GotoInvalidLabel(String),
+
+    DeclarationWithoutName,
+
+    BracketOnNonArrayOrPointer,
+    BracketIndexNotInteger,
+
+    ArrowOnNonPointer,
+
+    SizeofIncompleteType,
+
+    NegativeArraySize,
+    ArraySizeNotInteger,
+
+    MemberAccessOnNonStructOrUnion,
+
+    MultipleVariableDefinition(String),
+    VariableNotFound(String),
+
+    NestedFunctionDefinition,
+
+    FunctionDifferentSignature(String),
+    MultipleFunctionDefinition(String),
 }

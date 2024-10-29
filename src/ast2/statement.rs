@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::{Expression, FunctionType, LabelInfo};
+use super::{Expression, LabelInfo, VariableInfo};
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -21,7 +21,8 @@ pub enum Statement {
     For(StmtFor),
     While(StmtWhile),
     DoWhile(StmtDoWhile),
-    FunctionDefinition(StmtFunctionDefinition),
+
+    VariableDeclaration(StmtVariableDeclaration),
 }
 
 #[derive(Debug, Clone)]
@@ -98,9 +99,7 @@ pub struct StmtDoWhile {
 }
 
 #[derive(Debug, Clone)]
-pub struct StmtFunctionDefinition {
-    pub name: String,
-    pub definition: FunctionType,
-    pub body: Box<Statement>,
-    pub stack_size: usize,
+pub struct StmtVariableDeclaration {
+    /// (variable, initial value) pairs
+    pub pairs: Vec<(VariableInfo, Expression)>,
 }

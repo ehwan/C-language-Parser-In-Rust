@@ -1,34 +1,63 @@
 use crate::ast;
 
-use super::PrimitiveType;
+use super::{CVType, VariableInfo};
 
 #[derive(Debug, Clone)]
 pub enum Expression {
-    SizeofExpr(Box<Expression>),
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    F32(f32),
+    F64(f64),
+    String(String),
+
+    Variable(VariableInfo),
 
     Conditional(ExprConditional),
+    Cast(ExprCast),
 
+    Paren(ExprParen),
+    Bracket(ExprBracket),
+    Arrow(ExprArrow),
     Unary(ExprUnary),
     Binary(ExprBinary),
     InitializerList(ExprInitializerList),
 }
-impl Expression {
-    pub fn get_primitive_type(&self) -> Option<PrimitiveType> {
-        match self {
-            Expression::SizeofExpr(_) => Some(PrimitiveType::UnsignedLong),
-            Expression::Conditional(_) => None,
-            Expression::Unary(_) => None,
-            Expression::Binary(_) => None,
-            Expression::InitializerList(_) => None,
-        }
-    }
-}
+impl Expression {}
 
 #[derive(Debug, Clone)]
 pub struct ExprConditional {
     pub cond: Box<Expression>,
     pub then_expr: Box<Expression>,
     pub else_expr: Box<Expression>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExprCast {
+    pub expr: Box<Expression>,
+    pub type_: CVType,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExprParen {
+    pub src: Box<Expression>,
+    pub args: Vec<Expression>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExprBracket {
+    pub src: Box<Expression>,
+    pub index: Box<Expression>,
+}
+#[derive(Debug, Clone)]
+pub struct ExprArrow {
+    pub src: Box<Expression>,
+    pub member: String,
 }
 
 pub type ExprUnaryOp = ast::ExprUnaryOperator;
