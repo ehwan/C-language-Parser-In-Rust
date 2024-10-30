@@ -24,14 +24,20 @@ pub enum CompileError {
     BracketOnNonArrayOrPointer,
     BracketIndexNotInteger,
 
-    ArrowOnNonPointer,
-
     SizeofIncompleteType,
+    AlignofIncompleteType,
 
     NegativeArraySize,
     ArraySizeNotInteger,
 
-    MemberAccessOnNonStructOrUnion,
+    MemberOnNonStructOrUnion,
+    MemberOnIncompleteType,
+    MemberNotFound(String),
+
+    ArrowOnNonPointer,
+    ArrowOnNonStructOrUnion,
+    ArrowOnIncompleteType,
+    ArrowNotFound(String),
 
     MultipleVariableDefinition(String),
     VariableNotFound(String),
@@ -40,4 +46,6 @@ pub enum CompileError {
 
     FunctionDifferentSignature(String),
     MultipleFunctionDefinition(String),
+
+    TypeRedifinition(String),
 }

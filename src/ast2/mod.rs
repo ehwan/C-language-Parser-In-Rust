@@ -20,13 +20,13 @@ pub use statement::StmtSwitch;
 pub use statement::StmtSwitchCase;
 pub use statement::StmtVariableDeclaration;
 
-pub use expression::ExprArrow;
 pub use expression::ExprBinary;
 pub use expression::ExprBinaryOp;
 pub use expression::ExprBracket;
 pub use expression::ExprCast;
 pub use expression::ExprConditional;
 pub use expression::ExprInitializerList;
+pub use expression::ExprMember;
 pub use expression::ExprParen;
 pub use expression::ExprUnary;
 pub use expression::ExprUnaryOp;
@@ -44,6 +44,10 @@ pub use declarator::CombinedDeclarator;
 
 pub use typename::ArrayType;
 pub use typename::CVType;
+pub use typename::EnumMember;
+pub use typename::EnumType;
 pub use typename::FunctionType;
 pub use typename::PrimitiveType;
 pub use typename::StorageQualifier;
+pub use typename::StructMember;
+pub use typename::StructType;

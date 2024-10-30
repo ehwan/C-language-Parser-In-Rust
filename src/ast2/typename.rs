@@ -1,4 +1,4 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrimitiveType {
     Void,
     UInt8,
@@ -12,9 +12,9 @@ pub enum PrimitiveType {
     Float32,
     Float64,
 
-    Struct,
-    Union,
-    Enum,
+    Struct(StructType),
+    Union(StructType),
+    Enum(EnumType),
 
     Pointer(Box<CVType>),
     Array(ArrayType),
@@ -22,92 +22,87 @@ pub enum PrimitiveType {
 }
 impl PrimitiveType {
     pub fn is_integer(&self) -> bool {
-        match self {
+        matches!(
+            self,
             PrimitiveType::UInt8
-            | PrimitiveType::UInt16
-            | PrimitiveType::UInt32
-            | PrimitiveType::UInt64
-            | PrimitiveType::Int8
-            | PrimitiveType::Int16
-            | PrimitiveType::Int32
-            | PrimitiveType::Int64 => true,
-            _ => false,
-        }
+                | PrimitiveType::UInt16
+                | PrimitiveType::UInt32
+                | PrimitiveType::UInt64
+                | PrimitiveType::Int8
+                | PrimitiveType::Int16
+                | PrimitiveType::Int32
+                | PrimitiveType::Int64
+        )
     }
     pub fn is_numeric(&self) -> bool {
-        match self {
+        matches!(
+            self,
             PrimitiveType::UInt8
-            | PrimitiveType::UInt16
-            | PrimitiveType::UInt32
-            | PrimitiveType::UInt64
-            | PrimitiveType::Int8
-            | PrimitiveType::Int16
-            | PrimitiveType::Int32
-            | PrimitiveType::Int64
-            | PrimitiveType::Float32
-            | PrimitiveType::Float64 => true,
-            _ => false,
-        }
+                | PrimitiveType::UInt16
+                | PrimitiveType::UInt32
+                | PrimitiveType::UInt64
+                | PrimitiveType::Int8
+                | PrimitiveType::Int16
+                | PrimitiveType::Int32
+                | PrimitiveType::Int64
+                | PrimitiveType::Float32
+                | PrimitiveType::Float64
+        )
     }
     pub fn is_float(&self) -> bool {
-        match self {
-            PrimitiveType::Float32 | PrimitiveType::Float64 => true,
-            _ => false,
-        }
+        matches!(self, PrimitiveType::Float32 | PrimitiveType::Float64)
     }
 }
 
-impl PartialEq for PrimitiveType {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (PrimitiveType::Void, PrimitiveType::Void) => true,
-            (PrimitiveType::UInt8, PrimitiveType::UInt8) => true,
-            (PrimitiveType::UInt16, PrimitiveType::UInt16) => true,
-            (PrimitiveType::UInt32, PrimitiveType::UInt32) => true,
-            (PrimitiveType::UInt64, PrimitiveType::UInt64) => true,
-            (PrimitiveType::Int8, PrimitiveType::Int8) => true,
-            (PrimitiveType::Int16, PrimitiveType::Int16) => true,
-            (PrimitiveType::Int32, PrimitiveType::Int32) => true,
-            (PrimitiveType::Int64, PrimitiveType::Int64) => true,
-            (PrimitiveType::Float32, PrimitiveType::Float32) => true,
-            (PrimitiveType::Float64, PrimitiveType::Float64) => true,
-            (PrimitiveType::Struct, PrimitiveType::Struct) => true,
-            (PrimitiveType::Union, PrimitiveType::Union) => true,
-            (PrimitiveType::Enum, PrimitiveType::Enum) => true,
-            (PrimitiveType::Pointer(a), PrimitiveType::Pointer(b)) => a == b,
-            (PrimitiveType::Array(a), PrimitiveType::Array(b)) => a == b,
-            (PrimitiveType::Function(a), PrimitiveType::Function(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ArrayType {
-    pub type_: Box<CVType>,
+    pub cv_type: Box<CVType>,
     pub size: usize,
 }
-impl PartialEq for ArrayType {
-    fn eq(&self, other: &Self) -> bool {
-        self.type_ == other.type_ && self.size == other.size
-    }
-}
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FunctionType {
     // maybe no need CV qualifier for return type?
     pub return_type: Box<CVType>,
     pub args: Vec<CVType>,
     pub variadic: bool,
 }
-impl PartialEq for FunctionType {
-    fn eq(&self, other: &Self) -> bool {
-        self.return_type == other.return_type
-            && self.args == other.args
-            && self.variadic == other.variadic
-    }
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StructType {
+    pub name: Option<String>,
+    pub body: Option<StructBody>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StructBody {
+    pub members: Vec<StructMember>,
+    pub size: usize,
+    pub align: usize,
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct StructMember {
+    pub name: String,
+    pub cv_type: CVType,
+    pub offset: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EnumType {
+    pub name: Option<String>,
+    pub body: Option<EnumBody>,
+    /// integer representation of enum type
+    pub type_: Box<PrimitiveType>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EnumBody {
+    pub members: Vec<EnumMember>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EnumMember {
+    pub name: String,
+    pub value: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CVType {
     pub type_: PrimitiveType,
     pub const_: bool,
@@ -132,7 +127,7 @@ impl CVType {
     pub fn into_array(self, size: usize) -> Self {
         Self {
             type_: PrimitiveType::Array(ArrayType {
-                type_: Box::new(self),
+                cv_type: Box::new(self),
                 size,
             }),
             const_: false,
@@ -140,13 +135,8 @@ impl CVType {
         }
     }
 }
-impl PartialEq for CVType {
-    fn eq(&self, other: &Self) -> bool {
-        self.type_ == other.type_ && self.const_ == other.const_ && self.volatile == other.volatile
-    }
-}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StorageQualifier {
     pub static_: bool,
     pub register: bool,

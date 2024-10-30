@@ -20,10 +20,11 @@ pub enum Expression {
 
     Conditional(ExprConditional),
     Cast(ExprCast),
+    Member(ExprMember),
+    Arrow(ExprMember),
 
     Paren(ExprParen),
     Bracket(ExprBracket),
-    Arrow(ExprArrow),
     Unary(ExprUnary),
     Binary(ExprBinary),
     InitializerList(ExprInitializerList),
@@ -54,11 +55,6 @@ pub struct ExprBracket {
     pub src: Box<Expression>,
     pub index: Box<Expression>,
 }
-#[derive(Debug, Clone)]
-pub struct ExprArrow {
-    pub src: Box<Expression>,
-    pub member: String,
-}
 
 pub type ExprUnaryOp = ast::ExprUnaryOperator;
 
@@ -80,4 +76,11 @@ pub struct ExprBinary {
 #[derive(Debug, Clone)]
 pub struct ExprInitializerList {
     pub exprs: Vec<Expression>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExprMember {
+    pub src: Box<Expression>,
+    pub member_offset: usize,
+    pub member_type: CVType,
 }

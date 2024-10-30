@@ -11,6 +11,8 @@ pub struct VariableInfo {
 pub struct VariablePool {
     pub max_size: usize,
     pub size: usize,
+    /// save `size` before `push()` to restore upon `pop()`
+    pub old_sizes: Vec<usize>,
 }
 
 impl VariablePool {
@@ -18,18 +20,20 @@ impl VariablePool {
         VariablePool {
             max_size: 0,
             size: 0,
+            old_sizes: Vec::new(),
         }
     }
 
-    pub fn add(&mut self, size: usize, align: usize) -> usize {
+    pub fn push(&mut self, size: usize, align: usize) -> usize {
+        self.old_sizes.push(self.size);
         let offset = (self.size + align - 1) / align * align;
         self.size = offset + size;
         self.max_size = self.max_size.max(self.size);
         offset
     }
-    #[allow(unused)]
-    pub fn remove(&mut self, size: usize, align: usize) {
-        self.size -= size;
+    pub fn pop(&mut self) {
+        let size = self.old_sizes.pop().unwrap();
+        self.size = size;
     }
 }
 

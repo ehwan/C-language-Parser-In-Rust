@@ -1,7 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::VariablePool;
-use super::{FunctionType, LabelInfo, VariableInfo};
+use super::{CVType, FunctionType, LabelInfo, VariableInfo};
 
 #[derive(Debug, Clone)]
 pub enum Scope {
@@ -28,6 +28,9 @@ pub struct LoopScope {
 #[derive(Debug, Clone)]
 pub struct BlockScope {
     pub id: usize,
+
+    // `typedef`s and `struct`, `union`, `enum` definitions
+    pub typedefs: HashMap<String, CVType>,
 }
 
 #[derive(Debug, Clone)]
@@ -64,6 +67,8 @@ pub struct GlobalScope {
     pub variables: HashMap<String, VariableInfo>,
     pub pool: VariablePool,
     pub functions: Vec<Rc<RefCell<Option<FunctionDefinition>>>>,
+    // `typedef`s and `struct`, `union`, `enum` definitions
+    pub typedefs: HashMap<String, CVType>,
 }
 impl GlobalScope {
     pub fn new() -> Self {
@@ -71,6 +76,7 @@ impl GlobalScope {
             variables: HashMap::new(),
             pool: VariablePool::new(),
             functions: Vec::new(),
+            typedefs: HashMap::new(),
         }
     }
 }

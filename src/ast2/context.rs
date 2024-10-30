@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use super::declarator;
 use super::expression;
 use super::statement;
 use super::Address;
@@ -8,15 +9,17 @@ use super::ArrayType;
 use super::CVType;
 use super::CombinedDeclarator;
 use super::CompileError;
+use super::EnumType;
 use super::Expression;
 use super::FunctionType;
 use super::PrimitiveType;
 use super::Statement;
 use super::StmtSwitchCase;
+use super::StmtVariableDeclaration;
 use super::StorageQualifier;
+use super::StructType;
 use super::VariableInfo;
 use crate::ast;
-use crate::ast2::StmtVariableDeclaration;
 
 use super::scope::BlockScope;
 use super::scope::FunctionDefinition;
@@ -70,8 +73,16 @@ impl Context {
         None
     }
     fn end_switch_scope(&mut self) -> Result<SwitchScope, CompileError> {
-        // @TODO pop every variable scope until switch scope
-        unimplemented!("end_switch_scope")
+        loop {
+            let scope = self.scopes.pop().unwrap();
+            match scope {
+                Scope::Switch(scope) => return Ok(scope),
+                Scope::Variable(scope) => {
+                    self.end_varaible_scope(scope)?;
+                }
+                _ => unreachable!("end_switch_scope: unexpected scope"),
+            }
+        }
     }
     fn begin_loop_scope(&mut self) -> Result<(), CompileError> {
         let scope = LoopScope {
@@ -81,20 +92,46 @@ impl Context {
         Ok(())
     }
     fn end_loop_scope(&mut self) -> Result<LoopScope, CompileError> {
-        // @TODO pop every variable scope until loop scope
-        unimplemented!("end_loop_scope")
+        loop {
+            let scope = self.scopes.pop().unwrap();
+            match scope {
+                Scope::Loop(scope) => return Ok(scope),
+                Scope::Variable(scope) => {
+                    self.end_varaible_scope(scope)?;
+                }
+                _ => unreachable!("end_switch_scope: unexpected scope"),
+            }
+        }
     }
 
     fn begin_scope(&mut self) -> Result<(), CompileError> {
         let scope = BlockScope {
             id: self.generate_scope_id(),
+            typedefs: Default::default(),
         };
         self.scopes.push(Scope::Block(scope));
         Ok(())
     }
+    fn nearest_scope(&mut self) -> Option<&mut BlockScope> {
+        for scope in self.scopes.iter_mut().rev() {
+            match scope {
+                Scope::Block(scope) => return Some(scope),
+                _ => {}
+            }
+        }
+        None
+    }
     fn end_scope(&mut self) -> Result<BlockScope, CompileError> {
-        // @TODO pop every variable scope until block scope
-        unimplemented!("end_scope")
+        loop {
+            let scope = self.scopes.pop().unwrap();
+            match scope {
+                Scope::Block(scope) => return Ok(scope),
+                Scope::Variable(scope) => {
+                    self.end_varaible_scope(scope)?;
+                }
+                _ => unreachable!("end_switch_scope: unexpected scope"),
+            }
+        }
     }
 
     fn begin_function_scope(
@@ -102,11 +139,23 @@ impl Context {
         name: String,
         type_: FunctionType,
     ) -> Result<(), CompileError> {
-        unimplemented!("begin_function_scope")
+        if self.function_scope.is_some() {
+            return Err(CompileError::NestedFunctionDefinition);
+        }
+        let scope = FunctionScope::new(name, type_);
+        self.function_scope = Some(scope);
+        Ok(())
     }
     fn end_function_scope(&mut self) -> Result<FunctionScope, CompileError> {
-        // @TODO pop every variable scope until function scope
-        unimplemented!("end_function_scope")
+        while let Some(scope) = self.scopes.pop() {
+            match scope {
+                Scope::Variable(scope) => {
+                    self.end_varaible_scope(scope)?;
+                }
+                _ => unreachable!("end_switch_scope: unexpected scope"),
+            }
+        }
+        Ok(std::mem::take(&mut self.function_scope).unwrap())
     }
 
     fn begin_variable_scope(
@@ -128,7 +177,7 @@ impl Context {
 
         let size = self.type_sizeof(&type_.type_)?;
         let align = self.type_alignof(&type_.type_)?;
-        let offset = self.function_scope.as_mut().unwrap().pool.add(size, align);
+        let offset = self.function_scope.as_mut().unwrap().pool.push(size, align);
         let varinfo = VariableInfo {
             name: name.clone(),
             address: Address::Local(offset),
@@ -140,6 +189,15 @@ impl Context {
         };
         self.scopes.push(Scope::Variable(scope));
         Ok(varinfo)
+    }
+    fn end_varaible_scope(&mut self, scope: VariableScope) -> Result<(), CompileError> {
+        if let Some(func) = &mut self.function_scope {
+            func.pool.pop();
+        } else {
+            self.global_scope.pool.pop();
+            self.global_scope.variables.remove(&scope.name);
+        }
+        Ok(())
     }
 
     fn can_continue(&self) -> bool {
@@ -565,7 +623,7 @@ impl Context {
 
                                 let size = self.type_sizeof(&init_type.cv_type.type_)?;
                                 let align = self.type_alignof(&init_type.cv_type.type_)?;
-                                let offset = self.global_scope.pool.add(size, align);
+                                let offset = self.global_scope.pool.push(size, align);
                                 let varinfo = VariableInfo {
                                     name: name.clone(),
                                     address: Address::Global(offset),
@@ -590,7 +648,395 @@ impl Context {
             None => {
                 // struct, union, enum type definition
                 // or just ill-formed declaration (but it's not an error)
-                unreachable!("process_statement_declaration: struct, union, enum definition")
+
+                match base_type.type_ {
+                    PrimitiveType::Struct(struct_definition) => {
+                        match struct_definition.body {
+                            Some(struct_body) => {
+                                let Some(name) = struct_definition.name else {
+                                    // anonymous struct definition, ill-formed.
+                                    // skip this statement
+                                    return Ok(Statement::None);
+                                };
+                                if let Some(current_scope) = self.nearest_scope() {
+                                    // check if there is other variable with same name
+                                    if let Some(old) = current_scope.typedefs.get_mut(&name) {
+                                        // type name `name` exists.
+                                        // check if it's struct declaration of same type
+
+                                        let PrimitiveType::Struct(other_struct_def) =
+                                            &mut old.type_
+                                        else {
+                                            // it is not struct,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+
+                                        // if old struct has definition, it's redifinition
+                                        if other_struct_def.body.is_some() {
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        }
+                                        other_struct_def.body = Some(struct_body);
+                                    } else {
+                                        let struct_type = StructType {
+                                            name: Some(name.clone()),
+                                            body: Some(struct_body),
+                                        };
+                                        let struct_type = PrimitiveType::Struct(struct_type);
+                                        current_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(struct_type));
+                                    }
+                                } else {
+                                    // global scope
+
+                                    // check if there is other variable with same name
+                                    if let Some(old) = self.global_scope.typedefs.get_mut(&name) {
+                                        // type name `name` exists.
+                                        // check if it's struct declaration of same type
+
+                                        let PrimitiveType::Struct(other_struct_def) =
+                                            &mut old.type_
+                                        else {
+                                            // it is not struct,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+
+                                        // if old struct has definition, it's redifinition
+                                        if other_struct_def.body.is_some() {
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        }
+                                        other_struct_def.body = Some(struct_body);
+                                    } else {
+                                        let struct_type = StructType {
+                                            name: Some(name.clone()),
+                                            body: Some(struct_body),
+                                        };
+                                        let struct_type = PrimitiveType::Struct(struct_type);
+                                        self.global_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(struct_type));
+                                    }
+                                }
+                            }
+                            None => {
+                                // declaration
+                                let Some(name) = struct_definition.name else {
+                                    // anonymous struct definition, ill-formed.
+                                    // skip this statement
+                                    return Ok(Statement::None);
+                                };
+                                if let Some(current_scope) = self.nearest_scope() {
+                                    // check if there is other variable with same name
+                                    if let Some(old) = current_scope.typedefs.get(&name) {
+                                        // type name `name` exists.
+                                        // check if it's struct declaration of same type
+
+                                        let PrimitiveType::Struct(other_struct_def) = &old.type_
+                                        else {
+                                            // it is not struct,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+                                    } else {
+                                        let struct_type = StructType {
+                                            name: Some(name.clone()),
+                                            body: None,
+                                        };
+                                        let struct_type = PrimitiveType::Struct(struct_type);
+                                        current_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(struct_type));
+                                    }
+                                } else {
+                                    // global scope
+                                    // check if there is other variable with same name
+                                    if let Some(old) = self.global_scope.typedefs.get(&name) {
+                                        // type name `name` exists.
+                                        // check if it's struct declaration of same type
+
+                                        let PrimitiveType::Struct(other_struct_def) = &old.type_
+                                        else {
+                                            // it is not struct,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+                                    } else {
+                                        let struct_type = StructType {
+                                            name: Some(name.clone()),
+                                            body: None,
+                                        };
+                                        let struct_type = PrimitiveType::Struct(struct_type);
+                                        self.global_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(struct_type));
+                                    }
+                                }
+                            }
+                        }
+                        Ok(Statement::None)
+                    }
+                    PrimitiveType::Union(union_definition) => {
+                        match union_definition.body {
+                            Some(union_body) => {
+                                let Some(name) = union_definition.name else {
+                                    // anonymous union definition, ill-formed.
+                                    // skip this statement
+                                    return Ok(Statement::None);
+                                };
+                                if let Some(current_scope) = self.nearest_scope() {
+                                    // check if there is other variable with same name
+                                    if let Some(old) = current_scope.typedefs.get_mut(&name) {
+                                        // type name `name` exists.
+                                        // check if it's union declaration of same type
+
+                                        let PrimitiveType::Union(other_union_def) = &mut old.type_
+                                        else {
+                                            // it is not union,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+
+                                        // if old union has definition, it's redifinition
+                                        if other_union_def.body.is_some() {
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        }
+                                        other_union_def.body = Some(union_body);
+                                    } else {
+                                        let union_type = StructType {
+                                            name: Some(name.clone()),
+                                            body: Some(union_body),
+                                        };
+                                        let union_type = PrimitiveType::Union(union_type);
+                                        current_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(union_type));
+                                    }
+                                } else {
+                                    // global scope
+
+                                    // check if there is other variable with same name
+                                    if let Some(old) = self.global_scope.typedefs.get_mut(&name) {
+                                        // type name `name` exists.
+                                        // check if it's union declaration of same type
+
+                                        let PrimitiveType::Union(other_union_def) = &mut old.type_
+                                        else {
+                                            // it is not union,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+
+                                        // if old union has definition, it's redifinition
+                                        if other_union_def.body.is_some() {
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        }
+                                        other_union_def.body = Some(union_body);
+                                    } else {
+                                        let union_type = StructType {
+                                            name: Some(name.clone()),
+                                            body: Some(union_body),
+                                        };
+                                        let union_type = PrimitiveType::Union(union_type);
+                                        self.global_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(union_type));
+                                    }
+                                }
+                            }
+                            None => {
+                                // declaration
+                                let Some(name) = union_definition.name else {
+                                    // anonymous union definition, ill-formed.
+                                    // skip this statement
+                                    return Ok(Statement::None);
+                                };
+                                if let Some(current_scope) = self.nearest_scope() {
+                                    // check if there is other variable with same name
+                                    if let Some(old) = current_scope.typedefs.get(&name) {
+                                        // type name `name` exists.
+                                        // check if it's union declaration of same type
+
+                                        let PrimitiveType::Union(other_union_def) = &old.type_
+                                        else {
+                                            // it is not union,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+                                    } else {
+                                        let union_type = StructType {
+                                            name: Some(name.clone()),
+                                            body: None,
+                                        };
+                                        let union_type = PrimitiveType::Union(union_type);
+                                        current_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(union_type));
+                                    }
+                                } else {
+                                    // global scope
+                                    // check if there is other variable with same name
+                                    if let Some(old) = self.global_scope.typedefs.get(&name) {
+                                        // type name `name` exists.
+                                        // check if it's union declaration of same type
+
+                                        let PrimitiveType::Union(other_union_def) = &old.type_
+                                        else {
+                                            // it is not union,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+                                    } else {
+                                        let union_type = StructType {
+                                            name: Some(name.clone()),
+                                            body: None,
+                                        };
+                                        let union_type = PrimitiveType::Union(union_type);
+                                        self.global_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(union_type));
+                                    }
+                                }
+                            }
+                        }
+                        Ok(Statement::None)
+                    }
+                    PrimitiveType::Enum(enum_definition) => {
+                        match enum_definition.body {
+                            Some(enum_body) => {
+                                let Some(name) = enum_definition.name else {
+                                    // anonymous enum definition, ill-formed.
+                                    // skip this statement
+                                    return Ok(Statement::None);
+                                };
+                                if let Some(current_scope) = self.nearest_scope() {
+                                    // check if there is other variable with same name
+                                    if let Some(old) = current_scope.typedefs.get_mut(&name) {
+                                        // type name `name` exists.
+                                        // check if it's enum declaration of same type
+
+                                        let PrimitiveType::Enum(other_enum_def) = &mut old.type_
+                                        else {
+                                            // it is not enum,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+
+                                        // if old enum has definition, it's redifinition
+                                        if other_enum_def.body.is_some() {
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        }
+                                        other_enum_def.body = Some(enum_body);
+                                    } else {
+                                        let enum_type = EnumType {
+                                            name: Some(name.clone()),
+                                            body: Some(enum_body),
+                                            type_: enum_definition.type_,
+                                        };
+                                        let enum_type = PrimitiveType::Enum(enum_type);
+                                        current_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(enum_type));
+                                    }
+                                } else {
+                                    // global scope
+
+                                    // check if there is other variable with same name
+                                    if let Some(old) = self.global_scope.typedefs.get_mut(&name) {
+                                        // type name `name` exists.
+                                        // check if it's enum declaration of same type
+
+                                        let PrimitiveType::Enum(other_enum_def) = &mut old.type_
+                                        else {
+                                            // it is not enum,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+
+                                        // if old enum has definition, it's redifinition
+                                        if other_enum_def.body.is_some() {
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        }
+                                        other_enum_def.body = Some(enum_body);
+                                    } else {
+                                        let enum_type = EnumType {
+                                            name: Some(name.clone()),
+                                            body: Some(enum_body),
+                                            type_: enum_definition.type_,
+                                        };
+                                        let enum_type = PrimitiveType::Enum(enum_type);
+                                        self.global_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(enum_type));
+                                    }
+                                }
+                            }
+                            None => {
+                                // declaration
+                                let Some(name) = enum_definition.name else {
+                                    // anonymous enum definition, ill-formed.
+                                    // skip this statement
+                                    return Ok(Statement::None);
+                                };
+                                if let Some(current_scope) = self.nearest_scope() {
+                                    // check if there is other variable with same name
+                                    if let Some(old) = current_scope.typedefs.get(&name) {
+                                        // type name `name` exists.
+                                        // check if it's enum declaration of same type
+
+                                        let PrimitiveType::Enum(other_enum_def) = &old.type_ else {
+                                            // it is not enum,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+                                    } else {
+                                        let enum_type = EnumType {
+                                            name: Some(name.clone()),
+                                            body: None,
+                                            type_: enum_definition.type_,
+                                        };
+                                        let enum_type = PrimitiveType::Enum(enum_type);
+                                        current_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(enum_type));
+                                    }
+                                } else {
+                                    // global scope
+                                    // check if there is other variable with same name
+                                    if let Some(old) = self.global_scope.typedefs.get(&name) {
+                                        // type name `name` exists.
+                                        // check if it's enum declaration of same type
+
+                                        let PrimitiveType::Enum(other_enum_def) = &old.type_ else {
+                                            // it is not enum,
+                                            // redifinition of type name `name`
+                                            return Err(CompileError::TypeRedifinition(name));
+                                        };
+                                    } else {
+                                        let enum_type = EnumType {
+                                            name: Some(name.clone()),
+                                            body: None,
+                                            type_: enum_definition.type_,
+                                        };
+                                        let enum_type = PrimitiveType::Enum(enum_type);
+                                        self.global_scope
+                                            .typedefs
+                                            .insert(name, CVType::from_primitive(enum_type));
+                                    }
+                                }
+                            }
+                        }
+                        Ok(Statement::None)
+                    }
+
+                    _ => {
+                        // ill-formed declaration
+                        // int; <--
+                        // but it's not an error
+                        Ok(Statement::None)
+                    }
+                }
             }
         }
     }
@@ -619,7 +1065,9 @@ impl Context {
         let (function_definition, function_type) = match decl.cv_type.type_ {
             PrimitiveType::Function(func) => {
                 self.begin_function_scope(name.clone(), func.clone())?;
+                self.begin_scope()?;
                 let body = self.process_statement(*stmt.body)?;
+                self.end_scope()?;
                 let scope = self.end_function_scope()?;
                 (
                     FunctionDefinition {
@@ -701,6 +1149,8 @@ impl Context {
             Expression::Paren(expr) => unimplemented!("expression_type Paren"),
             Expression::Binary(expr) => unimplemented!("expression_type Binary"),
             Expression::Unary(expr) => unimplemented!("expression_type Unary"),
+            Expression::Member(expr) => expr.member_type.clone(),
+            Expression::Arrow(expr) => expr.member_type.clone(),
         }
     }
     pub(crate) fn process_expression_identifier(
@@ -778,25 +1228,56 @@ impl Context {
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
         match self.expression_type(&src).type_ {
-            PrimitiveType::Struct | PrimitiveType::Union => {}
-            _ => return Err(CompileError::MemberAccessOnNonStructOrUnion),
+            PrimitiveType::Struct(s) | PrimitiveType::Union(s) => {
+                let Some(body) = &s.body else {
+                    return Err(CompileError::MemberOnIncompleteType);
+                };
+
+                for member in body.members.iter() {
+                    if expr.member == member.name {
+                        return Ok(Expression::Member(expression::ExprMember {
+                            src: Box::new(src),
+                            member_offset: member.offset,
+                            member_type: member.cv_type.clone(),
+                        }));
+                    }
+                }
+
+                return Err(CompileError::MemberNotFound(expr.member));
+            }
+
+            _ => return Err(CompileError::MemberOnNonStructOrUnion),
         }
-        unreachable!("process_expression_member")
     }
     pub(crate) fn process_expression_arrow(
         &mut self,
         expr: ast::ExprArrow,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
-        match self.expression_type(&src).type_ {
-            PrimitiveType::Pointer(_) => {}
-            _ => return Err(CompileError::ArrowOnNonPointer),
-        }
+        let PrimitiveType::Pointer(src_type) = self.expression_type(&src).type_ else {
+            return Err(CompileError::ArrowOnNonPointer);
+        };
+        match src_type.type_ {
+            PrimitiveType::Struct(s) | PrimitiveType::Union(s) => {
+                let Some(body) = &s.body else {
+                    return Err(CompileError::ArrowOnIncompleteType);
+                };
 
-        Ok(Expression::Arrow(expression::ExprArrow {
-            src: Box::new(src),
-            member: expr.member,
-        }))
+                for member in body.members.iter() {
+                    if expr.member == member.name {
+                        return Ok(Expression::Arrow(expression::ExprMember {
+                            src: Box::new(src),
+                            member_offset: member.offset,
+                            member_type: member.cv_type.clone(),
+                        }));
+                    }
+                }
+
+                return Err(CompileError::ArrowNotFound(expr.member));
+            }
+
+            _ => return Err(CompileError::ArrowOnNonStructOrUnion),
+        }
     }
     pub(crate) fn process_expression_bracket(
         &mut self,
@@ -929,13 +1410,16 @@ impl Context {
             PrimitiveType::UInt32 | PrimitiveType::Int32 | PrimitiveType::Float32 => 4,
             PrimitiveType::UInt64 | PrimitiveType::Int64 | PrimitiveType::Float64 => 8,
             PrimitiveType::Pointer(_) => 8,
-            PrimitiveType::Array(ArrayType { type_, size }) => {
-                self.type_sizeof(&type_.type_)? * (*size)
-            }
+            PrimitiveType::Array(ArrayType {
+                cv_type: type_,
+                size,
+            }) => self.type_sizeof(&type_.type_)? * (*size),
             PrimitiveType::Function(_) => return Err(CompileError::SizeofIncompleteType),
-            PrimitiveType::Struct | PrimitiveType::Union | PrimitiveType::Enum => {
-                unreachable!("size_of for struct/union/enum")
-            }
+            PrimitiveType::Struct(s) | PrimitiveType::Union(s) => match &s.body {
+                Some(s) => s.size,
+                None => return Err(CompileError::SizeofIncompleteType),
+            },
+            PrimitiveType::Enum(e) => self.type_sizeof(&e.type_)?,
         })
     }
     pub fn type_alignof(&self, typename: &PrimitiveType) -> Result<usize, CompileError> {
@@ -946,13 +1430,16 @@ impl Context {
             PrimitiveType::UInt32 | PrimitiveType::Int32 | PrimitiveType::Float32 => 4,
             PrimitiveType::UInt64 | PrimitiveType::Int64 | PrimitiveType::Float64 => 8,
             PrimitiveType::Pointer(_) => 8,
-            PrimitiveType::Array(ArrayType { type_, size: _ }) => {
-                self.type_alignof(&type_.type_)?
-            }
+            PrimitiveType::Array(ArrayType {
+                cv_type: type_,
+                size: _,
+            }) => self.type_alignof(&type_.type_)?,
             PrimitiveType::Function(_) => return Err(CompileError::SizeofIncompleteType),
-            PrimitiveType::Struct | PrimitiveType::Union | PrimitiveType::Enum => {
-                unreachable!("size_of for struct/union/enum")
-            }
+            PrimitiveType::Struct(s) | PrimitiveType::Union(s) => match &s.body {
+                Some(s) => s.align,
+                None => return Err(CompileError::AlignofIncompleteType),
+            },
+            PrimitiveType::Enum(e) => self.type_alignof(&e.type_)?,
         })
     }
 
@@ -960,13 +1447,72 @@ impl Context {
         &mut self,
         mut specs: impl Iterator<Item = ast::SpecifierQualifier>,
     ) -> Result<CVType, CompileError> {
-        unimplemented!("process_specs")
+        let mut collector = declarator::SpecifierQualifierCollector::new();
+        for s in specs {
+            match s {
+                ast::SpecifierQualifier::TypeQualifier(t) => match t {
+                    ast::TypeQualifier::Const => collector.set_const()?,
+                    ast::TypeQualifier::Volatile => collector.set_volatile()?,
+                },
+                ast::SpecifierQualifier::TypeSpecifier(s) => match s {
+                    ast::TypeSpecifier::Void => collector.set_void()?,
+                    ast::TypeSpecifier::Char => collector.set_char()?,
+                    ast::TypeSpecifier::Short => collector.set_short()?,
+                    ast::TypeSpecifier::Int => collector.set_int()?,
+                    ast::TypeSpecifier::Long => collector.set_long()?,
+                    ast::TypeSpecifier::Float => collector.set_float()?,
+                    ast::TypeSpecifier::Double => collector.set_double()?,
+                    ast::TypeSpecifier::Signed => collector.set_signed()?,
+                    ast::TypeSpecifier::Unsigned => collector.set_unsigned()?,
+                    ast::TypeSpecifier::Typename(name) => unimplemented!("process_specs-typename"),
+                    ast::TypeSpecifier::StructOrUnion(s) => unimplemented!("process_specs-struct"),
+                    ast::TypeSpecifier::Enum(e) => unimplemented!("process_specs-enum"),
+                },
+            }
+        }
+        collector.into_type()
     }
     pub(crate) fn process_decl_specs(
         &mut self,
         mut specs: impl Iterator<Item = ast::DeclarationSpecifier>,
     ) -> Result<(StorageQualifier, CVType), CompileError> {
-        unimplemented!("process_specs")
+        let mut storage_qualifier = StorageQualifier::new();
+        let mut collector = declarator::SpecifierQualifierCollector::new();
+
+        for s in specs {
+            match s {
+                ast::DeclarationSpecifier::StorageClassSpecifier(s) => match s {
+                    ast::StorageClassSpecifier::Auto => storage_qualifier.auto = true,
+                    ast::StorageClassSpecifier::Register => storage_qualifier.register = true,
+                    ast::StorageClassSpecifier::Static => storage_qualifier.static_ = true,
+                    ast::StorageClassSpecifier::Extern => storage_qualifier.extern_ = true,
+                    ast::StorageClassSpecifier::Typedef => storage_qualifier.typedef = true,
+                },
+                ast::DeclarationSpecifier::TypeQualifier(t) => match t {
+                    ast::TypeQualifier::Const => collector.set_const()?,
+                    ast::TypeQualifier::Volatile => collector.set_volatile()?,
+                },
+                ast::DeclarationSpecifier::TypeSpecifier(s) => match s {
+                    ast::TypeSpecifier::Void => collector.set_void()?,
+                    ast::TypeSpecifier::Char => collector.set_char()?,
+                    ast::TypeSpecifier::Short => collector.set_short()?,
+                    ast::TypeSpecifier::Int => collector.set_int()?,
+                    ast::TypeSpecifier::Long => collector.set_long()?,
+                    ast::TypeSpecifier::Float => collector.set_float()?,
+                    ast::TypeSpecifier::Double => collector.set_double()?,
+                    ast::TypeSpecifier::Signed => collector.set_signed()?,
+                    ast::TypeSpecifier::Unsigned => collector.set_unsigned()?,
+                    ast::TypeSpecifier::Typename(name) => {
+                        unimplemented!("process_decl_specs-typename")
+                    }
+                    ast::TypeSpecifier::StructOrUnion(s) => {
+                        unimplemented!("process_decl_specs-struct")
+                    }
+                    ast::TypeSpecifier::Enum(e) => unimplemented!("process_decl_specs-enum"),
+                },
+            }
+        }
+        Ok((storage_qualifier, collector.into_type()?))
     }
     pub(crate) fn process_declarator_identifier(
         &mut self,
@@ -1038,7 +1584,7 @@ impl Context {
         if let Some(decl) = decl.declarator {
             let mut res = self.process_declarator(*decl, base_type)?;
             res.cv_type = CVType::from_primitive(PrimitiveType::Array(ArrayType {
-                type_: Box::new(res.cv_type),
+                cv_type: Box::new(res.cv_type),
                 size: size,
             }));
             Ok(res)
@@ -1046,7 +1592,7 @@ impl Context {
             Ok(CombinedDeclarator {
                 name: None,
                 cv_type: CVType::from_primitive(PrimitiveType::Array(ArrayType {
-                    type_: Box::new(base_type),
+                    cv_type: Box::new(base_type),
                     size: size,
                 })),
             })
@@ -1057,16 +1603,40 @@ impl Context {
         decl: ast::DeclArrayUnbounded,
         base_type: CVType,
     ) -> Result<CombinedDeclarator, CompileError> {
+        unimplemented!("process_declarator_array_unbounded")
     }
     pub(crate) fn process_declarator_function(
         &mut self,
         decl: ast::DeclFunction,
         base_type: CVType,
     ) -> Result<CombinedDeclarator, CompileError> {
-        if let Some(decl) = decl.declarator {
-            let res = self.process_declarator(*decl, base_type)?;
-        } else {
-        }
+        let args = decl
+            .params
+            .params
+            .into_iter()
+            .map(|param| -> Result<CVType, CompileError> {
+                // @TODO storage_qualifier check
+                let (_storage_qualifier, base_type) =
+                    self.process_decl_specs(param.specs.into_iter())?;
+
+                if let Some(decl) = param.declarator {
+                    let res = self.process_declarator(*decl, base_type)?;
+                    Ok(res.cv_type)
+                } else {
+                    Ok(base_type)
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let variadic = decl.params.variadic;
+
+        unimplemented!("process_declarator_function")
+
+        // if let Some(decl) = decl.declarator {
+        //     let res = self.process_declarator(*decl, base_type)?;
+        //     FunctionType { args, variadic,
+        // } else {
+        //     FunctionType { args, variadic,
+        // }
     }
     pub(crate) fn process_declarator_const(
         &mut self,
