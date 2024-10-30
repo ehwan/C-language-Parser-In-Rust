@@ -3,6 +3,10 @@ mod expression;
 mod parser_lr;
 mod statement;
 
+pub use parser_lr::translation_unitContext;
+pub use parser_lr::translation_unitParseError;
+pub use parser_lr::translation_unitParser;
+
 pub use declarator::DeclArrayFixed;
 pub use declarator::DeclArrayUnbounded;
 pub use declarator::DeclConst;
@@ -68,3 +72,4 @@ pub use statement::StmtNull;
 pub use statement::StmtReturn;
 pub use statement::StmtSwitch;
 pub use statement::StmtWhile;
+pub use statement::TranslationUnit;

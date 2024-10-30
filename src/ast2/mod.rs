@@ -10,6 +10,7 @@ mod variable;
 
 pub use statement::Statement;
 pub use statement::StmtCompound;
+pub use statement::StmtDoWhile;
 pub use statement::StmtExpression;
 pub use statement::StmtFor;
 pub use statement::StmtGoto;
@@ -19,6 +20,8 @@ pub use statement::StmtReturn;
 pub use statement::StmtSwitch;
 pub use statement::StmtSwitchCase;
 pub use statement::StmtVariableDeclaration;
+pub use statement::StmtWhile;
+pub use statement::TranslationUnit;
 
 pub use expression::ExprBinary;
 pub use expression::ExprBinaryOp;

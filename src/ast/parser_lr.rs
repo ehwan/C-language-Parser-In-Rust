@@ -495,7 +495,7 @@ logical_or_expression( Expression )
 
 conditional_expression( Expression )
     : logical_or_expression
-    | logical_or_expression question expression colon conditional_expression {
+    | logical_or_expression question! expression colon! conditional_expression {
         Expression::Conditional( expression::ExprConditional{
             cond: Box::new(logical_or_expression),
             then_expr: Box::new(expression),
@@ -506,6 +506,13 @@ conditional_expression( Expression )
 
 assignment_expression( Expression )
     : conditional_expression
+    | unary_expression assign assignment_expression {
+        Expression::Binary( expression::ExprBinary{
+            op: expression::ExprBinaryOperator::Assign,
+            lhs: Box::new(unary_expression),
+            rhs: Box::new(assignment_expression),
+        })
+    }
     | unary_expression mul_assign assignment_expression {
         Expression::Binary( expression::ExprBinary{
             op: expression::ExprBinaryOperator::MulAssign,
@@ -1197,7 +1204,7 @@ enumerator( declarator::Enumerator )
             value: None,
         }
     }
-    | ident eq constant_expression {
+    | ident assign constant_expression {
         let Token::Identifier(name) = ident else { unreachable!() };
         declarator::Enumerator {
             name,
@@ -1214,7 +1221,7 @@ init_declarator( declarator::DeclInit )
             initializer: None,
         }
     }
-    | declarator eq initializer {
+    | declarator assign initializer {
         declarator::DeclInit{
             declarator: Box::new(declarator),
             initializer: Some(initializer)

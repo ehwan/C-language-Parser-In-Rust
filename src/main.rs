@@ -1,7 +1,7 @@
 use std::io::{stdin, stdout, Read, Write};
 
-use virtualmachine::instruction::generation::InstructionGenerator;
-use virtualmachine::program::VirtualMachine;
+// use virtualmachine::instruction::generation::InstructionGenerator;
+// use virtualmachine::program::VirtualMachine;
 
 mod ast;
 mod ast2;
@@ -74,8 +74,21 @@ fn main() {
 
     // parse the tokens into AST
     println!("ASTs: ");
-    let parser = ast::parser::ASTParser::new();
-    let translation_unit = parser.parse(tokens);
+    let parser = ast::translation_unitParser::new();
+    let mut context = ast::translation_unitContext::new();
+    for token in tokens.into_iter().chain(std::iter::once(token::Token::Eof)) {
+        match context.feed(&parser, token, &mut ()) {
+            Ok(_) => {}
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
+            }
+        }
+    }
+    let translation_unit = context.accept();
+    println!("{:#?}", translation_unit);
+
+    /*
     println!("{:#?}", translation_unit);
 
     // generate instructions
@@ -103,4 +116,5 @@ fn main() {
     vm.execute(&mut instructions);
 
     stdout().flush().expect("Failed to flush stdout");
+    */
 }

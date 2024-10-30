@@ -103,3 +103,8 @@ pub struct StmtVariableDeclaration {
     /// (variable, initial value) pairs
     pub pairs: Vec<(VariableInfo, Expression)>,
 }
+
+#[derive(Debug, Clone)]
+pub struct TranslationUnit {
+    pub statements: Vec<Statement>,
+}

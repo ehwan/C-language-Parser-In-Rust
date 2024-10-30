@@ -1,15 +1,7 @@
-pub mod generation;
-pub mod operand;
-
 use super::program::{STACK_POINTER_BASE_REGISTER, STACK_POINTER_REGISTER, STACK_SIZE};
-use super::variable::VariableData;
-use crate::ast::typename::TypeInfo;
-use crate::virtualmachine::program::VirtualMachine;
-use operand::*;
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
-    DefineLabel(DefineLabel),
     MoveRegister(MoveRegister),
     PushStack(PushStack),
     PopStack(PopStack),

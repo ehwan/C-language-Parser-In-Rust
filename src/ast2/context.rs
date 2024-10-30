@@ -18,6 +18,7 @@ use super::StmtSwitchCase;
 use super::StmtVariableDeclaration;
 use super::StorageQualifier;
 use super::StructType;
+use super::TranslationUnit;
 use super::VariableInfo;
 use crate::ast;
 
@@ -222,6 +223,19 @@ impl Context {
         self.function_scope.is_some()
     }
 
+    pub fn process_translation_unit(
+        &mut self,
+        tu: ast::TranslationUnit,
+    ) -> Result<TranslationUnit, CompileError> {
+        let mut statements = Vec::new();
+
+        for item in tu.statements.into_iter() {
+            let statement = self.process_statement(item)?;
+            statements.push(statement);
+        }
+
+        Ok(TranslationUnit { statements })
+    }
     pub fn process_statement(
         &mut self,
         statement: ast::Statement,
@@ -569,7 +583,7 @@ impl Context {
     ) -> Result<Statement, CompileError> {
         // @TODO storage_qualifier check
         // currently ignore all storage qualifiers
-        let (storage_qualifier, base_type) = self.process_decl_specs(stmt.specs.into_iter())?;
+        let (_storage_qualifier, base_type) = self.process_decl_specs(stmt.specs.into_iter())?;
 
         match stmt.inits {
             Some(decl_inits) => {
@@ -733,7 +747,7 @@ impl Context {
                                         // type name `name` exists.
                                         // check if it's struct declaration of same type
 
-                                        let PrimitiveType::Struct(other_struct_def) = &old.type_
+                                        let PrimitiveType::Struct(_other_struct_def) = &old.type_
                                         else {
                                             // it is not struct,
                                             // redifinition of type name `name`
@@ -756,7 +770,7 @@ impl Context {
                                         // type name `name` exists.
                                         // check if it's struct declaration of same type
 
-                                        let PrimitiveType::Struct(other_struct_def) = &old.type_
+                                        let PrimitiveType::Struct(_other_struct_def) = &old.type_
                                         else {
                                             // it is not struct,
                                             // redifinition of type name `name`
@@ -858,7 +872,7 @@ impl Context {
                                         // type name `name` exists.
                                         // check if it's union declaration of same type
 
-                                        let PrimitiveType::Union(other_union_def) = &old.type_
+                                        let PrimitiveType::Union(_other_union_def) = &old.type_
                                         else {
                                             // it is not union,
                                             // redifinition of type name `name`
@@ -881,7 +895,7 @@ impl Context {
                                         // type name `name` exists.
                                         // check if it's union declaration of same type
 
-                                        let PrimitiveType::Union(other_union_def) = &old.type_
+                                        let PrimitiveType::Union(_other_union_def) = &old.type_
                                         else {
                                             // it is not union,
                                             // redifinition of type name `name`
@@ -985,7 +999,8 @@ impl Context {
                                         // type name `name` exists.
                                         // check if it's enum declaration of same type
 
-                                        let PrimitiveType::Enum(other_enum_def) = &old.type_ else {
+                                        let PrimitiveType::Enum(_other_enum_def) = &old.type_
+                                        else {
                                             // it is not enum,
                                             // redifinition of type name `name`
                                             return Err(CompileError::TypeRedifinition(name));
@@ -1008,7 +1023,8 @@ impl Context {
                                         // type name `name` exists.
                                         // check if it's enum declaration of same type
 
-                                        let PrimitiveType::Enum(other_enum_def) = &old.type_ else {
+                                        let PrimitiveType::Enum(_other_enum_def) = &old.type_
+                                        else {
                                             // it is not enum,
                                             // redifinition of type name `name`
                                             return Err(CompileError::TypeRedifinition(name));
@@ -1048,7 +1064,7 @@ impl Context {
             return Err(CompileError::NestedFunctionDefinition);
         }
 
-        let (storage_qualifier, base_type) = match stmt.specs {
+        let (_storage_qualifier, base_type) = match stmt.specs {
             Some(specs) => self.process_decl_specs(specs.into_iter())?,
             None => (
                 StorageQualifier::new(),
@@ -1121,8 +1137,8 @@ impl Context {
 
 // for expressions
 impl Context {
-    pub fn expression_type(&self, expr: &Expression) -> CVType {
-        match expr {
+    pub fn expression_type(&self, expr: &Expression) -> Result<CVType, CompileError> {
+        Ok(match expr {
             Expression::Variable(var) => var.cv_type.clone(),
             Expression::I8(_) => CVType::from_primitive(PrimitiveType::Int8),
             Expression::I16(_) => CVType::from_primitive(PrimitiveType::Int16),
@@ -1142,16 +1158,34 @@ impl Context {
                 })))
             }
             Expression::Cast(expr) => expr.type_.clone(),
-            Expression::Arrow(expr) => unimplemented!("expression_type Arrow"),
-            Expression::Bracket(expr) => unimplemented!("expression_type Bracket"),
-            Expression::Conditional(expr) => unimplemented!("expression_type Conditional"),
+            Expression::Bracket(expr) => match self.expression_type(&expr.src)?.type_ {
+                PrimitiveType::Pointer(t) => *t,
+                PrimitiveType::Array(t) => *t.cv_type,
+                _ => return Err(CompileError::BracketOnNonArrayOrPointer),
+            },
+            Expression::Conditional(expr) => {
+                let cond_type = self.expression_type(&expr.cond)?.type_;
+                if cond_type.is_bool_castable() {
+                    let then_type = self.expression_type(&expr.then_expr)?.type_;
+                    let else_type = self.expression_type(&expr.else_expr)?.type_;
+                    match then_type.common_type(&else_type) {
+                        Some(t) => CVType::from_primitive(t),
+                        None => return Err(CompileError::ConditionalTypeMismatch),
+                    }
+                } else {
+                    return Err(CompileError::ConditionalNotBool);
+                }
+            }
             Expression::InitializerList(expr) => unimplemented!("expression_type InitializerList"),
-            Expression::Paren(expr) => unimplemented!("expression_type Paren"),
+            Expression::Paren(expr) => match self.expression_type(&expr.src)?.type_ {
+                PrimitiveType::Function(func) => *func.return_type,
+                _ => return Err(CompileError::CallNonFunction),
+            },
             Expression::Binary(expr) => unimplemented!("expression_type Binary"),
             Expression::Unary(expr) => unimplemented!("expression_type Unary"),
             Expression::Member(expr) => expr.member_type.clone(),
             Expression::Arrow(expr) => expr.member_type.clone(),
-        }
+        })
     }
     pub(crate) fn process_expression_identifier(
         &mut self,
@@ -1227,7 +1261,7 @@ impl Context {
         expr: ast::ExprMember,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
-        match self.expression_type(&src).type_ {
+        match self.expression_type(&src)?.type_ {
             PrimitiveType::Struct(s) | PrimitiveType::Union(s) => {
                 let Some(body) = &s.body else {
                     return Err(CompileError::MemberOnIncompleteType);
@@ -1254,7 +1288,7 @@ impl Context {
         expr: ast::ExprArrow,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
-        let PrimitiveType::Pointer(src_type) = self.expression_type(&src).type_ else {
+        let PrimitiveType::Pointer(src_type) = self.expression_type(&src)?.type_ else {
             return Err(CompileError::ArrowOnNonPointer);
         };
         match src_type.type_ {
@@ -1284,12 +1318,12 @@ impl Context {
         expr: ast::ExprBracket,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
-        match self.expression_type(&src).type_ {
+        match self.expression_type(&src)?.type_ {
             PrimitiveType::Array(_) | PrimitiveType::Pointer(_) => {}
             _ => return Err(CompileError::BracketOnNonArrayOrPointer),
         }
         let index = self.process_expression(*expr.index)?;
-        if !self.expression_type(&index).type_.is_integer() {
+        if !self.expression_type(&index)?.type_.is_integer() {
             return Err(CompileError::BracketIndexNotInteger);
         }
 
@@ -1302,9 +1336,15 @@ impl Context {
         &mut self,
         expr: ast::ExprParen,
     ) -> Result<Expression, CompileError> {
-        // @TODO callable check
+        let src = self.process_expression(*expr.src)?;
+        match self.expression_type(&src)?.type_ {
+            PrimitiveType::Function(_func_info) => {
+                // @TODO argument type, variadic check
+            }
+            _ => return Err(CompileError::CallNonFunction),
+        }
         Ok(Expression::Paren(expression::ExprParen {
-            src: Box::new(self.process_expression(*expr.src)?),
+            src: Box::new(src),
             args: expr
                 .args
                 .into_iter()
@@ -1346,7 +1386,7 @@ impl Context {
         expr: ast::ExprSizeOfExpr,
     ) -> Result<Expression, CompileError> {
         let expr = self.process_expression(*expr.expr)?;
-        let typename = self.expression_type(&expr);
+        let typename = self.expression_type(&expr)?;
         Ok(Expression::U64(self.type_sizeof(&typename.type_)? as u64))
     }
     pub(crate) fn process_expression_conditional(
@@ -1445,7 +1485,7 @@ impl Context {
 
     pub(crate) fn process_specs(
         &mut self,
-        mut specs: impl Iterator<Item = ast::SpecifierQualifier>,
+        specs: impl Iterator<Item = ast::SpecifierQualifier>,
     ) -> Result<CVType, CompileError> {
         let mut collector = declarator::SpecifierQualifierCollector::new();
         for s in specs {
@@ -1464,8 +1504,32 @@ impl Context {
                     ast::TypeSpecifier::Double => collector.set_double()?,
                     ast::TypeSpecifier::Signed => collector.set_signed()?,
                     ast::TypeSpecifier::Unsigned => collector.set_unsigned()?,
-                    ast::TypeSpecifier::Typename(name) => unimplemented!("process_specs-typename"),
-                    ast::TypeSpecifier::StructOrUnion(s) => unimplemented!("process_specs-struct"),
+                    ast::TypeSpecifier::Typename(name) => {
+                        let mut found = false;
+                        for scope in self.scopes.iter().rev() {
+                            if let Scope::Block(scope) = scope {
+                                if let Some(typedef) = scope.typedefs.get(&name) {
+                                    collector.set_typename(typedef)?;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if !found {
+                            if let Some(typedef) = self.global_scope.typedefs.get(&name) {
+                                collector.set_typename(typedef)?;
+                            } else {
+                                return Err(CompileError::TypeNotFound(name));
+                            }
+                        }
+                    }
+                    ast::TypeSpecifier::StructOrUnion(s) => {
+                        if let Some(definition) = s.decls {
+                            for def in definition.into_iter() {}
+                        } else {
+                        }
+                        unimplemented!("process_specs-struct")
+                    }
                     ast::TypeSpecifier::Enum(e) => unimplemented!("process_specs-enum"),
                 },
             }
@@ -1474,7 +1538,7 @@ impl Context {
     }
     pub(crate) fn process_decl_specs(
         &mut self,
-        mut specs: impl Iterator<Item = ast::DeclarationSpecifier>,
+        specs: impl Iterator<Item = ast::DeclarationSpecifier>,
     ) -> Result<(StorageQualifier, CVType), CompileError> {
         let mut storage_qualifier = StorageQualifier::new();
         let mut collector = declarator::SpecifierQualifierCollector::new();

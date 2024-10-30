@@ -52,6 +52,36 @@ impl PrimitiveType {
     pub fn is_float(&self) -> bool {
         matches!(self, PrimitiveType::Float32 | PrimitiveType::Float64)
     }
+
+    pub fn is_bool_castable(&self) -> bool {
+        match self {
+            PrimitiveType::UInt8
+            | PrimitiveType::UInt16
+            | PrimitiveType::UInt32
+            | PrimitiveType::UInt64
+            | PrimitiveType::Int8
+            | PrimitiveType::Int16
+            | PrimitiveType::Int32
+            | PrimitiveType::Int64
+            | PrimitiveType::Pointer(_)
+            | PrimitiveType::Array(_) => true,
+            PrimitiveType::Enum(enum_type) => enum_type.type_.is_bool_castable(),
+            _ => false,
+        }
+    }
+    pub fn common_type(&self, other: &Self) -> Option<Self> {
+        unimplemented!("common_type")
+        // match (self, other) {
+        //     (PrimitiveType::Void, _) | (_, PrimitiveType::Void) => None,
+        //     (PrimitiveType::UInt8, PrimitiveType::UInt8) => Some(PrimitiveType::UInt8),
+        //     (PrimitiveType::UInt16, PrimitiveType::UInt16) => Some(PrimitiveType::UInt16),
+        //     (PrimitiveType::UInt32, PrimitiveType::UInt32) => Some(PrimitiveType::UInt32),
+        //     (PrimitiveType::UInt64, PrimitiveType::UInt64) => Some(PrimitiveType::UInt64),
+        //     (PrimitiveType::Int8, PrimitiveType::Int8) => Some(PrimitiveType::Int8),
+
+        // }
+        // None
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

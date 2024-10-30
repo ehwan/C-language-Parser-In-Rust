@@ -48,4 +48,13 @@ pub enum CompileError {
     MultipleFunctionDefinition(String),
 
     TypeRedifinition(String),
+    TypeNotFound(String),
+
+    /// ex) `int short;`, `unsigned long signed;` invalid combination
+    InvalidTypeSpecifier,
+
+    CallNonFunction,
+
+    ConditionalTypeMismatch,
+    ConditionalNotBool,
 }

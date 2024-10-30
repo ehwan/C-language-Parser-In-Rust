@@ -1,5 +1,5 @@
-use crate::virtualmachine::program::VirtualMachine;
 use crate::virtualmachine::variable::VariableData;
+use crate::virtualmachine::vm::VirtualMachine;
 
 /// Type for Operand
 /// Derefed: [rax + offset]
