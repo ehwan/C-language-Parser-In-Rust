@@ -70,4 +70,13 @@ pub enum CompileError {
 
     ConditionalTypeMismatch,
     ConditionalNotBool,
+
+    BitwiseOpOnNonInteger,
+    LogicalOpOnNonBool,
+    ArithmeticOpOnNonNumeric,
+    DereferenceOnNonPointer,
+
+    NotAssignable,
+    AssignToArray,
+    AssignToConst,
 }

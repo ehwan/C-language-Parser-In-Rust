@@ -700,6 +700,11 @@ selection_statement( Statement )
     }
     ;
 
+declaration_or_expression( Statement )
+    : declaration
+    | expression_statement
+    ;
+
 
 iteration_statement( Statement )
     : while_ lparen expression rparen statement {
@@ -714,7 +719,7 @@ iteration_statement( Statement )
             statement: Box::new(statement),
         })
     }
-    | for_ lparen init=expression_statement cond=expression_statement rparen body=statement {
+    | for_ lparen init=declaration_or_expression cond=expression_statement rparen body=statement {
         let Statement::Expression(cond) = cond else { unreachable!() };
         Statement::For( statement::StmtFor{
             init: Box::new(init),
@@ -723,7 +728,7 @@ iteration_statement( Statement )
             statement: Box::new(body),
         })
     }
-    | for_ lparen init=expression_statement cond=expression_statement next=expression rparen body=statement {
+    | for_ lparen init=declaration_or_expression cond=expression_statement next=expression rparen body=statement {
         let Statement::Expression(cond) = cond else { unreachable!() };
         Statement::For( statement::StmtFor{
             init: Box::new(init),

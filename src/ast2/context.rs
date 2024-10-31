@@ -11,6 +11,9 @@ use super::CVType;
 use super::CombinedDeclarator;
 use super::CompileError;
 use super::EnumType;
+use super::ExprBinary;
+use super::ExprBinaryOp;
+use super::ExprUnaryOp;
 use super::Expression;
 use super::FunctionType;
 use super::PrimitiveType;
@@ -656,9 +659,13 @@ impl Context {
                         }
                     }
                 }
-                Ok(Statement::VariableDeclaration(StmtVariableDeclaration {
-                    pairs,
-                }))
+                if pairs.is_empty() {
+                    Ok(Statement::None)
+                } else {
+                    Ok(Statement::VariableDeclaration(StmtVariableDeclaration {
+                        pairs,
+                    }))
+                }
             }
             None => {
                 // struct, union, enum type definition
@@ -1347,6 +1354,65 @@ impl Context {
         let cond = self.process_expression(*expr.cond)?;
         let then = self.process_expression(*expr.then_expr)?;
         let else_ = self.process_expression(*expr.else_expr)?;
+        match &cond {
+            Expression::U8(x) => {
+                if *x == 0 {
+                    return Ok(else_);
+                } else {
+                    return Ok(then);
+                }
+            }
+            Expression::U16(x) => {
+                if *x == 0 {
+                    return Ok(else_);
+                } else {
+                    return Ok(then);
+                }
+            }
+            Expression::U32(x) => {
+                if *x == 0 {
+                    return Ok(else_);
+                } else {
+                    return Ok(then);
+                }
+            }
+            Expression::U64(x) => {
+                if *x == 0 {
+                    return Ok(else_);
+                } else {
+                    return Ok(then);
+                }
+            }
+            Expression::I8(x) => {
+                if *x == 0 {
+                    return Ok(else_);
+                } else {
+                    return Ok(then);
+                }
+            }
+            Expression::I16(x) => {
+                if *x == 0 {
+                    return Ok(else_);
+                } else {
+                    return Ok(then);
+                }
+            }
+            Expression::I32(x) => {
+                if *x == 0 {
+                    return Ok(else_);
+                } else {
+                    return Ok(then);
+                }
+            }
+            Expression::I64(x) => {
+                if *x == 0 {
+                    return Ok(else_);
+                } else {
+                    return Ok(then);
+                }
+            }
+            _ => {}
+        }
         Ok(Expression::Conditional(expression::ExprConditional {
             cond: Box::new(cond),
             then_expr: Box::new(then),
@@ -1358,6 +1424,154 @@ impl Context {
         expr: ast::ExprUnary,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
+        match expr.op {
+            ExprUnaryOp::AddressOf => {
+                if !src.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+            }
+            ExprUnaryOp::BitwiseNot => {
+                if !src.cv_type()?.type_.is_integer() {
+                    return Err(CompileError::BitwiseOpOnNonInteger);
+                }
+                // compile-time constant
+                match src {
+                    Expression::I8(x) => return Ok(Expression::U8(!x as u8)),
+                    Expression::I16(x) => return Ok(Expression::U16(!x as u16)),
+                    Expression::I32(x) => return Ok(Expression::U32(!x as u32)),
+                    Expression::I64(x) => return Ok(Expression::U64(!x as u64)),
+                    Expression::U8(x) => return Ok(Expression::U8(!x as u8)),
+                    Expression::U16(x) => return Ok(Expression::U16(!x as u16)),
+                    Expression::U32(x) => return Ok(Expression::U32(!x as u32)),
+                    Expression::U64(x) => return Ok(Expression::U64(!x as u64)),
+                    _ => {}
+                }
+            }
+            ExprUnaryOp::DecrementPost => {
+                if !src.cv_type()?.type_.is_integer() {
+                    return Err(CompileError::BitwiseOpOnNonInteger);
+                }
+                if src.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                if !src.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+            }
+            ExprUnaryOp::DecrementPre => {
+                if !src.cv_type()?.type_.is_integer() {
+                    return Err(CompileError::BitwiseOpOnNonInteger);
+                }
+                if src.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                if !src.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+            }
+            ExprUnaryOp::IncrementPost => {
+                if !src.cv_type()?.type_.is_integer() {
+                    return Err(CompileError::BitwiseOpOnNonInteger);
+                }
+                if src.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                if !src.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+            }
+            ExprUnaryOp::IncrementPre => {
+                if !src.cv_type()?.type_.is_integer() {
+                    return Err(CompileError::BitwiseOpOnNonInteger);
+                }
+                if src.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                if !src.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+            }
+            ExprUnaryOp::LogicalNot => {
+                if !src.cv_type()?.type_.is_bool_castable() {
+                    return Err(CompileError::LogicalOpOnNonBool);
+                }
+
+                // compile-time constant
+                match src {
+                    Expression::I8(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
+                    Expression::I16(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
+                    Expression::I32(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
+                    Expression::I64(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
+                    Expression::U8(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
+                    Expression::U16(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
+                    Expression::U32(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
+                    Expression::U64(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
+                    _ => {}
+                }
+            }
+            ExprUnaryOp::Minus => {
+                match src.cv_type()?.type_ {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match src {
+                    Expression::I8(x) => return Ok(Expression::I8(-x)),
+                    Expression::I16(x) => return Ok(Expression::I16(-x)),
+                    Expression::I32(x) => return Ok(Expression::I32(-x)),
+                    Expression::I64(x) => return Ok(Expression::I64(-x)),
+                    Expression::U8(x) => return Ok(Expression::U8((-(x as i8)) as u8)),
+                    Expression::U16(x) => return Ok(Expression::U16((-(x as i16)) as u16)),
+                    Expression::U32(x) => return Ok(Expression::U32((-(x as i32)) as u32)),
+                    Expression::U64(x) => return Ok(Expression::U64((-(x as i64)) as u64)),
+                    _ => {}
+                }
+            }
+            ExprUnaryOp::Dereference => match src.cv_type()?.type_ {
+                PrimitiveType::Pointer(_) | PrimitiveType::Array(_) => {}
+                _ => {
+                    return Err(CompileError::DereferenceOnNonPointer);
+                }
+            },
+            ExprUnaryOp::Plus => {
+                match src.cv_type()?.type_ {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match src {
+                    Expression::I8(x) => return Ok(Expression::I8(x)),
+                    Expression::I16(x) => return Ok(Expression::I16(x)),
+                    Expression::I32(x) => return Ok(Expression::I32(x)),
+                    Expression::I64(x) => return Ok(Expression::I64(x)),
+                    Expression::U8(x) => return Ok(Expression::U8(x)),
+                    Expression::U16(x) => return Ok(Expression::U16(x)),
+                    Expression::U32(x) => return Ok(Expression::U32(x)),
+                    Expression::U64(x) => return Ok(Expression::U64(x)),
+                    _ => {}
+                }
+            }
+        }
         Ok(Expression::Unary(expression::ExprUnary {
             op: expr.op,
             expr: Box::new(src),
@@ -1369,6 +1583,875 @@ impl Context {
     ) -> Result<Expression, CompileError> {
         let lhs = self.process_expression(*expr.lhs)?;
         let rhs = self.process_expression(*expr.rhs)?;
+        let lhs_type = lhs.cv_type()?.type_;
+        let rhs_type = rhs.cv_type()?.type_;
+
+        match expr.op {
+            ExprBinaryOp::Add => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+
+            ExprBinaryOp::AddAssign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::Sub => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::SubAssign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::Mul => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::MulAssign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::Div => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::DivAssign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::Mod => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::ModAssign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64 => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::BitwiseAnd => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+            }
+            ExprBinaryOp::BitwiseAndAssign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+            }
+            ExprBinaryOp::BitwiseOr => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+            }
+            ExprBinaryOp::BitwiseOrAssign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+            }
+            ExprBinaryOp::BitwiseXor => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+            }
+            ExprBinaryOp::BitwiseXorAssign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+            }
+            ExprBinaryOp::ShiftLeft => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+            }
+            ExprBinaryOp::ShiftLeftAssign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+            }
+            ExprBinaryOp::ShiftRight => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+            }
+            ExprBinaryOp::ShiftRightAssign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64 => {}
+                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
+                }
+            }
+            ExprBinaryOp::Equal => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::NotEqual => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::LessThan => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::LessThanOrEqual => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::GreaterThan => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::GreaterThanOrEqual => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Float32
+                    | PrimitiveType::Float64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                }
+            }
+            ExprBinaryOp::LogicalAnd => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::LogicalOpOnNonBool),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::LogicalOpOnNonBool),
+                }
+            }
+            ExprBinaryOp::LogicalOr => {
+                match lhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::LogicalOpOnNonBool),
+                }
+                match rhs_type {
+                    PrimitiveType::Int8
+                    | PrimitiveType::Int16
+                    | PrimitiveType::Int32
+                    | PrimitiveType::Int64
+                    | PrimitiveType::UInt8
+                    | PrimitiveType::UInt16
+                    | PrimitiveType::UInt32
+                    | PrimitiveType::UInt64
+                    | PrimitiveType::Pointer(_)
+                    | PrimitiveType::Array(_) => {}
+                    _ => return Err(CompileError::LogicalOpOnNonBool),
+                }
+            }
+
+            ExprBinaryOp::Comma => {}
+            ExprBinaryOp::Assign => {
+                if !lhs.is_address() {
+                    return Err(CompileError::NotAssignable);
+                }
+                if lhs.cv_type()?.const_ {
+                    return Err(CompileError::AssignToConst);
+                }
+                match lhs_type {
+                    PrimitiveType::Array(_) => return Err(CompileError::AssignToArray),
+                    _ => {}
+                }
+            }
+        }
+
         Ok(Expression::Binary(expression::ExprBinary {
             op: expr.op,
             lhs: Box::new(lhs),

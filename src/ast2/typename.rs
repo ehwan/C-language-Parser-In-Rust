@@ -80,18 +80,230 @@ impl PrimitiveType {
             _ => false,
         }
     }
+    pub fn bit_common_type(&self, other: &Self) -> Option<Self> {
+        let lhs = match self {
+            PrimitiveType::UInt8 => 0,
+            PrimitiveType::UInt16 => 1,
+            PrimitiveType::UInt32 => 2,
+            PrimitiveType::UInt64 => 3,
+            PrimitiveType::Int8 => 0,
+            PrimitiveType::Int16 => 1,
+            PrimitiveType::Int32 => 2,
+            PrimitiveType::Int64 => 3,
+            _ => return None,
+        };
+        let rhs = match other {
+            PrimitiveType::UInt8 => 0,
+            PrimitiveType::UInt16 => 1,
+            PrimitiveType::UInt32 => 2,
+            PrimitiveType::UInt64 => 3,
+            PrimitiveType::Int8 => 0,
+            PrimitiveType::Int16 => 1,
+            PrimitiveType::Int32 => 2,
+            PrimitiveType::Int64 => 3,
+            _ => return None,
+        };
+        let common = lhs.max(rhs);
+        match common {
+            0 => Some(PrimitiveType::UInt8),
+            1 => Some(PrimitiveType::UInt16),
+            2 => Some(PrimitiveType::UInt32),
+            3 => Some(PrimitiveType::UInt64),
+            _ => unreachable!(),
+        }
+    }
     pub fn common_type(&self, other: &Self) -> Option<Self> {
-        unimplemented!("common_type")
-        // match (self, other) {
-        //     (PrimitiveType::Void, _) | (_, PrimitiveType::Void) => None,
-        //     (PrimitiveType::UInt8, PrimitiveType::UInt8) => Some(PrimitiveType::UInt8),
-        //     (PrimitiveType::UInt16, PrimitiveType::UInt16) => Some(PrimitiveType::UInt16),
-        //     (PrimitiveType::UInt32, PrimitiveType::UInt32) => Some(PrimitiveType::UInt32),
-        //     (PrimitiveType::UInt64, PrimitiveType::UInt64) => Some(PrimitiveType::UInt64),
-        //     (PrimitiveType::Int8, PrimitiveType::Int8) => Some(PrimitiveType::Int8),
+        match (self, other) {
+            (PrimitiveType::UInt8, PrimitiveType::UInt8) => Some(PrimitiveType::UInt8),
+            (PrimitiveType::UInt8, PrimitiveType::UInt16) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::UInt8, PrimitiveType::UInt32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::UInt8, PrimitiveType::UInt64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt8, PrimitiveType::Int8) => Some(PrimitiveType::UInt8),
+            (PrimitiveType::UInt8, PrimitiveType::Int16) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::UInt8, PrimitiveType::Int32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::UInt8, PrimitiveType::Int64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt8, PrimitiveType::Float32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::UInt8, PrimitiveType::Float64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::UInt8, PrimitiveType::Array(t)) => Some(t.cv_type.type_.clone()),
+            (PrimitiveType::UInt8, PrimitiveType::Pointer(t)) => Some(t.as_ref().type_.clone()),
+            (PrimitiveType::UInt8, _) => None,
 
-        // }
-        // None
+            (PrimitiveType::UInt16, PrimitiveType::UInt8) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::UInt16, PrimitiveType::UInt16) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::UInt16, PrimitiveType::UInt32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::UInt16, PrimitiveType::UInt64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt16, PrimitiveType::Int8) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::UInt16, PrimitiveType::Int16) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::UInt16, PrimitiveType::Int32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::UInt16, PrimitiveType::Int64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt16, PrimitiveType::Float32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::UInt16, PrimitiveType::Float64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::UInt16, PrimitiveType::Array(t)) => Some(t.cv_type.type_.clone()),
+            (PrimitiveType::UInt16, PrimitiveType::Pointer(t)) => Some(t.as_ref().type_.clone()),
+            (PrimitiveType::UInt16, _) => None,
+
+            (PrimitiveType::UInt32, PrimitiveType::UInt8) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::UInt32, PrimitiveType::UInt16) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::UInt32, PrimitiveType::UInt32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::UInt32, PrimitiveType::UInt64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt32, PrimitiveType::Int8) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::UInt32, PrimitiveType::Int16) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::UInt32, PrimitiveType::Int32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::UInt32, PrimitiveType::Int64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt32, PrimitiveType::Float32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::UInt32, PrimitiveType::Float64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::UInt32, PrimitiveType::Array(t)) => Some(t.cv_type.type_.clone()),
+            (PrimitiveType::UInt32, PrimitiveType::Pointer(t)) => Some(t.as_ref().type_.clone()),
+            (PrimitiveType::UInt32, _) => None,
+
+            (PrimitiveType::UInt64, PrimitiveType::UInt8) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt64, PrimitiveType::UInt16) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt64, PrimitiveType::UInt32) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt64, PrimitiveType::UInt64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt64, PrimitiveType::Int8) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt64, PrimitiveType::Int16) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt64, PrimitiveType::Int32) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt64, PrimitiveType::Int64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::UInt64, PrimitiveType::Float32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::UInt64, PrimitiveType::Float64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::UInt64, PrimitiveType::Array(t)) => Some(t.cv_type.type_.clone()),
+            (PrimitiveType::UInt64, PrimitiveType::Pointer(t)) => Some(t.as_ref().type_.clone()),
+            (PrimitiveType::UInt64, _) => None,
+
+            (PrimitiveType::Int8, PrimitiveType::UInt8) => Some(PrimitiveType::UInt8),
+            (PrimitiveType::Int8, PrimitiveType::UInt16) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::Int8, PrimitiveType::UInt32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::Int8, PrimitiveType::UInt64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int8, PrimitiveType::Int8) => Some(PrimitiveType::UInt8),
+            (PrimitiveType::Int8, PrimitiveType::Int16) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::Int8, PrimitiveType::Int32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::Int8, PrimitiveType::Int64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int8, PrimitiveType::Float32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Int8, PrimitiveType::Float64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Int8, PrimitiveType::Array(t)) => Some(t.cv_type.type_.clone()),
+            (PrimitiveType::Int8, PrimitiveType::Pointer(t)) => Some(t.as_ref().type_.clone()),
+            (PrimitiveType::Int8, _) => None,
+
+            (PrimitiveType::Int16, PrimitiveType::UInt8) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::Int16, PrimitiveType::UInt16) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::Int16, PrimitiveType::UInt32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::Int16, PrimitiveType::UInt64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int16, PrimitiveType::Int8) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::Int16, PrimitiveType::Int16) => Some(PrimitiveType::UInt16),
+            (PrimitiveType::Int16, PrimitiveType::Int32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::Int16, PrimitiveType::Int64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int16, PrimitiveType::Float32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Int16, PrimitiveType::Float64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Int16, PrimitiveType::Array(t)) => Some(t.cv_type.type_.clone()),
+            (PrimitiveType::Int16, PrimitiveType::Pointer(t)) => Some(t.as_ref().type_.clone()),
+            (PrimitiveType::Int16, _) => None,
+
+            (PrimitiveType::Int32, PrimitiveType::UInt8) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::Int32, PrimitiveType::UInt16) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::Int32, PrimitiveType::UInt32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::Int32, PrimitiveType::UInt64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int32, PrimitiveType::Int8) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::Int32, PrimitiveType::Int16) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::Int32, PrimitiveType::Int32) => Some(PrimitiveType::UInt32),
+            (PrimitiveType::Int32, PrimitiveType::Int64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int32, PrimitiveType::Float32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Int32, PrimitiveType::Float64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Int32, PrimitiveType::Array(t)) => Some(t.cv_type.type_.clone()),
+            (PrimitiveType::Int32, PrimitiveType::Pointer(t)) => Some(t.as_ref().type_.clone()),
+            (PrimitiveType::Int32, _) => None,
+
+            (PrimitiveType::Int64, PrimitiveType::UInt8) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int64, PrimitiveType::UInt16) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int64, PrimitiveType::UInt32) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int64, PrimitiveType::UInt64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int64, PrimitiveType::Int8) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int64, PrimitiveType::Int16) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int64, PrimitiveType::Int32) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int64, PrimitiveType::Int64) => Some(PrimitiveType::UInt64),
+            (PrimitiveType::Int64, PrimitiveType::Float32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Int64, PrimitiveType::Float64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Int64, PrimitiveType::Array(t)) => Some(t.cv_type.type_.clone()),
+            (PrimitiveType::Int64, PrimitiveType::Pointer(t)) => Some(t.as_ref().type_.clone()),
+            (PrimitiveType::Int64, _) => None,
+
+            (PrimitiveType::Float32, PrimitiveType::UInt8) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Float32, PrimitiveType::UInt16) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Float32, PrimitiveType::UInt32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Float32, PrimitiveType::UInt64) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Float32, PrimitiveType::Int8) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Float32, PrimitiveType::Int16) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Float32, PrimitiveType::Int32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Float32, PrimitiveType::Int64) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Float32, PrimitiveType::Float32) => Some(PrimitiveType::Float32),
+            (PrimitiveType::Float32, PrimitiveType::Float64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float32, _) => None,
+
+            (PrimitiveType::Float64, PrimitiveType::UInt8) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float64, PrimitiveType::UInt16) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float64, PrimitiveType::UInt32) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float64, PrimitiveType::UInt64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float64, PrimitiveType::Int8) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float64, PrimitiveType::Int16) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float64, PrimitiveType::Int32) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float64, PrimitiveType::Int64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float64, PrimitiveType::Float32) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float64, PrimitiveType::Float64) => Some(PrimitiveType::Float64),
+            (PrimitiveType::Float64, _) => None,
+
+            (PrimitiveType::Pointer(t), PrimitiveType::UInt8) => {
+                Some(PrimitiveType::Pointer(t.clone()))
+            }
+            (PrimitiveType::Pointer(t), PrimitiveType::UInt16) => {
+                Some(PrimitiveType::Pointer(t.clone()))
+            }
+            (PrimitiveType::Pointer(t), PrimitiveType::UInt32) => {
+                Some(PrimitiveType::Pointer(t.clone()))
+            }
+            (PrimitiveType::Pointer(t), PrimitiveType::UInt64) => {
+                Some(PrimitiveType::Pointer(t.clone()))
+            }
+            (PrimitiveType::Pointer(t), PrimitiveType::Int8) => {
+                Some(PrimitiveType::Pointer(t.clone()))
+            }
+            (PrimitiveType::Pointer(t), PrimitiveType::Int16) => {
+                Some(PrimitiveType::Pointer(t.clone()))
+            }
+            (PrimitiveType::Pointer(t), PrimitiveType::Int32) => {
+                Some(PrimitiveType::Pointer(t.clone()))
+            }
+            (PrimitiveType::Pointer(t), PrimitiveType::Int64) => {
+                Some(PrimitiveType::Pointer(t.clone()))
+            }
+            (PrimitiveType::Pointer(t), _) => None,
+
+            (PrimitiveType::Array(t), PrimitiveType::UInt8) => {
+                Some(PrimitiveType::Pointer(t.cv_type.clone()))
+            }
+            (PrimitiveType::Array(t), PrimitiveType::UInt16) => {
+                Some(PrimitiveType::Pointer(t.cv_type.clone()))
+            }
+            (PrimitiveType::Array(t), PrimitiveType::UInt32) => {
+                Some(PrimitiveType::Pointer(t.cv_type.clone()))
+            }
+            (PrimitiveType::Array(t), PrimitiveType::UInt64) => {
+                Some(PrimitiveType::Pointer(t.cv_type.clone()))
+            }
+            (PrimitiveType::Array(t), PrimitiveType::Int8) => {
+                Some(PrimitiveType::Pointer(t.cv_type.clone()))
+            }
+            (PrimitiveType::Array(t), PrimitiveType::Int16) => {
+                Some(PrimitiveType::Pointer(t.cv_type.clone()))
+            }
+            (PrimitiveType::Array(t), PrimitiveType::Int32) => {
+                Some(PrimitiveType::Pointer(t.cv_type.clone()))
+            }
+            (PrimitiveType::Array(t), PrimitiveType::Int64) => {
+                Some(PrimitiveType::Pointer(t.cv_type.clone()))
+            }
+            (PrimitiveType::Array(t), _) => None,
+
+            _ => None,
+        }
     }
 
     pub fn sizeof(&self) -> Result<usize, CompileError> {
@@ -127,6 +339,19 @@ impl PrimitiveType {
             },
             PrimitiveType::Enum(e) => e.type_.alignof()?,
         })
+    }
+    pub fn to_unsigned(&self) -> Option<Self> {
+        match self {
+            PrimitiveType::Int8 => Some(PrimitiveType::UInt8),
+            PrimitiveType::Int16 => Some(PrimitiveType::UInt16),
+            PrimitiveType::Int32 => Some(PrimitiveType::UInt32),
+            PrimitiveType::Int64 => Some(PrimitiveType::UInt64),
+            PrimitiveType::UInt8 => Some(PrimitiveType::UInt8),
+            PrimitiveType::UInt16 => Some(PrimitiveType::UInt16),
+            PrimitiveType::UInt32 => Some(PrimitiveType::UInt32),
+            PrimitiveType::UInt64 => Some(PrimitiveType::UInt64),
+            _ => None,
+        }
     }
 }
 

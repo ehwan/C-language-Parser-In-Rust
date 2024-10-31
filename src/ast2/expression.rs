@@ -87,27 +87,118 @@ impl Expression {
                 PrimitiveType::Array(t) => *t.cv_type,
                 _ => return Err(CompileError::BracketOnNonArrayOrPointer),
             },
-            Expression::Conditional(expr) => {
-                let cond_type = expr.cond.cv_type()?.type_;
-                if cond_type.is_bool_castable() {
-                    let then_type = expr.then_expr.cv_type()?.type_;
-                    let else_type = expr.else_expr.cv_type()?.type_;
-                    match then_type.common_type(&else_type) {
-                        Some(t) => CVType::from_primitive(t),
-                        None => return Err(CompileError::ConditionalTypeMismatch),
-                    }
-                } else {
-                    return Err(CompileError::ConditionalNotBool);
-                }
-            }
+            Expression::Conditional(expr) => CVType::from_primitive(
+                expr.else_expr
+                    .cv_type()?
+                    .type_
+                    .common_type(&expr.then_expr.cv_type()?.type_)
+                    .unwrap(),
+            ),
             Expression::InitializerList(expr) => unimplemented!("expression_type InitializerList"),
             Expression::Paren(expr) => match expr.src.cv_type()?.type_ {
-                // @TODO arg check
                 PrimitiveType::Function(func) => *func.return_type,
-                _ => return Err(CompileError::CallNonFunction),
+                _ => unreachable!("Paren expression type"),
             },
-            Expression::Binary(expr) => unimplemented!("expression_type Binary"),
-            Expression::Unary(expr) => unimplemented!("expression_type Unary"),
+            Expression::Binary(expr) => match expr.op {
+                ExprBinaryOp::Add => CVType::from_primitive(
+                    expr.lhs
+                        .cv_type()?
+                        .type_
+                        .common_type(&expr.rhs.cv_type()?.type_)
+                        .unwrap(),
+                ),
+                ExprBinaryOp::AddAssign => expr.lhs.cv_type()?,
+                ExprBinaryOp::Sub => CVType::from_primitive(
+                    expr.lhs
+                        .cv_type()?
+                        .type_
+                        .common_type(&expr.rhs.cv_type()?.type_)
+                        .unwrap(),
+                ),
+                ExprBinaryOp::SubAssign => expr.lhs.cv_type()?,
+                ExprBinaryOp::Mul => CVType::from_primitive(
+                    expr.lhs
+                        .cv_type()?
+                        .type_
+                        .common_type(&expr.rhs.cv_type()?.type_)
+                        .unwrap(),
+                ),
+                ExprBinaryOp::MulAssign => expr.lhs.cv_type()?,
+                ExprBinaryOp::Div => CVType::from_primitive(
+                    expr.lhs
+                        .cv_type()?
+                        .type_
+                        .common_type(&expr.rhs.cv_type()?.type_)
+                        .unwrap(),
+                ),
+                ExprBinaryOp::DivAssign => expr.lhs.cv_type()?,
+                ExprBinaryOp::Mod => CVType::from_primitive(
+                    expr.lhs
+                        .cv_type()?
+                        .type_
+                        .common_type(&expr.rhs.cv_type()?.type_)
+                        .unwrap(),
+                ),
+                ExprBinaryOp::ModAssign => expr.lhs.cv_type()?,
+                ExprBinaryOp::BitwiseAnd => CVType::from_primitive(
+                    expr.lhs
+                        .cv_type()?
+                        .type_
+                        .bit_common_type(&expr.rhs.cv_type()?.type_)
+                        .unwrap(),
+                ),
+                ExprBinaryOp::BitwiseAndAssign => expr.lhs.cv_type()?,
+                ExprBinaryOp::BitwiseOr => CVType::from_primitive(
+                    expr.lhs
+                        .cv_type()?
+                        .type_
+                        .bit_common_type(&expr.rhs.cv_type()?.type_)
+                        .unwrap(),
+                ),
+                ExprBinaryOp::BitwiseOrAssign => expr.lhs.cv_type()?,
+                ExprBinaryOp::BitwiseXor => CVType::from_primitive(
+                    expr.lhs
+                        .cv_type()?
+                        .type_
+                        .bit_common_type(&expr.rhs.cv_type()?.type_)
+                        .unwrap(),
+                ),
+                ExprBinaryOp::BitwiseXorAssign => expr.lhs.cv_type()?,
+                ExprBinaryOp::ShiftLeft => CVType::from_primitive(expr.lhs.cv_type()?.type_),
+                ExprBinaryOp::ShiftLeftAssign => expr.lhs.cv_type()?,
+                ExprBinaryOp::ShiftRight => CVType::from_primitive(expr.lhs.cv_type()?.type_),
+                ExprBinaryOp::ShiftRightAssign => expr.lhs.cv_type()?,
+                ExprBinaryOp::Equal => CVType::from_primitive(PrimitiveType::Int32),
+                ExprBinaryOp::NotEqual => CVType::from_primitive(PrimitiveType::Int32),
+                ExprBinaryOp::LessThan => CVType::from_primitive(PrimitiveType::Int32),
+                ExprBinaryOp::LessThanOrEqual => CVType::from_primitive(PrimitiveType::Int32),
+                ExprBinaryOp::GreaterThan => CVType::from_primitive(PrimitiveType::Int32),
+                ExprBinaryOp::GreaterThanOrEqual => CVType::from_primitive(PrimitiveType::Int32),
+                ExprBinaryOp::LogicalAnd => CVType::from_primitive(PrimitiveType::Int32),
+                ExprBinaryOp::LogicalOr => CVType::from_primitive(PrimitiveType::Int32),
+                ExprBinaryOp::Comma => expr.rhs.cv_type()?,
+                ExprBinaryOp::Assign => expr.lhs.cv_type()?,
+            },
+            Expression::Unary(expr) => match expr.op {
+                ExprUnaryOp::AddressOf => {
+                    CVType::from_primitive(PrimitiveType::Pointer(Box::new(expr.expr.cv_type()?)))
+                }
+                ExprUnaryOp::BitwiseNot => {
+                    CVType::from_primitive(expr.expr.cv_type()?.type_.to_unsigned().unwrap())
+                }
+                ExprUnaryOp::DecrementPost => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::DecrementPre => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::IncrementPost => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::IncrementPre => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::LogicalNot => CVType::from_primitive(PrimitiveType::Int32),
+                ExprUnaryOp::Minus => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::Dereference => match expr.expr.cv_type()?.type_ {
+                    PrimitiveType::Pointer(t) => *t,
+                    PrimitiveType::Array(t) => *t.cv_type,
+                    _ => unreachable!("Dereference expression type"),
+                },
+                ExprUnaryOp::Plus => CVType::from_primitive(expr.expr.cv_type()?.type_),
+            },
             Expression::Member(expr) => expr.member_type.clone(),
             Expression::Arrow(expr) => expr.member_type.clone(),
         })
