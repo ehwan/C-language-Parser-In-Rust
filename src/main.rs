@@ -7,7 +7,7 @@ mod ast;
 mod ast2;
 mod preprocess;
 mod token;
-mod virtualmachine;
+// mod virtualmachine;
 
 fn main() {
     println!("Enter your code (and ^D for EOF):");
@@ -86,10 +86,18 @@ fn main() {
         }
     }
     let translation_unit = context.accept();
+
+    let mut context = ast2::Context::new();
+    let translation_unit = match context.process_translation_unit(translation_unit) {
+        Ok(tu) => tu,
+        Err(err) => {
+            println!("Error: {:?}", err);
+            return;
+        }
+    };
     println!("{:#?}", translation_unit);
 
     /*
-    println!("{:#?}", translation_unit);
 
     // generate instructions
     println!("{:=^80}", "");

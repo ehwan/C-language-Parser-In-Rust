@@ -54,3 +54,5 @@ pub use typename::PrimitiveType;
 pub use typename::StorageQualifier;
 pub use typename::StructMember;
 pub use typename::StructType;
+
+pub use context::Context;

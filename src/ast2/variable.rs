@@ -46,3 +46,41 @@ pub enum Address {
     /// index on function array
     Function(usize),
 }
+
+impl Address {
+    pub fn is_global(&self) -> bool {
+        matches!(self, Address::Global(_))
+    }
+    pub fn is_local(&self) -> bool {
+        matches!(self, Address::Local(_))
+    }
+    pub fn is_function(&self) -> bool {
+        matches!(self, Address::Function(_))
+    }
+
+    pub fn into_u64(self) -> u64 {
+        match self {
+            Address::Global(x) => (x as u64) | (1u64 << 63),
+            Address::Local(x) => (x as u64) | (1u64 << 62),
+            Address::Function(x) => (x as u64) | (3u64 << 62),
+        }
+    }
+    pub fn from_u64(x: u64) -> Self {
+        match x >> 62 {
+            1 => Address::Global((x & !(1u64 << 63)) as usize),
+            2 => Address::Local((x & !(1u64 << 62)) as usize),
+            3 => Address::Function((x & !(3u64 << 62)) as usize),
+            _ => unreachable!("invalid address"),
+        }
+    }
+}
+impl Into<u64> for Address {
+    fn into(self) -> u64 {
+        self.into_u64()
+    }
+}
+impl From<u64> for Address {
+    fn from(x: u64) -> Self {
+        Address::from_u64(x)
+    }
+}

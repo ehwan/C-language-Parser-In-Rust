@@ -1,3 +1,5 @@
+use super::CompileError;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PrimitiveType {
     Void,
@@ -52,6 +54,15 @@ impl PrimitiveType {
     pub fn is_float(&self) -> bool {
         matches!(self, PrimitiveType::Float32 | PrimitiveType::Float64)
     }
+    pub fn is_struct(&self) -> bool {
+        matches!(self, PrimitiveType::Struct(_))
+    }
+    pub fn is_union(&self) -> bool {
+        matches!(self, PrimitiveType::Union(_))
+    }
+    pub fn is_enum(&self) -> bool {
+        matches!(self, PrimitiveType::Enum(_))
+    }
 
     pub fn is_bool_castable(&self) -> bool {
         match self {
@@ -81,6 +92,41 @@ impl PrimitiveType {
 
         // }
         // None
+    }
+
+    pub fn sizeof(&self) -> Result<usize, CompileError> {
+        Ok(match self {
+            PrimitiveType::Void => return Err(CompileError::SizeofIncompleteType),
+            PrimitiveType::UInt8 | PrimitiveType::Int8 => 1,
+            PrimitiveType::UInt16 | PrimitiveType::Int16 => 2,
+            PrimitiveType::UInt32 | PrimitiveType::Int32 | PrimitiveType::Float32 => 4,
+            PrimitiveType::UInt64 | PrimitiveType::Int64 | PrimitiveType::Float64 => 8,
+            PrimitiveType::Pointer(_) => 8,
+            PrimitiveType::Array(ArrayType { cv_type, size }) => cv_type.type_.sizeof()? * (*size),
+            PrimitiveType::Function(_) => return Err(CompileError::SizeofIncompleteType),
+            PrimitiveType::Struct(s) | PrimitiveType::Union(s) => match &s.body {
+                Some(s) => s.size,
+                None => return Err(CompileError::SizeofIncompleteType),
+            },
+            PrimitiveType::Enum(e) => e.type_.sizeof()?,
+        })
+    }
+    pub fn alignof(&self) -> Result<usize, CompileError> {
+        Ok(match self {
+            PrimitiveType::Void => return Err(CompileError::SizeofIncompleteType),
+            PrimitiveType::UInt8 | PrimitiveType::Int8 => 1,
+            PrimitiveType::UInt16 | PrimitiveType::Int16 => 2,
+            PrimitiveType::UInt32 | PrimitiveType::Int32 | PrimitiveType::Float32 => 4,
+            PrimitiveType::UInt64 | PrimitiveType::Int64 | PrimitiveType::Float64 => 8,
+            PrimitiveType::Pointer(_) => 8,
+            PrimitiveType::Array(ArrayType { cv_type, size: _ }) => cv_type.type_.alignof()?,
+            PrimitiveType::Function(_) => return Err(CompileError::SizeofIncompleteType),
+            PrimitiveType::Struct(s) | PrimitiveType::Union(s) => match &s.body {
+                Some(s) => s.align,
+                None => return Err(CompileError::AlignofIncompleteType),
+            },
+            PrimitiveType::Enum(e) => e.type_.alignof()?,
+        })
     }
 }
 
@@ -115,6 +161,65 @@ pub struct StructMember {
     pub offset: usize,
 }
 
+impl StructType {
+    pub fn struct_from_decls(name: Option<String>, decls: Vec<(String, CVType)>) -> Self {
+        let mut size = 0;
+        let mut align = 1;
+        let mut members = Vec::new();
+        for (name, member) in decls.into_iter() {
+            let member_size = member.type_.sizeof().unwrap();
+            let member_align = member.type_.alignof().unwrap();
+            let offset = ((size + member_align - 1) / member_align) * member_align;
+            align = std::cmp::max(align, member_align);
+            size = offset + member_size;
+
+            members.push(StructMember {
+                name,
+                cv_type: member,
+                offset,
+            });
+        }
+        let body = StructBody {
+            size,
+            align,
+            members,
+        };
+
+        StructType {
+            name,
+            body: Some(body),
+        }
+    }
+    pub fn union_from_decls(name: Option<String>, decls: Vec<(String, CVType)>) -> Self {
+        let mut size = 0;
+        let mut align = 1;
+        let mut members = Vec::new();
+        for (name, member) in decls.into_iter() {
+            let member_size = member.type_.sizeof().unwrap();
+            let member_align = member.type_.alignof().unwrap();
+            let offset = 0;
+            align = std::cmp::max(align, member_align);
+            size = std::cmp::max(size, member_size);
+
+            members.push(StructMember {
+                name,
+                cv_type: member,
+                offset,
+            });
+        }
+        let body = StructBody {
+            size,
+            align,
+            members,
+        };
+
+        StructType {
+            name,
+            body: Some(body),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EnumType {
     pub name: Option<String>,
@@ -130,6 +235,25 @@ pub struct EnumBody {
 pub struct EnumMember {
     pub name: String,
     pub value: i64,
+}
+impl EnumType {
+    pub fn enum_from_decls(name: Option<String>, decls: Vec<(String, Option<i64>)>) -> Self {
+        let mut last_value = 0;
+        let mut members = Vec::new();
+        for (name, value) in decls.into_iter() {
+            let value = match value {
+                Some(value) => value,
+                None => last_value + 1,
+            };
+            last_value = value;
+            members.push(EnumMember { name, value });
+        }
+        EnumType {
+            name,
+            body: Some(EnumBody { members }),
+            type_: Box::new(PrimitiveType::Int64),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

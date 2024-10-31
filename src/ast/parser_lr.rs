@@ -1142,7 +1142,7 @@ struct_declarator_list( Vec<Declarator> )
     ;
 
 struct_declaration( declarator::StructDeclaration )
-    : specifier_qualifier+ struct_declarator_list {
+    : specifier_qualifier+ struct_declarator_list semicolon! {
         declarator::StructDeclaration {
             specs: specifier_qualifier,
             declarators: struct_declarator_list,

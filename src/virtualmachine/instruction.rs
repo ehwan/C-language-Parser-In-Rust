@@ -1,7 +1,10 @@
-use super::program::{STACK_POINTER_BASE_REGISTER, STACK_POINTER_REGISTER, STACK_SIZE};
+use super::vm::{STACK_POINTER_BASE_REGISTER, STACK_POINTER_REGISTER, STACK_SIZE};
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
+    I64(i64),
+    U64(u64),
+
     MoveRegister(MoveRegister),
     PushStack(PushStack),
     PopStack(PopStack),
@@ -37,7 +40,6 @@ pub enum Instruction {
 impl Instruction {
     pub fn execute(&self, program: &mut VirtualMachine) {
         match self {
-            Instruction::DefineLabel(inst) => inst.execute(program),
             Instruction::MoveRegister(inst) => inst.execute(program),
             Instruction::PushStack(inst) => inst.execute(program),
             Instruction::PopStack(inst) => inst.execute(program),
@@ -68,17 +70,6 @@ impl Instruction {
             Instruction::Assign(inst) => inst.execute(program),
             Instruction::AssignStruct(inst) => inst.execute(program),
         }
-    }
-}
-
-/// Do Nothing; for debugging
-#[derive(Debug, Clone)]
-pub struct DefineLabel {
-    pub label: String,
-}
-impl DefineLabel {
-    fn execute(&self, _program: &mut VirtualMachine) {
-        // label is defined at emitting session
     }
 }
 
@@ -156,7 +147,7 @@ pub struct Jump {
     pub label: String,
 }
 impl Jump {
-    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualMachine) {
+    fn execute(&self, program: &mut crate::virtualmachine::vm::VirtualMachine) {
         let address = program
             .label_map
             .get(&self.label)
@@ -173,7 +164,7 @@ pub struct JumpZero {
     pub operand_cond: Operand,
 }
 impl JumpZero {
-    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualMachine) {
+    fn execute(&self, program: &mut crate::virtualmachine::vm::VirtualMachine) {
         let address = program
             .label_map
             .get(&self.label)
@@ -193,7 +184,7 @@ pub struct JumpNonZero {
     pub operand_cond: Operand,
 }
 impl JumpNonZero {
-    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualMachine) {
+    fn execute(&self, program: &mut crate::virtualmachine::vm::VirtualMachine) {
         let address = program
             .label_map
             .get(&self.label)
@@ -210,7 +201,7 @@ impl JumpNonZero {
 #[derive(Debug, Clone)]
 pub struct Print {}
 impl Print {
-    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualMachine) {
+    fn execute(&self, program: &mut crate::virtualmachine::vm::VirtualMachine) {
         PopStack {
             operand: Operand::Register(1),
         }
@@ -236,7 +227,7 @@ pub struct Panic {
     pub message: String,
 }
 impl Panic {
-    fn execute(&self, _program: &mut crate::virtualmachine::program::VirtualMachine) {
+    fn execute(&self, _program: &mut crate::virtualmachine::vm::VirtualMachine) {
         panic!("Panic: {}", self.message);
     }
 }
@@ -247,7 +238,7 @@ pub struct Call {
     pub label: String,
 }
 impl Call {
-    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualMachine) {
+    fn execute(&self, program: &mut crate::virtualmachine::vm::VirtualMachine) {
         let move_to_address = *program
             .label_map
             .get(&self.label)
@@ -269,7 +260,7 @@ impl Call {
 #[derive(Debug, Clone)]
 pub struct Return {}
 impl Return {
-    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualMachine) {
+    fn execute(&self, program: &mut crate::virtualmachine::vm::VirtualMachine) {
         // register0 is beging used by returned value
 
         // current base pointer is old stack pointer
@@ -291,7 +282,7 @@ pub struct PrintStr {
     pub str: Operand, // null terminated string
 }
 impl PrintStr {
-    fn execute(&self, program: &mut crate::virtualmachine::program::VirtualMachine) {
+    fn execute(&self, program: &mut crate::virtualmachine::vm::VirtualMachine) {
         let mut address = get_operand_value(program, &self.str).to_u64() as usize;
 
         let mut chars = Vec::new();

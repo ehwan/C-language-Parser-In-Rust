@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::rc::Rc;
 
 use super::declarator;
@@ -162,7 +163,7 @@ impl Context {
     fn begin_variable_scope(
         &mut self,
         name: String,
-        type_: CVType,
+        cv_type: CVType,
     ) -> Result<VariableInfo, CompileError> {
         // search for `name` in current scope
         for scope in self.scopes.iter().rev() {
@@ -176,13 +177,13 @@ impl Context {
             }
         }
 
-        let size = self.type_sizeof(&type_.type_)?;
-        let align = self.type_alignof(&type_.type_)?;
+        let size = cv_type.type_.sizeof()?;
+        let align = cv_type.type_.alignof()?;
         let offset = self.function_scope.as_mut().unwrap().pool.push(size, align);
         let varinfo = VariableInfo {
             name: name.clone(),
             address: Address::Local(offset),
-            cv_type: type_,
+            cv_type,
         };
         let scope = VariableScope {
             name,
@@ -635,8 +636,8 @@ impl Context {
                                     return Err(CompileError::MultipleVariableDefinition(name));
                                 }
 
-                                let size = self.type_sizeof(&init_type.cv_type.type_)?;
-                                let align = self.type_alignof(&init_type.cv_type.type_)?;
+                                let size = init_type.cv_type.type_.sizeof()?;
+                                let align = init_type.cv_type.type_.alignof()?;
                                 let offset = self.global_scope.pool.push(size, align);
                                 let varinfo = VariableInfo {
                                     name: name.clone(),
@@ -1137,56 +1138,6 @@ impl Context {
 
 // for expressions
 impl Context {
-    pub fn expression_type(&self, expr: &Expression) -> Result<CVType, CompileError> {
-        Ok(match expr {
-            Expression::Variable(var) => var.cv_type.clone(),
-            Expression::I8(_) => CVType::from_primitive(PrimitiveType::Int8),
-            Expression::I16(_) => CVType::from_primitive(PrimitiveType::Int16),
-            Expression::I32(_) => CVType::from_primitive(PrimitiveType::Int32),
-            Expression::I64(_) => CVType::from_primitive(PrimitiveType::Int64),
-            Expression::U8(_) => CVType::from_primitive(PrimitiveType::UInt8),
-            Expression::U16(_) => CVType::from_primitive(PrimitiveType::UInt16),
-            Expression::U32(_) => CVType::from_primitive(PrimitiveType::UInt32),
-            Expression::U64(_) => CVType::from_primitive(PrimitiveType::UInt64),
-            Expression::F32(_) => CVType::from_primitive(PrimitiveType::Float32),
-            Expression::F64(_) => CVType::from_primitive(PrimitiveType::Float64),
-            Expression::String(_) => {
-                CVType::from_primitive(PrimitiveType::Pointer(Box::new(CVType {
-                    type_: PrimitiveType::Int8,
-                    const_: true,
-                    volatile: false,
-                })))
-            }
-            Expression::Cast(expr) => expr.type_.clone(),
-            Expression::Bracket(expr) => match self.expression_type(&expr.src)?.type_ {
-                PrimitiveType::Pointer(t) => *t,
-                PrimitiveType::Array(t) => *t.cv_type,
-                _ => return Err(CompileError::BracketOnNonArrayOrPointer),
-            },
-            Expression::Conditional(expr) => {
-                let cond_type = self.expression_type(&expr.cond)?.type_;
-                if cond_type.is_bool_castable() {
-                    let then_type = self.expression_type(&expr.then_expr)?.type_;
-                    let else_type = self.expression_type(&expr.else_expr)?.type_;
-                    match then_type.common_type(&else_type) {
-                        Some(t) => CVType::from_primitive(t),
-                        None => return Err(CompileError::ConditionalTypeMismatch),
-                    }
-                } else {
-                    return Err(CompileError::ConditionalNotBool);
-                }
-            }
-            Expression::InitializerList(expr) => unimplemented!("expression_type InitializerList"),
-            Expression::Paren(expr) => match self.expression_type(&expr.src)?.type_ {
-                PrimitiveType::Function(func) => *func.return_type,
-                _ => return Err(CompileError::CallNonFunction),
-            },
-            Expression::Binary(expr) => unimplemented!("expression_type Binary"),
-            Expression::Unary(expr) => unimplemented!("expression_type Unary"),
-            Expression::Member(expr) => expr.member_type.clone(),
-            Expression::Arrow(expr) => expr.member_type.clone(),
-        })
-    }
     pub(crate) fn process_expression_identifier(
         &mut self,
         expr: ast::ExprIdentifier,
@@ -1261,7 +1212,7 @@ impl Context {
         expr: ast::ExprMember,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
-        match self.expression_type(&src)?.type_ {
+        match src.cv_type()?.type_ {
             PrimitiveType::Struct(s) | PrimitiveType::Union(s) => {
                 let Some(body) = &s.body else {
                     return Err(CompileError::MemberOnIncompleteType);
@@ -1288,7 +1239,7 @@ impl Context {
         expr: ast::ExprArrow,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
-        let PrimitiveType::Pointer(src_type) = self.expression_type(&src)?.type_ else {
+        let PrimitiveType::Pointer(src_type) = src.cv_type()?.type_ else {
             return Err(CompileError::ArrowOnNonPointer);
         };
         match src_type.type_ {
@@ -1318,12 +1269,12 @@ impl Context {
         expr: ast::ExprBracket,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
-        match self.expression_type(&src)?.type_ {
+        match src.cv_type()?.type_ {
             PrimitiveType::Array(_) | PrimitiveType::Pointer(_) => {}
             _ => return Err(CompileError::BracketOnNonArrayOrPointer),
         }
         let index = self.process_expression(*expr.index)?;
-        if !self.expression_type(&index)?.type_.is_integer() {
+        if !index.cv_type()?.type_.is_integer() {
             return Err(CompileError::BracketIndexNotInteger);
         }
 
@@ -1337,7 +1288,7 @@ impl Context {
         expr: ast::ExprParen,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
-        match self.expression_type(&src)?.type_ {
+        match src.cv_type()?.type_ {
             PrimitiveType::Function(_func_info) => {
                 // @TODO argument type, variadic check
             }
@@ -1379,15 +1330,15 @@ impl Context {
         } else {
             base_type
         };
-        Ok(Expression::U64(self.type_sizeof(&typename.type_)? as u64))
+        Ok(Expression::U64(typename.type_.sizeof()? as u64))
     }
     pub(crate) fn process_expression_sizeofexpr(
         &mut self,
         expr: ast::ExprSizeOfExpr,
     ) -> Result<Expression, CompileError> {
         let expr = self.process_expression(*expr.expr)?;
-        let typename = self.expression_type(&expr)?;
-        Ok(Expression::U64(self.type_sizeof(&typename.type_)? as u64))
+        let typename = expr.cv_type()?;
+        Ok(Expression::U64(typename.type_.sizeof()? as u64))
     }
     pub(crate) fn process_expression_conditional(
         &mut self,
@@ -1442,47 +1393,6 @@ impl Context {
 
 // for declarators
 impl Context {
-    pub fn type_sizeof(&self, typename: &PrimitiveType) -> Result<usize, CompileError> {
-        Ok(match typename {
-            PrimitiveType::Void => return Err(CompileError::SizeofIncompleteType),
-            PrimitiveType::UInt8 | PrimitiveType::Int8 => 1,
-            PrimitiveType::UInt16 | PrimitiveType::Int16 => 2,
-            PrimitiveType::UInt32 | PrimitiveType::Int32 | PrimitiveType::Float32 => 4,
-            PrimitiveType::UInt64 | PrimitiveType::Int64 | PrimitiveType::Float64 => 8,
-            PrimitiveType::Pointer(_) => 8,
-            PrimitiveType::Array(ArrayType {
-                cv_type: type_,
-                size,
-            }) => self.type_sizeof(&type_.type_)? * (*size),
-            PrimitiveType::Function(_) => return Err(CompileError::SizeofIncompleteType),
-            PrimitiveType::Struct(s) | PrimitiveType::Union(s) => match &s.body {
-                Some(s) => s.size,
-                None => return Err(CompileError::SizeofIncompleteType),
-            },
-            PrimitiveType::Enum(e) => self.type_sizeof(&e.type_)?,
-        })
-    }
-    pub fn type_alignof(&self, typename: &PrimitiveType) -> Result<usize, CompileError> {
-        Ok(match typename {
-            PrimitiveType::Void => return Err(CompileError::SizeofIncompleteType),
-            PrimitiveType::UInt8 | PrimitiveType::Int8 => 1,
-            PrimitiveType::UInt16 | PrimitiveType::Int16 => 2,
-            PrimitiveType::UInt32 | PrimitiveType::Int32 | PrimitiveType::Float32 => 4,
-            PrimitiveType::UInt64 | PrimitiveType::Int64 | PrimitiveType::Float64 => 8,
-            PrimitiveType::Pointer(_) => 8,
-            PrimitiveType::Array(ArrayType {
-                cv_type: type_,
-                size: _,
-            }) => self.type_alignof(&type_.type_)?,
-            PrimitiveType::Function(_) => return Err(CompileError::SizeofIncompleteType),
-            PrimitiveType::Struct(s) | PrimitiveType::Union(s) => match &s.body {
-                Some(s) => s.align,
-                None => return Err(CompileError::AlignofIncompleteType),
-            },
-            PrimitiveType::Enum(e) => self.type_alignof(&e.type_)?,
-        })
-    }
-
     pub(crate) fn process_specs(
         &mut self,
         specs: impl Iterator<Item = ast::SpecifierQualifier>,
@@ -1509,7 +1419,7 @@ impl Context {
                         for scope in self.scopes.iter().rev() {
                             if let Scope::Block(scope) = scope {
                                 if let Some(typedef) = scope.typedefs.get(&name) {
-                                    collector.set_typename(typedef)?;
+                                    collector.set_typename(typedef.clone())?;
                                     found = true;
                                     break;
                                 }
@@ -1517,7 +1427,7 @@ impl Context {
                         }
                         if !found {
                             if let Some(typedef) = self.global_scope.typedefs.get(&name) {
-                                collector.set_typename(typedef)?;
+                                collector.set_typename(typedef.clone())?;
                             } else {
                                 return Err(CompileError::TypeNotFound(name));
                             }
@@ -1525,12 +1435,129 @@ impl Context {
                     }
                     ast::TypeSpecifier::StructOrUnion(s) => {
                         if let Some(definition) = s.decls {
-                            for def in definition.into_iter() {}
+                            let mut names = HashSet::new();
+                            let mut members = Vec::new();
+                            for def in definition.into_iter() {
+                                let base_type = self.process_specs(def.specs.into_iter())?;
+                                for decl in def.declarators.into_iter() {
+                                    let d = self.process_declarator(decl, base_type.clone())?;
+                                    let Some(name) = d.name else {
+                                        return Err(CompileError::DeclarationWithoutName);
+                                    };
+                                    if names.insert(name.clone()) == false {
+                                        return Err(CompileError::MemberRedefined(name));
+                                    }
+
+                                    members.push((name, d.cv_type));
+                                }
+                            }
+                            let struct_type = if s.is_struct {
+                                let struct_type = StructType::struct_from_decls(s.name, members);
+                                CVType::from_primitive(PrimitiveType::Struct(struct_type))
+                            } else {
+                                let union_type = StructType::union_from_decls(s.name, members);
+                                CVType::from_primitive(PrimitiveType::Union(union_type))
+                            };
+                            collector.set_typename(struct_type)?;
                         } else {
+                            let Some(name) = s.name else {
+                                return Err(CompileError::IncompleteType);
+                            };
+
+                            // search for type definition `name`
+                            let mut found = false;
+                            for scope in self.scopes.iter().rev() {
+                                if let Scope::Block(scope) = scope {
+                                    if let Some(typedef) = scope.typedefs.get(&name) {
+                                        if s.is_struct && !typedef.type_.is_struct() {
+                                            return Err(CompileError::StructMismatch(name));
+                                        }
+                                        if !s.is_struct && !typedef.type_.is_union() {
+                                            return Err(CompileError::UnionMismatch(name));
+                                        }
+                                        collector.set_typename(typedef.clone())?;
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if !found {
+                                if let Some(typedef) = self.global_scope.typedefs.get(&name) {
+                                    if s.is_struct && !typedef.type_.is_struct() {
+                                        return Err(CompileError::StructMismatch(name));
+                                    }
+                                    if !s.is_struct && !typedef.type_.is_union() {
+                                        return Err(CompileError::UnionMismatch(name));
+                                    }
+                                    collector.set_typename(typedef.clone())?;
+                                } else {
+                                    return Err(CompileError::TypeNotFound(name));
+                                }
+                            }
                         }
-                        unimplemented!("process_specs-struct")
                     }
-                    ast::TypeSpecifier::Enum(e) => unimplemented!("process_specs-enum"),
+                    ast::TypeSpecifier::Enum(e) => {
+                        if let Some(definition) = e.enumerators {
+                            let mut names = HashSet::new();
+                            let mut members = Vec::new();
+                            for def in definition.into_iter() {
+                                if names.insert(def.name.clone()) == false {
+                                    return Err(CompileError::MemberRedefined(def.name));
+                                }
+
+                                if let Some(expr) = def.value {
+                                    let expr = self.process_expression(expr)?;
+                                    let value = match expr {
+                                        Expression::I8(v) => v as i64,
+                                        Expression::I16(v) => v as i64,
+                                        Expression::I32(v) => v as i64,
+                                        Expression::I64(v) => v,
+                                        Expression::U8(v) => v as i64,
+                                        Expression::U16(v) => v as i64,
+                                        Expression::U32(v) => v as i64,
+                                        Expression::U64(v) => v as i64,
+                                        _ => return Err(CompileError::ArraySizeNotInteger),
+                                    };
+                                    members.push((def.name, Some(value)));
+                                } else {
+                                    members.push((def.name, None));
+                                }
+                            }
+                            let enum_type = EnumType::enum_from_decls(e.name, members);
+                            let enum_type = PrimitiveType::Enum(enum_type);
+                            let enum_type = CVType::from_primitive(enum_type);
+                            collector.set_typename(enum_type)?;
+                        } else {
+                            let Some(name) = e.name else {
+                                return Err(CompileError::IncompleteType);
+                            };
+
+                            // search for type definition `name`
+                            let mut found = false;
+                            for scope in self.scopes.iter().rev() {
+                                if let Scope::Block(scope) = scope {
+                                    if let Some(typedef) = scope.typedefs.get(&name) {
+                                        if !typedef.type_.is_enum() {
+                                            return Err(CompileError::EnumMismatch(name));
+                                        }
+                                        collector.set_typename(typedef.clone())?;
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if !found {
+                                if let Some(typedef) = self.global_scope.typedefs.get(&name) {
+                                    if !typedef.type_.is_enum() {
+                                        return Err(CompileError::EnumMismatch(name));
+                                    }
+                                    collector.set_typename(typedef.clone())?;
+                                } else {
+                                    return Err(CompileError::TypeNotFound(name));
+                                }
+                            }
+                        }
+                    }
                 },
             }
         }
@@ -1567,12 +1594,149 @@ impl Context {
                     ast::TypeSpecifier::Signed => collector.set_signed()?,
                     ast::TypeSpecifier::Unsigned => collector.set_unsigned()?,
                     ast::TypeSpecifier::Typename(name) => {
-                        unimplemented!("process_decl_specs-typename")
+                        let mut found = false;
+                        for scope in self.scopes.iter().rev() {
+                            if let Scope::Block(scope) = scope {
+                                if let Some(typedef) = scope.typedefs.get(&name) {
+                                    collector.set_typename(typedef.clone())?;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if !found {
+                            if let Some(typedef) = self.global_scope.typedefs.get(&name) {
+                                collector.set_typename(typedef.clone())?;
+                            } else {
+                                return Err(CompileError::TypeNotFound(name));
+                            }
+                        }
                     }
                     ast::TypeSpecifier::StructOrUnion(s) => {
-                        unimplemented!("process_decl_specs-struct")
+                        if let Some(definition) = s.decls {
+                            let mut names = HashSet::new();
+                            let mut members = Vec::new();
+                            for def in definition.into_iter() {
+                                let base_type = self.process_specs(def.specs.into_iter())?;
+                                for decl in def.declarators.into_iter() {
+                                    let d = self.process_declarator(decl, base_type.clone())?;
+                                    let Some(name) = d.name else {
+                                        return Err(CompileError::DeclarationWithoutName);
+                                    };
+                                    if names.insert(name.clone()) == false {
+                                        return Err(CompileError::MemberRedefined(name));
+                                    }
+
+                                    members.push((name, d.cv_type));
+                                }
+                            }
+                            let struct_type = if s.is_struct {
+                                let struct_type = StructType::struct_from_decls(s.name, members);
+                                CVType::from_primitive(PrimitiveType::Struct(struct_type))
+                            } else {
+                                let union_type = StructType::union_from_decls(s.name, members);
+                                CVType::from_primitive(PrimitiveType::Union(union_type))
+                            };
+                            collector.set_typename(struct_type)?;
+                        } else {
+                            let Some(name) = s.name else {
+                                return Err(CompileError::IncompleteType);
+                            };
+
+                            // search for type definition `name`
+                            let mut found = false;
+                            for scope in self.scopes.iter().rev() {
+                                if let Scope::Block(scope) = scope {
+                                    if let Some(typedef) = scope.typedefs.get(&name) {
+                                        if s.is_struct && !typedef.type_.is_struct() {
+                                            return Err(CompileError::StructMismatch(name));
+                                        }
+                                        if !s.is_struct && !typedef.type_.is_union() {
+                                            return Err(CompileError::UnionMismatch(name));
+                                        }
+                                        collector.set_typename(typedef.clone())?;
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if !found {
+                                if let Some(typedef) = self.global_scope.typedefs.get(&name) {
+                                    if s.is_struct && !typedef.type_.is_struct() {
+                                        return Err(CompileError::StructMismatch(name));
+                                    }
+                                    if !s.is_struct && !typedef.type_.is_union() {
+                                        return Err(CompileError::UnionMismatch(name));
+                                    }
+                                    collector.set_typename(typedef.clone())?;
+                                } else {
+                                    return Err(CompileError::TypeNotFound(name));
+                                }
+                            }
+                        }
                     }
-                    ast::TypeSpecifier::Enum(e) => unimplemented!("process_decl_specs-enum"),
+                    ast::TypeSpecifier::Enum(e) => {
+                        if let Some(definition) = e.enumerators {
+                            let mut names = HashSet::new();
+                            let mut members = Vec::new();
+                            for def in definition.into_iter() {
+                                if names.insert(def.name.clone()) == false {
+                                    return Err(CompileError::MemberRedefined(def.name));
+                                }
+
+                                if let Some(expr) = def.value {
+                                    let expr = self.process_expression(expr)?;
+                                    let value = match expr {
+                                        Expression::I8(v) => v as i64,
+                                        Expression::I16(v) => v as i64,
+                                        Expression::I32(v) => v as i64,
+                                        Expression::I64(v) => v,
+                                        Expression::U8(v) => v as i64,
+                                        Expression::U16(v) => v as i64,
+                                        Expression::U32(v) => v as i64,
+                                        Expression::U64(v) => v as i64,
+                                        _ => return Err(CompileError::ArraySizeNotInteger),
+                                    };
+                                    members.push((def.name, Some(value)));
+                                } else {
+                                    members.push((def.name, None));
+                                }
+                            }
+                            let enum_type = EnumType::enum_from_decls(e.name, members);
+                            let enum_type = PrimitiveType::Enum(enum_type);
+                            let enum_type = CVType::from_primitive(enum_type);
+                            collector.set_typename(enum_type)?;
+                        } else {
+                            let Some(name) = e.name else {
+                                return Err(CompileError::IncompleteType);
+                            };
+
+                            // search for type definition `name`
+                            let mut found = false;
+                            for scope in self.scopes.iter().rev() {
+                                if let Scope::Block(scope) = scope {
+                                    if let Some(typedef) = scope.typedefs.get(&name) {
+                                        if !typedef.type_.is_enum() {
+                                            return Err(CompileError::EnumMismatch(name));
+                                        }
+                                        collector.set_typename(typedef.clone())?;
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if !found {
+                                if let Some(typedef) = self.global_scope.typedefs.get(&name) {
+                                    if !typedef.type_.is_enum() {
+                                        return Err(CompileError::EnumMismatch(name));
+                                    }
+                                    collector.set_typename(typedef.clone())?;
+                                } else {
+                                    return Err(CompileError::TypeNotFound(name));
+                                }
+                            }
+                        }
+                    }
                 },
             }
         }
@@ -1693,14 +1857,28 @@ impl Context {
             .collect::<Result<Vec<_>, _>>()?;
         let variadic = decl.params.variadic;
 
-        unimplemented!("process_declarator_function")
-
-        // if let Some(decl) = decl.declarator {
-        //     let res = self.process_declarator(*decl, base_type)?;
-        //     FunctionType { args, variadic,
-        // } else {
-        //     FunctionType { args, variadic,
-        // }
+        if let Some(decl) = decl.declarator {
+            let res = self.process_declarator(*decl, base_type)?;
+            let func_type = FunctionType {
+                args,
+                variadic,
+                return_type: Box::new(res.cv_type),
+            };
+            Ok(CombinedDeclarator {
+                cv_type: CVType::from_primitive(PrimitiveType::Function(func_type)),
+                name: res.name,
+            })
+        } else {
+            let func_type = FunctionType {
+                args,
+                variadic,
+                return_type: Box::new(base_type),
+            };
+            Ok(CombinedDeclarator {
+                cv_type: CVType::from_primitive(PrimitiveType::Function(func_type)),
+                name: None,
+            })
+        }
     }
     pub(crate) fn process_declarator_const(
         &mut self,

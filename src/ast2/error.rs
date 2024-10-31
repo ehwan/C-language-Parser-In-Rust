@@ -21,8 +21,21 @@ pub enum CompileError {
 
     DeclarationWithoutName,
 
+    /// same member name in struct or union or enum
+    MemberRedefined(String),
+
     BracketOnNonArrayOrPointer,
     BracketIndexNotInteger,
+
+    /// variable declaration incomplete type
+    IncompleteType,
+
+    /// use 'struct A' but A is not struct
+    StructMismatch(String),
+    /// use 'union A' but A is not union
+    UnionMismatch(String),
+    /// use 'enum A' but A is not enum
+    EnumMismatch(String),
 
     SizeofIncompleteType,
     AlignofIncompleteType,
