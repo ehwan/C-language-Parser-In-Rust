@@ -1,15 +1,21 @@
-use super::vm::{STACK_POINTER_BASE_REGISTER, STACK_POINTER_REGISTER, STACK_SIZE};
+use super::LabelType;
 
 #[derive(Debug, Clone)]
 pub enum Instruction {
     I64(i64),
     U64(u64),
 
+    /// Dereference N bytes from the address in register RAX.
+    /// Put the value in register RAX.
+    Deref(usize),
+
+    Jump(LabelType),
+    JumpZero(usize, LabelType),
+
     MoveRegister(MoveRegister),
     PushStack(PushStack),
     PopStack(PopStack),
     Jump(Jump),
-    JumpZero(JumpZero),
     JumpNonZero(JumpNonZero),
     Print(Print),
     Panic(Panic),

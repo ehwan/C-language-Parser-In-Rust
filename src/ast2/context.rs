@@ -15,7 +15,9 @@ use super::ExprBinary;
 use super::ExprBinaryOp;
 use super::ExprUnaryOp;
 use super::Expression;
+use super::Float;
 use super::FunctionType;
+use super::Integer;
 use super::PrimitiveType;
 use super::Statement;
 use super::StmtSwitchCase;
@@ -1170,43 +1172,43 @@ impl Context {
         &mut self,
         expr: ast::ExprConstantCharacter,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::I8(expr.value))
+        Ok(Expression::Signed(expr.value as i64, Integer::Int8))
     }
     pub(crate) fn process_expression_constantinteger(
         &mut self,
         expr: ast::ExprConstantInteger,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::I32(expr.value))
+        Ok(Expression::Signed(expr.value as i64, Integer::Int32))
     }
     pub(crate) fn process_expression_constantunsignedinteger(
         &mut self,
         expr: ast::ExprConstantUnsignedInteger,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::U32(expr.value))
+        Ok(Expression::Unsigned(expr.value as u64, Integer::UInt32))
     }
     pub(crate) fn process_expression_constantlong(
         &mut self,
         expr: ast::ExprConstantLong,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::I64(expr.value))
+        Ok(Expression::Signed(expr.value, Integer::Int64))
     }
     pub(crate) fn process_expression_constantunsignedlong(
         &mut self,
         expr: ast::ExprConstantUnsignedLong,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::U64(expr.value))
+        Ok(Expression::Unsigned(expr.value, Integer::UInt64))
     }
     pub(crate) fn process_expression_constantfloat(
         &mut self,
         expr: ast::ExprConstantFloat,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::F32(expr.value))
+        Ok(Expression::Float(expr.value as f64, Float::Float32))
     }
     pub(crate) fn process_expression_constantdouble(
         &mut self,
         expr: ast::ExprConstantDouble,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::F64(expr.value))
+        Ok(Expression::Float(expr.value, Float::Float64))
     }
     pub(crate) fn process_expression_string(
         &mut self,
@@ -1214,6 +1216,100 @@ impl Context {
     ) -> Result<Expression, CompileError> {
         Ok(Expression::String(expr.value))
     }
+    pub(crate) fn process_expression_cast(
+        &mut self,
+        expr: ast::ExprCast,
+    ) -> Result<Expression, CompileError> {
+        let base_type = self.process_specs(expr.typename.specs.into_iter())?;
+        let type_to = if let Some(decl) = expr.typename.declarator {
+            let decl = self.process_declarator(*decl, base_type)?;
+            decl.cv_type.type_
+        } else {
+            base_type.type_
+        };
+        let src = self.process_expression(*expr.src)?;
+        if !src.cv_type()?.type_.is_castable(&type_to) {
+            return Err(CompileError::InvalidCast(src.cv_type()?.type_, type_to));
+        } else {
+            Ok(Expression::Cast(expression::ExprCast {
+                expr: Box::new(src),
+                type_: type_to,
+            }))
+        }
+    }
+    pub(crate) fn process_expression_bracket(
+        &mut self,
+        expr: ast::ExprBracket,
+    ) -> Result<Expression, CompileError> {
+        let src = self.process_expression(*expr.src)?;
+        match src.cv_type()?.type_ {
+            PrimitiveType::Array(_) | PrimitiveType::Pointer(_) => {}
+            _ => return Err(CompileError::BracketOnNonArrayOrPointer),
+        }
+        let index = self.process_expression(*expr.index)?;
+        if !matches!(index.cv_type()?.type_, PrimitiveType::Integer(_)) {
+            return Err(CompileError::BracketIndexNotInteger);
+        }
+
+        Ok(Expression::Bracket(expression::ExprBracket {
+            src: Box::new(src),
+            index: Box::new(index),
+        }))
+    }
+    pub(crate) fn process_expression_conditional(
+        &mut self,
+        expr: ast::ExprConditional,
+    ) -> Result<Expression, CompileError> {
+        let cond = self.process_expression(*expr.cond)?;
+        let then = self.process_expression(*expr.then_expr)?;
+        let else_ = self.process_expression(*expr.else_expr)?;
+        if !cond.cv_type()?.type_.is_bool_castable() {
+            return Err(CompileError::ConditionalNotBool);
+        }
+        match &cond {
+            Expression::Signed(x, _) => {
+                if *x == 0 {
+                    return Ok(else_);
+                } else {
+                    return Ok(then);
+                }
+            }
+            Expression::Unsigned(x, _) => {
+                if *x == 0 {
+                    return Ok(else_);
+                } else {
+                    return Ok(then);
+                }
+            }
+            _ => {}
+        }
+        let then_type = then.cv_type()?.type_;
+        let else_type = else_.cv_type()?.type_;
+        let common_type = match then_type.common_type(&else_type) {
+            Some(common) => common,
+            None => return Err(CompileError::NoCommonType(then_type, else_type)),
+        };
+        Ok(Expression::Conditional(expression::ExprConditional {
+            cond: Box::new(cond),
+            then_expr: if then_type != common_type {
+                Box::new(Expression::Cast(super::ExprCast {
+                    expr: Box::new(then),
+                    type_: common_type.clone(),
+                }))
+            } else {
+                Box::new(then)
+            },
+            else_expr: if else_type != common_type {
+                Box::new(Expression::Cast(super::ExprCast {
+                    expr: Box::new(else_),
+                    type_: common_type,
+                }))
+            } else {
+                Box::new(else_)
+            },
+        }))
+    }
+
     pub(crate) fn process_expression_member(
         &mut self,
         expr: ast::ExprMember,
@@ -1271,61 +1367,41 @@ impl Context {
             _ => return Err(CompileError::ArrowOnNonStructOrUnion),
         }
     }
-    pub(crate) fn process_expression_bracket(
-        &mut self,
-        expr: ast::ExprBracket,
-    ) -> Result<Expression, CompileError> {
-        let src = self.process_expression(*expr.src)?;
-        match src.cv_type()?.type_ {
-            PrimitiveType::Array(_) | PrimitiveType::Pointer(_) => {}
-            _ => return Err(CompileError::BracketOnNonArrayOrPointer),
-        }
-        let index = self.process_expression(*expr.index)?;
-        if !index.cv_type()?.type_.is_integer() {
-            return Err(CompileError::BracketIndexNotInteger);
-        }
-
-        Ok(Expression::Bracket(expression::ExprBracket {
-            src: Box::new(src),
-            index: Box::new(index),
-        }))
-    }
     pub(crate) fn process_expression_paren(
         &mut self,
         expr: ast::ExprParen,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
         match src.cv_type()?.type_ {
-            PrimitiveType::Function(_func_info) => {
-                // @TODO argument type, variadic check
+            PrimitiveType::Function(func_info) => {
+                if expr.args.len() != func_info.args.len() {
+                    if !func_info.variadic || !(expr.args.len() > func_info.args.len()) {
+                        return Err(CompileError::CallWithWrongNumberOfArguments);
+                    }
+                }
+
+                let args = expr
+                    .args
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, expr)| -> Result<Expression, CompileError> {
+                        let arg_expr = self.process_expression(expr)?;
+                        let arg_type = arg_expr.cv_type()?.type_;
+
+                        if !arg_type.is_implicitly_castable(&func_info.args[idx].type_) {
+                            return Err(CompileError::CallWithWrongArgumentType);
+                        }
+                        Ok(arg_expr)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok(Expression::Paren(expression::ExprParen {
+                    src: Box::new(src),
+                    args,
+                }))
             }
             _ => return Err(CompileError::CallNonFunction),
         }
-        Ok(Expression::Paren(expression::ExprParen {
-            src: Box::new(src),
-            args: expr
-                .args
-                .into_iter()
-                .map(|expr| self.process_expression(expr))
-                .collect::<Result<Vec<_>, _>>()?,
-        }))
-    }
-    pub(crate) fn process_expression_cast(
-        &mut self,
-        expr: ast::ExprCast,
-    ) -> Result<Expression, CompileError> {
-        let base_type = self.process_specs(expr.typename.specs.into_iter())?;
-        let type_to = if let Some(decl) = expr.typename.declarator {
-            let decl = self.process_declarator(*decl, base_type)?;
-            decl.cv_type
-        } else {
-            base_type
-        };
-        // @TODO check castable
-        Ok(Expression::Cast(expression::ExprCast {
-            expr: Box::new(self.process_expression(*expr.src)?),
-            type_: type_to,
-        }))
     }
     pub(crate) fn process_expression_sizeoftype(
         &mut self,
@@ -1337,7 +1413,10 @@ impl Context {
         } else {
             base_type
         };
-        Ok(Expression::U64(typename.type_.sizeof()? as u64))
+        Ok(Expression::Unsigned(
+            typename.type_.sizeof()? as u64,
+            Integer::UInt64,
+        ))
     }
     pub(crate) fn process_expression_sizeofexpr(
         &mut self,
@@ -1345,85 +1424,17 @@ impl Context {
     ) -> Result<Expression, CompileError> {
         let expr = self.process_expression(*expr.expr)?;
         let typename = expr.cv_type()?;
-        Ok(Expression::U64(typename.type_.sizeof()? as u64))
-    }
-    pub(crate) fn process_expression_conditional(
-        &mut self,
-        expr: ast::ExprConditional,
-    ) -> Result<Expression, CompileError> {
-        let cond = self.process_expression(*expr.cond)?;
-        let then = self.process_expression(*expr.then_expr)?;
-        let else_ = self.process_expression(*expr.else_expr)?;
-        match &cond {
-            Expression::U8(x) => {
-                if *x == 0 {
-                    return Ok(else_);
-                } else {
-                    return Ok(then);
-                }
-            }
-            Expression::U16(x) => {
-                if *x == 0 {
-                    return Ok(else_);
-                } else {
-                    return Ok(then);
-                }
-            }
-            Expression::U32(x) => {
-                if *x == 0 {
-                    return Ok(else_);
-                } else {
-                    return Ok(then);
-                }
-            }
-            Expression::U64(x) => {
-                if *x == 0 {
-                    return Ok(else_);
-                } else {
-                    return Ok(then);
-                }
-            }
-            Expression::I8(x) => {
-                if *x == 0 {
-                    return Ok(else_);
-                } else {
-                    return Ok(then);
-                }
-            }
-            Expression::I16(x) => {
-                if *x == 0 {
-                    return Ok(else_);
-                } else {
-                    return Ok(then);
-                }
-            }
-            Expression::I32(x) => {
-                if *x == 0 {
-                    return Ok(else_);
-                } else {
-                    return Ok(then);
-                }
-            }
-            Expression::I64(x) => {
-                if *x == 0 {
-                    return Ok(else_);
-                } else {
-                    return Ok(then);
-                }
-            }
-            _ => {}
-        }
-        Ok(Expression::Conditional(expression::ExprConditional {
-            cond: Box::new(cond),
-            then_expr: Box::new(then),
-            else_expr: Box::new(else_),
-        }))
+        Ok(Expression::Unsigned(
+            typename.type_.sizeof()? as u64,
+            Integer::UInt64,
+        ))
     }
     pub(crate) fn process_expression_unary(
         &mut self,
         expr: ast::ExprUnary,
     ) -> Result<Expression, CompileError> {
         let src = self.process_expression(*expr.src)?;
+        let src_type = src.cv_type()?;
         match expr.op {
             ExprUnaryOp::AddressOf => {
                 if !src.is_address() {
@@ -1431,27 +1442,25 @@ impl Context {
                 }
             }
             ExprUnaryOp::BitwiseNot => {
-                if !src.cv_type()?.type_.is_integer() {
+                if !matches!(src_type.type_, PrimitiveType::Integer(_)) {
                     return Err(CompileError::BitwiseOpOnNonInteger);
                 }
                 // compile-time constant
                 match src {
-                    Expression::I8(x) => return Ok(Expression::U8(!x as u8)),
-                    Expression::I16(x) => return Ok(Expression::U16(!x as u16)),
-                    Expression::I32(x) => return Ok(Expression::U32(!x as u32)),
-                    Expression::I64(x) => return Ok(Expression::U64(!x as u64)),
-                    Expression::U8(x) => return Ok(Expression::U8(!x as u8)),
-                    Expression::U16(x) => return Ok(Expression::U16(!x as u16)),
-                    Expression::U32(x) => return Ok(Expression::U32(!x as u32)),
-                    Expression::U64(x) => return Ok(Expression::U64(!x as u64)),
+                    Expression::Signed(x, type_) => {
+                        return Ok(Expression::Unsigned((!x) as u64, type_.to_unsigned()));
+                    }
+                    Expression::Unsigned(x, type_) => {
+                        return Ok(Expression::Unsigned(!x as u64, type_.to_unsigned()));
+                    }
                     _ => {}
                 }
             }
             ExprUnaryOp::DecrementPost => {
-                if !src.cv_type()?.type_.is_integer() {
+                if !matches!(src_type.type_, PrimitiveType::Integer(_)) {
                     return Err(CompileError::BitwiseOpOnNonInteger);
                 }
-                if src.cv_type()?.const_ {
+                if src_type.const_ {
                     return Err(CompileError::AssignToConst);
                 }
                 if !src.is_address() {
@@ -1459,10 +1468,10 @@ impl Context {
                 }
             }
             ExprUnaryOp::DecrementPre => {
-                if !src.cv_type()?.type_.is_integer() {
+                if !matches!(src_type.type_, PrimitiveType::Integer(_)) {
                     return Err(CompileError::BitwiseOpOnNonInteger);
                 }
-                if src.cv_type()?.const_ {
+                if src_type.const_ {
                     return Err(CompileError::AssignToConst);
                 }
                 if !src.is_address() {
@@ -1470,10 +1479,10 @@ impl Context {
                 }
             }
             ExprUnaryOp::IncrementPost => {
-                if !src.cv_type()?.type_.is_integer() {
+                if !matches!(src_type.type_, PrimitiveType::Integer(_)) {
                     return Err(CompileError::BitwiseOpOnNonInteger);
                 }
-                if src.cv_type()?.const_ {
+                if src_type.const_ {
                     return Err(CompileError::AssignToConst);
                 }
                 if !src.is_address() {
@@ -1481,10 +1490,10 @@ impl Context {
                 }
             }
             ExprUnaryOp::IncrementPre => {
-                if !src.cv_type()?.type_.is_integer() {
+                if !matches!(src_type.type_, PrimitiveType::Integer(_)) {
                     return Err(CompileError::BitwiseOpOnNonInteger);
                 }
-                if src.cv_type()?.const_ {
+                if src_type.const_ {
                     return Err(CompileError::AssignToConst);
                 }
                 if !src.is_address() {
@@ -1492,84 +1501,59 @@ impl Context {
                 }
             }
             ExprUnaryOp::LogicalNot => {
-                if !src.cv_type()?.type_.is_bool_castable() {
+                if !src_type.type_.is_bool_castable() {
                     return Err(CompileError::LogicalOpOnNonBool);
                 }
 
                 // compile-time constant
                 match src {
-                    Expression::I8(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
-                    Expression::I16(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
-                    Expression::I32(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
-                    Expression::I64(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
-                    Expression::U8(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
-                    Expression::U16(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
-                    Expression::U32(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
-                    Expression::U64(x) => return Ok(Expression::I32(if x == 0 { 1 } else { 0 })),
+                    Expression::Signed(x, _) => {
+                        return Ok(Expression::Signed(
+                            if x == 0 { 1 } else { 0 },
+                            Integer::Int32,
+                        ))
+                    }
+                    Expression::Unsigned(x, _) => {
+                        return Ok(Expression::Signed(
+                            if x == 0 { 1 } else { 0 },
+                            Integer::Int32,
+                        ))
+                    }
                     _ => {}
                 }
             }
             ExprUnaryOp::Minus => {
-                match src.cv_type()?.type_ {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                if !matches!(
+                    &src_type.type_,
+                    PrimitiveType::Integer(_) | PrimitiveType::Float(_)
+                ) {
+                    return Err(CompileError::ArithmeticOpOnNonNumeric);
                 }
                 match src {
-                    Expression::I8(x) => return Ok(Expression::I8(-x)),
-                    Expression::I16(x) => return Ok(Expression::I16(-x)),
-                    Expression::I32(x) => return Ok(Expression::I32(-x)),
-                    Expression::I64(x) => return Ok(Expression::I64(-x)),
-                    Expression::U8(x) => return Ok(Expression::U8((-(x as i8)) as u8)),
-                    Expression::U16(x) => return Ok(Expression::U16((-(x as i16)) as u16)),
-                    Expression::U32(x) => return Ok(Expression::U32((-(x as i32)) as u32)),
-                    Expression::U64(x) => return Ok(Expression::U64((-(x as i64)) as u64)),
+                    Expression::Signed(x, type_) => return Ok(Expression::Signed(-x, type_)),
+                    Expression::Unsigned(x, type_) => {
+                        return Ok(Expression::Unsigned((-(x as i64)) as u64, type_));
+                    }
+                    Expression::Float(x, type_) => return Ok(Expression::Float(-x, type_)),
                     _ => {}
                 }
             }
-            ExprUnaryOp::Dereference => match src.cv_type()?.type_ {
-                PrimitiveType::Pointer(_) | PrimitiveType::Array(_) => {}
-                _ => {
+            ExprUnaryOp::Dereference => {
+                if !matches!(
+                    src_type.type_,
+                    PrimitiveType::Pointer(_) | PrimitiveType::Array(_)
+                ) {
                     return Err(CompileError::DereferenceOnNonPointer);
                 }
-            },
+            }
             ExprUnaryOp::Plus => {
-                match src.cv_type()?.type_ {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+                if !matches!(
+                    &src_type.type_,
+                    PrimitiveType::Integer(_) | PrimitiveType::Float(_)
+                ) {
+                    return Err(CompileError::ArithmeticOpOnNonNumeric);
                 }
-                match src {
-                    Expression::I8(x) => return Ok(Expression::I8(x)),
-                    Expression::I16(x) => return Ok(Expression::I16(x)),
-                    Expression::I32(x) => return Ok(Expression::I32(x)),
-                    Expression::I64(x) => return Ok(Expression::I64(x)),
-                    Expression::U8(x) => return Ok(Expression::U8(x)),
-                    Expression::U16(x) => return Ok(Expression::U16(x)),
-                    Expression::U32(x) => return Ok(Expression::U32(x)),
-                    Expression::U64(x) => return Ok(Expression::U64(x)),
-                    _ => {}
-                }
+                return Ok(src);
             }
         }
         Ok(Expression::Unary(expression::ExprUnary {
@@ -1587,38 +1571,20 @@ impl Context {
         let rhs_type = rhs.cv_type()?.type_;
 
         match expr.op {
-            ExprBinaryOp::Add => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
+            ExprBinaryOp::Add => match (lhs_type, rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Array(_)) => {}
+
+                (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Pointer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Integer(_)) => {}
+
+                _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+            },
 
             ExprBinaryOp::AddAssign => {
                 if !lhs.is_address() {
@@ -1627,69 +1593,35 @@ impl Context {
                 if lhs.cv_type()?.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
+                match (lhs_type, rhs_type) {
+                    (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+                    (PrimitiveType::Integer(_), PrimitiveType::Pointer(_)) => {}
+                    (PrimitiveType::Integer(_), PrimitiveType::Array(_)) => {}
+
+                    (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                    (PrimitiveType::Pointer(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Array(_), PrimitiveType::Integer(_)) => {}
+
                     _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
                 }
             }
-            ExprBinaryOp::Sub => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
+            ExprBinaryOp::Sub => match (lhs_type, rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Array(_)) => {}
+
+                (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Pointer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Integer(_)) => {}
+
+                _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+            },
             ExprBinaryOp::SubAssign => {
                 if !lhs.is_address() {
                     return Err(CompileError::NotAssignable);
@@ -1697,65 +1629,30 @@ impl Context {
                 if lhs.cv_type()?.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
+                match (lhs_type, rhs_type) {
+                    (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+                    (PrimitiveType::Integer(_), PrimitiveType::Pointer(_)) => {}
+                    (PrimitiveType::Integer(_), PrimitiveType::Array(_)) => {}
+
+                    (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                    (PrimitiveType::Pointer(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Array(_), PrimitiveType::Integer(_)) => {}
+
                     _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
                 }
             }
-            ExprBinaryOp::Mul => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
+            ExprBinaryOp::Mul => match (lhs_type, rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+            },
             ExprBinaryOp::MulAssign => {
                 if !lhs.is_address() {
                     return Err(CompileError::NotAssignable);
@@ -1763,61 +1660,25 @@ impl Context {
                 if lhs.cv_type()?.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
+                match (lhs_type, rhs_type) {
+                    (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                    (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
                     _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
                 }
             }
-            ExprBinaryOp::Div => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
+            ExprBinaryOp::Div => match (lhs_type, rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+            },
             ExprBinaryOp::DivAssign => {
                 if !lhs.is_address() {
                     return Err(CompileError::NotAssignable);
@@ -1825,61 +1686,21 @@ impl Context {
                 if lhs.cv_type()?.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
+                match (lhs_type, rhs_type) {
+                    (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                    (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
                     _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
                 }
             }
-            ExprBinaryOp::Mod => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
+            ExprBinaryOp::Mod => match (lhs_type, rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+
+                _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
+            },
             ExprBinaryOp::ModAssign => {
                 if !lhs.is_address() {
                     return Err(CompileError::NotAssignable);
@@ -1887,57 +1708,20 @@ impl Context {
                 if lhs.cv_type()?.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64 => {}
+                match (lhs_type, rhs_type) {
+                    (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                    (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                    (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
                     _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
                 }
             }
-            ExprBinaryOp::BitwiseAnd => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-            }
+            ExprBinaryOp::BitwiseAnd => match (lhs_type, rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                _ => return Err(CompileError::BitwiseOpOnNonInteger),
+            },
             ExprBinaryOp::BitwiseAndAssign => {
                 if !lhs.is_address() {
                     return Err(CompileError::NotAssignable);
@@ -1945,53 +1729,15 @@ impl Context {
                 if lhs.cv_type()?.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
+                match (lhs_type, rhs_type) {
+                    (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
                     _ => return Err(CompileError::BitwiseOpOnNonInteger),
                 }
             }
-            ExprBinaryOp::BitwiseOr => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-            }
+            ExprBinaryOp::BitwiseOr => match (lhs_type, rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                _ => return Err(CompileError::BitwiseOpOnNonInteger),
+            },
             ExprBinaryOp::BitwiseOrAssign => {
                 if !lhs.is_address() {
                     return Err(CompileError::NotAssignable);
@@ -2000,53 +1746,15 @@ impl Context {
                     return Err(CompileError::AssignToConst);
                 }
 
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
+                match (lhs_type, rhs_type) {
+                    (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
                     _ => return Err(CompileError::BitwiseOpOnNonInteger),
                 }
             }
-            ExprBinaryOp::BitwiseXor => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-            }
+            ExprBinaryOp::BitwiseXor => match (lhs_type, rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                _ => return Err(CompileError::BitwiseOpOnNonInteger),
+            },
             ExprBinaryOp::BitwiseXorAssign => {
                 if !lhs.is_address() {
                     return Err(CompileError::NotAssignable);
@@ -2055,53 +1763,15 @@ impl Context {
                     return Err(CompileError::AssignToConst);
                 }
 
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
+                match (lhs_type, rhs_type) {
+                    (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
                     _ => return Err(CompileError::BitwiseOpOnNonInteger),
                 }
             }
-            ExprBinaryOp::ShiftLeft => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-            }
+            ExprBinaryOp::ShiftLeft => match (lhs_type, rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                _ => return Err(CompileError::BitwiseOpOnNonInteger),
+            },
             ExprBinaryOp::ShiftLeftAssign => {
                 if !lhs.is_address() {
                     return Err(CompileError::NotAssignable);
@@ -2110,53 +1780,15 @@ impl Context {
                     return Err(CompileError::AssignToConst);
                 }
 
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
+                match (lhs_type, rhs_type) {
+                    (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
                     _ => return Err(CompileError::BitwiseOpOnNonInteger),
                 }
             }
-            ExprBinaryOp::ShiftRight => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-            }
+            ExprBinaryOp::ShiftRight => match (lhs_type, rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                _ => return Err(CompileError::BitwiseOpOnNonInteger),
+            },
             ExprBinaryOp::ShiftRightAssign => {
                 if !lhs.is_address() {
                     return Err(CompileError::NotAssignable);
@@ -2165,275 +1797,103 @@ impl Context {
                     return Err(CompileError::AssignToConst);
                 }
 
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64 => {}
+                match (lhs_type, rhs_type) {
+                    (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
                     _ => return Err(CompileError::BitwiseOpOnNonInteger),
                 }
             }
-            ExprBinaryOp::Equal => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
-            ExprBinaryOp::NotEqual => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
-            ExprBinaryOp::LessThan => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
-            ExprBinaryOp::LessThanOrEqual => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
-            ExprBinaryOp::GreaterThan => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
-            ExprBinaryOp::GreaterThanOrEqual => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Float32
-                    | PrimitiveType::Float64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
+            ExprBinaryOp::Equal => match (&lhs_type, &rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Pointer(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Pointer(_), PrimitiveType::Array(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Array(_)) => {}
+
+                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
+            },
+            ExprBinaryOp::NotEqual => match (&lhs_type, &rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Pointer(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Pointer(_), PrimitiveType::Array(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Array(_)) => {}
+
+                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
+            },
+            ExprBinaryOp::LessThan => match (&lhs_type, &rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Pointer(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Pointer(_), PrimitiveType::Array(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Array(_)) => {}
+
+                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
+            },
+            ExprBinaryOp::LessThanOrEqual => match (&lhs_type, &rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Pointer(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Pointer(_), PrimitiveType::Array(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Array(_)) => {}
+
+                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
+            },
+            ExprBinaryOp::GreaterThan => match (&lhs_type, &rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Pointer(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Pointer(_), PrimitiveType::Array(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Array(_)) => {}
+
+                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
+            },
+            ExprBinaryOp::GreaterThanOrEqual => match (&lhs_type, &rhs_type) {
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => {}
+                (PrimitiveType::Float(_), PrimitiveType::Float(_)) => {}
+
+                (PrimitiveType::Pointer(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Pointer(_), PrimitiveType::Array(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Pointer(_)) => {}
+                (PrimitiveType::Array(_), PrimitiveType::Array(_)) => {}
+
+                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
+            },
             ExprBinaryOp::LogicalAnd => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::LogicalOpOnNonBool),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::LogicalOpOnNonBool),
+                if !lhs_type.is_bool_castable() || !rhs_type.is_bool_castable() {
+                    return Err(CompileError::LogicalOpOnNonBool);
                 }
             }
             ExprBinaryOp::LogicalOr => {
-                match lhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::LogicalOpOnNonBool),
-                }
-                match rhs_type {
-                    PrimitiveType::Int8
-                    | PrimitiveType::Int16
-                    | PrimitiveType::Int32
-                    | PrimitiveType::Int64
-                    | PrimitiveType::UInt8
-                    | PrimitiveType::UInt16
-                    | PrimitiveType::UInt32
-                    | PrimitiveType::UInt64
-                    | PrimitiveType::Pointer(_)
-                    | PrimitiveType::Array(_) => {}
-                    _ => return Err(CompileError::LogicalOpOnNonBool),
+                if !lhs_type.is_bool_castable() || !rhs_type.is_bool_castable() {
+                    return Err(CompileError::LogicalOpOnNonBool);
                 }
             }
 
@@ -2445,9 +1905,8 @@ impl Context {
                 if lhs.cv_type()?.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                match lhs_type {
-                    PrimitiveType::Array(_) => return Err(CompileError::AssignToArray),
-                    _ => {}
+                if !rhs_type.is_implicitly_castable(&lhs_type) {
+                    return Err(CompileError::InvalidOperandType(lhs_type, rhs_type));
                 }
             }
         }
@@ -2591,15 +2050,9 @@ impl Context {
                                 if let Some(expr) = def.value {
                                     let expr = self.process_expression(expr)?;
                                     let value = match expr {
-                                        Expression::I8(v) => v as i64,
-                                        Expression::I16(v) => v as i64,
-                                        Expression::I32(v) => v as i64,
-                                        Expression::I64(v) => v,
-                                        Expression::U8(v) => v as i64,
-                                        Expression::U16(v) => v as i64,
-                                        Expression::U32(v) => v as i64,
-                                        Expression::U64(v) => v as i64,
-                                        _ => return Err(CompileError::ArraySizeNotInteger),
+                                        Expression::Signed(v, _) => v,
+                                        Expression::Unsigned(v, _) => v as i64,
+                                        _ => return Err(CompileError::EnumValueNotInteger),
                                     };
                                     members.push((def.name, Some(value)));
                                 } else {
@@ -2770,15 +2223,9 @@ impl Context {
                                 if let Some(expr) = def.value {
                                     let expr = self.process_expression(expr)?;
                                     let value = match expr {
-                                        Expression::I8(v) => v as i64,
-                                        Expression::I16(v) => v as i64,
-                                        Expression::I32(v) => v as i64,
-                                        Expression::I64(v) => v,
-                                        Expression::U8(v) => v as i64,
-                                        Expression::U16(v) => v as i64,
-                                        Expression::U32(v) => v as i64,
-                                        Expression::U64(v) => v as i64,
-                                        _ => return Err(CompileError::ArraySizeNotInteger),
+                                        Expression::Signed(v, _) => v,
+                                        Expression::Unsigned(v, _) => v as i64,
+                                        _ => return Err(CompileError::EnumValueNotInteger),
                                     };
                                     members.push((def.name, Some(value)));
                                 } else {
@@ -2858,38 +2305,14 @@ impl Context {
     ) -> Result<CombinedDeclarator, CompileError> {
         let size = self.process_expression(decl.size)?;
         let size = match size {
-            Expression::I8(v) => {
+            Expression::Signed(v, _) => {
                 if v < 0 {
                     return Err(CompileError::NegativeArraySize);
                 } else {
                     v as usize
                 }
             }
-            Expression::I16(v) => {
-                if v < 0 {
-                    return Err(CompileError::NegativeArraySize);
-                } else {
-                    v as usize
-                }
-            }
-            Expression::I32(v) => {
-                if v < 0 {
-                    return Err(CompileError::NegativeArraySize);
-                } else {
-                    v as usize
-                }
-            }
-            Expression::I64(v) => {
-                if v < 0 {
-                    return Err(CompileError::NegativeArraySize);
-                } else {
-                    v as usize
-                }
-            }
-            Expression::U8(v) => v as usize,
-            Expression::U16(v) => v as usize,
-            Expression::U32(v) => v as usize,
-            Expression::U64(v) => v as usize,
+            Expression::Unsigned(v, _) => v as usize,
             _ => return Err(CompileError::ArraySizeNotInteger),
         };
         if let Some(decl) = decl.declarator {

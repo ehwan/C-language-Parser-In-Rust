@@ -1,5 +1,7 @@
 use super::CVType;
 use super::CompileError;
+use super::Float;
+use super::Integer;
 use super::PrimitiveType;
 
 #[derive(Debug, Clone)]
@@ -190,32 +192,32 @@ impl SpecifierQualifierCollector {
             if self.void {
                 CVType::from_primitive(PrimitiveType::Void)
             } else if self.float {
-                CVType::from_primitive(PrimitiveType::Float32)
+                CVType::from_primitive(PrimitiveType::Float(Float::Float32))
             } else if self.double {
-                CVType::from_primitive(PrimitiveType::Float64)
+                CVType::from_primitive(PrimitiveType::Float(Float::Float64))
             } else if self.char {
                 if self.unsigned {
-                    CVType::from_primitive(PrimitiveType::UInt8)
+                    CVType::from_primitive(PrimitiveType::Integer(Integer::UInt8))
                 } else {
-                    CVType::from_primitive(PrimitiveType::Int8)
+                    CVType::from_primitive(PrimitiveType::Integer(Integer::Int8))
                 }
             } else if self.short {
                 if self.unsigned {
-                    CVType::from_primitive(PrimitiveType::UInt16)
+                    CVType::from_primitive(PrimitiveType::Integer(Integer::UInt16))
                 } else {
-                    CVType::from_primitive(PrimitiveType::Int16)
+                    CVType::from_primitive(PrimitiveType::Integer(Integer::Int16))
                 }
             } else if self.long {
                 if self.unsigned {
-                    CVType::from_primitive(PrimitiveType::UInt64)
+                    CVType::from_primitive(PrimitiveType::Integer(Integer::UInt64))
                 } else {
-                    CVType::from_primitive(PrimitiveType::Int64)
+                    CVType::from_primitive(PrimitiveType::Integer(Integer::Int64))
                 }
             } else if self.int {
                 if self.unsigned {
-                    CVType::from_primitive(PrimitiveType::UInt32)
+                    CVType::from_primitive(PrimitiveType::Integer(Integer::UInt32))
                 } else {
-                    CVType::from_primitive(PrimitiveType::Int32)
+                    CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
                 }
             } else {
                 match self.type_ {

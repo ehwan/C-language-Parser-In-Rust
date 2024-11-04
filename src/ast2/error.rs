@@ -1,3 +1,5 @@
+use super::PrimitiveType;
+
 #[derive(Debug, Clone)]
 pub enum CompileError {
     InvalidCase,
@@ -79,4 +81,17 @@ pub enum CompileError {
     NotAssignable,
     AssignToArray,
     AssignToConst,
+
+    /// not possible type cast from PrimitiveType to PrimitiveType
+    InvalidCast(PrimitiveType, PrimitiveType),
+
+    /// there is no common type between PrimitiveType and PrimitiveType for operation
+    NoCommonType(PrimitiveType, PrimitiveType),
+
+    CallWithWrongNumberOfArguments,
+    CallWithWrongArgumentType,
+
+    InvalidOperandType(PrimitiveType, PrimitiveType),
+
+    EnumValueNotInteger,
 }
