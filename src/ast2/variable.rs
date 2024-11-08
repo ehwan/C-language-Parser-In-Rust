@@ -45,6 +45,8 @@ pub enum Address {
     Local(usize),
     /// index on function array
     Function(usize),
+    /// constant Text section
+    Text(usize),
 }
 
 impl Address {
@@ -57,19 +59,37 @@ impl Address {
     pub fn is_function(&self) -> bool {
         matches!(self, Address::Function(_))
     }
+    pub fn is_text(&self) -> bool {
+        matches!(self, Address::Text(_))
+    }
 
+    /*
+    xxx  61 bits
+    ^^^   ^^^^^  actual address
+    |||
+    ^^^ address type specifier
+
+    000 : Global
+    001 : Local
+    010 : Function
+    011 : Text
+    */
     pub fn into_u64(self) -> u64 {
         match self {
-            Address::Global(x) => (x as u64) | (1u64 << 63),
-            Address::Local(x) => (x as u64) | (1u64 << 62),
-            Address::Function(x) => (x as u64) | (3u64 << 62),
+            Address::Global(x) => (x as u64) | (0b000u64 << 61),
+            Address::Local(x) => (x as u64) | (0b001u64 << 61),
+            Address::Function(x) => (x as u64) | (0b010u64 << 61),
+            Address::Text(x) => (x as u64) | (0b011u64 << 61),
         }
     }
     pub fn from_u64(x: u64) -> Self {
-        match x >> 62 {
-            1 => Address::Global((x & !(1u64 << 63)) as usize),
-            2 => Address::Local((x & !(1u64 << 62)) as usize),
-            3 => Address::Function((x & !(3u64 << 62)) as usize),
+        let specifier = x >> 61;
+        let address = (x & ((1u64 << 61) - 1)) as usize;
+        match specifier {
+            0 => Address::Global(address),
+            1 => Address::Local(address),
+            2 => Address::Function(address),
+            3 => Address::Text(address),
             _ => unreachable!("invalid address"),
         }
     }

@@ -56,6 +56,7 @@ pub struct StmtIf {
 pub struct StmtSwitch {
     pub value: Expression,
     pub cases: Vec<StmtSwitchCase>,
+    pub default: Option<usize>,
 }
 #[derive(Debug, Clone)]
 pub struct StmtSwitchCase {
@@ -107,4 +108,5 @@ pub struct StmtVariableDeclaration {
 #[derive(Debug, Clone)]
 pub struct TranslationUnit {
     pub statements: Vec<Statement>,
+    pub text: Vec<u8>,
 }

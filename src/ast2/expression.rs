@@ -1,5 +1,6 @@
 use crate::ast;
 
+use super::Address;
 use super::CompileError;
 use super::Float;
 use super::Integer;
@@ -11,7 +12,7 @@ pub enum Expression {
     Signed(i64, Integer),
     Unsigned(u64, Integer),
     Float(f64, Float),
-    String(String),
+    String(Address),
 
     Variable(VariableInfo),
 
@@ -27,24 +28,75 @@ pub enum Expression {
     InitializerList(ExprInitializerList),
 }
 impl Expression {
-    /// is this expression returns an address upon generating instructions?
+    /// If this returns true,
+    /// InstructionGenerator::emit_expression(this) emit address of this expression.
+    /// User must read sizeof(this) bytes from the address in RAX register.
     pub fn is_address(&self) -> bool {
         match self {
             Expression::Signed(_, _) | Expression::Unsigned(_, _) | Expression::Float(_, _) => {
                 false
             }
-            Expression::String(_) => unimplemented!("is_address - String literal"),
-            Expression::Variable(_) => true,
-            Expression::Conditional(_) => false,
+            Expression::String(_) => false,
+            Expression::Variable(var) => match &var.cv_type.type_ {
+                PrimitiveType::Array(_) => true,
+                _ => false,
+            },
+            Expression::Conditional(expr) => {
+                expr.else_expr.is_address() && expr.then_expr.is_address()
+            }
             Expression::Cast(_) => false,
             Expression::Member(_) => true,
             Expression::Arrow(_) => true,
             Expression::Paren(_) => false,
             Expression::Bracket(_) => true,
             Expression::Unary(expr) => match expr.op {
-                _ => false,
+                ExprUnaryOp::AddressOf => false,
+                ExprUnaryOp::BitwiseNot => false,
+                ExprUnaryOp::DecrementPost => false,
+                ExprUnaryOp::DecrementPre => true,
+                ExprUnaryOp::IncrementPost => false,
+                ExprUnaryOp::IncrementPre => true,
+                ExprUnaryOp::LogicalNot => false,
+                ExprUnaryOp::Minus => false,
+                ExprUnaryOp::Dereference => true,
+                ExprUnaryOp::Plus => unreachable!("Unary Plus"),
             },
-            Expression::Binary(_) => false,
+            Expression::Binary(expr) => match expr.op {
+                ExprBinaryOp::Add
+                | ExprBinaryOp::Sub
+                | ExprBinaryOp::Mul
+                | ExprBinaryOp::Div
+                | ExprBinaryOp::Mod => false,
+
+                ExprBinaryOp::BitwiseAnd | ExprBinaryOp::BitwiseOr | ExprBinaryOp::BitwiseXor => {
+                    false
+                }
+
+                ExprBinaryOp::ShiftLeft | ExprBinaryOp::ShiftRight => false,
+
+                ExprBinaryOp::Equal
+                | ExprBinaryOp::NotEqual
+                | ExprBinaryOp::LessThan
+                | ExprBinaryOp::LessThanOrEqual
+                | ExprBinaryOp::GreaterThan
+                | ExprBinaryOp::GreaterThanOrEqual
+                | ExprBinaryOp::LogicalAnd
+                | ExprBinaryOp::LogicalOr => false,
+
+                ExprBinaryOp::AddAssign
+                | ExprBinaryOp::SubAssign
+                | ExprBinaryOp::MulAssign
+                | ExprBinaryOp::DivAssign
+                | ExprBinaryOp::ModAssign
+                | ExprBinaryOp::BitwiseAndAssign
+                | ExprBinaryOp::BitwiseOrAssign
+                | ExprBinaryOp::BitwiseXorAssign
+                | ExprBinaryOp::ShiftLeftAssign
+                | ExprBinaryOp::ShiftRightAssign
+                | ExprBinaryOp::Assign => true,
+
+                ExprBinaryOp::Comma => expr.rhs.is_address(),
+            },
             Expression::InitializerList(_) => false,
         }
     }
@@ -145,7 +197,6 @@ impl Expression {
                         };
                         CVType::from_primitive(type_)
                     }
-                    ExprBinaryOp::AddAssign => lhs_type,
                     ExprBinaryOp::Sub => {
                         let type_ = match (lhs_type.type_, rhs_type.type_) {
                             (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
@@ -153,12 +204,6 @@ impl Expression {
                             }
                             (PrimitiveType::Integer(a), PrimitiveType::Float(b)) => {
                                 PrimitiveType::Float(b)
-                            }
-                            (PrimitiveType::Integer(a), PrimitiveType::Pointer(b)) => {
-                                PrimitiveType::Pointer(b)
-                            }
-                            (PrimitiveType::Integer(a), PrimitiveType::Array(b)) => {
-                                PrimitiveType::Pointer(b.cv_type)
                             }
 
                             (PrimitiveType::Float(a), PrimitiveType::Integer(b)) => {
@@ -179,8 +224,7 @@ impl Expression {
                         };
                         CVType::from_primitive(type_)
                     }
-                    ExprBinaryOp::SubAssign => lhs_type,
-                    ExprBinaryOp::Mul => {
+                    ExprBinaryOp::Mul | ExprBinaryOp::Div => {
                         let type_ = match (lhs_type.type_, rhs_type.type_) {
                             (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
                                 PrimitiveType::Integer(a.common_type(&b))
@@ -200,28 +244,6 @@ impl Expression {
                         };
                         CVType::from_primitive(type_)
                     }
-                    ExprBinaryOp::MulAssign => lhs_type,
-                    ExprBinaryOp::Div => {
-                        let type_ = match (lhs_type.type_, rhs_type.type_) {
-                            (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                                PrimitiveType::Integer(a.common_type(&b))
-                            }
-                            (PrimitiveType::Integer(a), PrimitiveType::Float(b)) => {
-                                PrimitiveType::Float(b)
-                            }
-
-                            (PrimitiveType::Float(a), PrimitiveType::Integer(b)) => {
-                                PrimitiveType::Float(a)
-                            }
-                            (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
-                                PrimitiveType::Float(a.common_type(&b))
-                            }
-
-                            _ => unreachable!("Div expression type"),
-                        };
-                        CVType::from_primitive(type_)
-                    }
-                    ExprBinaryOp::DivAssign => lhs_type,
                     ExprBinaryOp::Mod => {
                         let type_ = match (lhs_type.type_, rhs_type.type_) {
                             (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
@@ -232,88 +254,42 @@ impl Expression {
                         };
                         CVType::from_primitive(type_)
                     }
-                    ExprBinaryOp::ModAssign => lhs_type,
-                    ExprBinaryOp::BitwiseAnd => {
-                        let type_ = match (lhs_type.type_, rhs_type.type_) {
-                            (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                                PrimitiveType::Integer(a.common_type(&b))
-                            }
+                    ExprBinaryOp::BitwiseAnd
+                    | ExprBinaryOp::BitwiseOr
+                    | ExprBinaryOp::BitwiseXor => match (lhs_type.type_, rhs_type.type_) {
+                        (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
+                            CVType::from_primitive(PrimitiveType::Integer(a.common_type(&b)))
+                        }
 
-                            _ => unreachable!("BitAnd expression type"),
-                        };
-                        CVType::from_primitive(type_)
+                        _ => unreachable!("BitOp expression type"),
+                    },
+                    ExprBinaryOp::ShiftLeft | ExprBinaryOp::ShiftRight => {
+                        CVType::from_primitive(lhs_type.type_)
                     }
-                    ExprBinaryOp::BitwiseAndAssign => lhs_type,
-                    ExprBinaryOp::BitwiseOr => {
-                        let type_ = match (lhs_type.type_, rhs_type.type_) {
-                            (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                                PrimitiveType::Integer(a.common_type(&b))
-                            }
+                    ExprBinaryOp::Equal
+                    | ExprBinaryOp::NotEqual
+                    | ExprBinaryOp::LessThan
+                    | ExprBinaryOp::LessThanOrEqual
+                    | ExprBinaryOp::GreaterThan
+                    | ExprBinaryOp::GreaterThanOrEqual
+                    | ExprBinaryOp::LogicalAnd
+                    | ExprBinaryOp::LogicalOr => {
+                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
+                    }
 
-                            _ => unreachable!("BitOr expression type"),
-                        };
-                        CVType::from_primitive(type_)
-                    }
-                    ExprBinaryOp::BitwiseOrAssign => lhs_type,
-                    ExprBinaryOp::BitwiseXor => {
-                        let type_ = match (lhs_type.type_, rhs_type.type_) {
-                            (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                                PrimitiveType::Integer(a.common_type(&b))
-                            }
+                    ExprBinaryOp::AddAssign
+                    | ExprBinaryOp::SubAssign
+                    | ExprBinaryOp::MulAssign
+                    | ExprBinaryOp::DivAssign
+                    | ExprBinaryOp::ModAssign
+                    | ExprBinaryOp::BitwiseAndAssign
+                    | ExprBinaryOp::BitwiseOrAssign
+                    | ExprBinaryOp::BitwiseXorAssign
+                    | ExprBinaryOp::ShiftLeftAssign
+                    | ExprBinaryOp::ShiftRightAssign
+                    | ExprBinaryOp::Assign => lhs_type,
 
-                            _ => unreachable!("BitAnd expression type"),
-                        };
-                        CVType::from_primitive(type_)
-                    }
-                    ExprBinaryOp::BitwiseXorAssign => lhs_type,
-                    ExprBinaryOp::ShiftLeft => {
-                        let type_ = match (lhs_type.type_, rhs_type.type_) {
-                            (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                                PrimitiveType::Integer(a.common_type(&b))
-                            }
-
-                            _ => unreachable!("BitAnd expression type"),
-                        };
-                        CVType::from_primitive(type_)
-                    }
-                    ExprBinaryOp::ShiftLeftAssign => lhs_type,
-                    ExprBinaryOp::ShiftRight => {
-                        let type_ = match (lhs_type.type_, rhs_type.type_) {
-                            (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                                PrimitiveType::Integer(a.common_type(&b))
-                            }
-
-                            _ => unreachable!("BitAnd expression type"),
-                        };
-                        CVType::from_primitive(type_)
-                    }
-                    ExprBinaryOp::ShiftRightAssign => lhs_type,
-                    ExprBinaryOp::Equal => {
-                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
-                    }
-                    ExprBinaryOp::NotEqual => {
-                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
-                    }
-                    ExprBinaryOp::LessThan => {
-                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
-                    }
-                    ExprBinaryOp::LessThanOrEqual => {
-                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
-                    }
-                    ExprBinaryOp::GreaterThan => {
-                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
-                    }
-                    ExprBinaryOp::GreaterThanOrEqual => {
-                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
-                    }
-                    ExprBinaryOp::LogicalAnd => {
-                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
-                    }
-                    ExprBinaryOp::LogicalOr => {
-                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
-                    }
                     ExprBinaryOp::Comma => rhs_type,
-                    ExprBinaryOp::Assign => lhs_type,
                 }
             }
         })

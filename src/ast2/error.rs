@@ -1,4 +1,4 @@
-use super::PrimitiveType;
+use super::{CVType, PrimitiveType};
 
 #[derive(Debug, Clone)]
 pub enum CompileError {
@@ -94,4 +94,9 @@ pub enum CompileError {
     InvalidOperandType(PrimitiveType, PrimitiveType),
 
     EnumValueNotInteger,
+
+    InvalidIfCondition(PrimitiveType),
+    InitializeTypeMismatch(PrimitiveType, PrimitiveType),
+
+    DistinctPointer(CVType, CVType),
 }

@@ -86,13 +86,6 @@ impl Float {
             Float::Float64 => 8,
         }
     }
-    pub fn from_size(size: usize) -> Self {
-        match size {
-            4 => Float::Float32,
-            8 => Float::Float64,
-            _ => panic!("Invalid size"),
-        }
-    }
     pub fn common_type(&self, other: &Float) -> Self {
         match (self, other) {
             (Float::Float64, _) => Float::Float64,
@@ -118,10 +111,40 @@ pub enum PrimitiveType {
 }
 impl PrimitiveType {
     pub fn is_castable(&self, to: &PrimitiveType) -> bool {
-        unimplemented!("is_castable")
+        match (self, to) {
+            (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => true,
+            (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => true,
+            (PrimitiveType::Integer(_), PrimitiveType::Pointer(_)) => true,
+
+            (PrimitiveType::Float(_), PrimitiveType::Integer(_)) => true,
+            (PrimitiveType::Float(_), PrimitiveType::Float(_)) => true,
+
+            (PrimitiveType::Pointer(_), PrimitiveType::Pointer(_)) => true,
+            (PrimitiveType::Pointer(_), PrimitiveType::Integer(_)) => true,
+
+            (PrimitiveType::Array(_), PrimitiveType::Integer(_)) => true,
+            (PrimitiveType::Array(_), PrimitiveType::Pointer(_)) => true,
+
+            _ => false,
+        }
     }
     pub fn is_implicitly_castable(&self, to: &PrimitiveType) -> bool {
-        unimplemented!("is_implicitly_castable")
+        match (self, to) {
+            (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => true,
+            (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => true,
+
+            (PrimitiveType::Float(_), PrimitiveType::Float(_)) => true,
+
+            (PrimitiveType::Pointer(from), PrimitiveType::Pointer(to)) => {
+                from.type_.is_implicitly_castable(&to.type_)
+            }
+
+            (PrimitiveType::Array(from), PrimitiveType::Pointer(to)) => {
+                from.cv_type.type_.is_implicitly_castable(&to.type_)
+            }
+
+            _ => false,
+        }
     }
     pub fn is_bool_castable(&self) -> bool {
         matches!(
@@ -402,6 +425,13 @@ impl CVType {
             const_: false,
             volatile: false,
         }
+    }
+}
+
+impl std::ops::Deref for CVType {
+    type Target = PrimitiveType;
+    fn deref(&self) -> &Self::Target {
+        &self.type_
     }
 }
 

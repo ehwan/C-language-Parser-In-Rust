@@ -7,7 +7,7 @@ mod ast;
 mod ast2;
 mod preprocess;
 mod token;
-// mod virtualmachine;
+mod virtualmachine;
 
 fn main() {
     println!("Enter your code (and ^D for EOF):");
@@ -97,25 +97,27 @@ fn main() {
     };
     println!("{:#?}", translation_unit);
 
-    /*
-
     // generate instructions
     println!("{:=^80}", "");
     println!("{:=^80}", "Phase5: Generating Instructions");
     println!("{:=^80}", "");
+
+    let mut context = virtualmachine::InstructionGenerator::new();
+    let vm = match context.emit(translation_unit) {
+        Ok(vm) => vm,
+        Err(err) => {
+            println!("Error: {:?}", err);
+            return;
+        }
+    };
+
     println!("ADDR | {:-^73}", "Result");
 
-    let mut instructions: InstructionGenerator = InstructionGenerator::new();
-    translation_unit.emit(&mut instructions);
-
-    println!("Instructions: ");
-    for (id, instruction) in instructions.instructions.iter().enumerate() {
-        if id == instructions.start_address {
-            println!("{: ^2}{:-^78}", "", "Start Address");
-        }
+    for (id, instruction) in vm.instructions.iter().enumerate() {
         println!("{:4}: {:?}", id, instruction);
     }
 
+    /*
     // execute instructions
     println!("{:=^80}", "");
     println!("{:=^80}", "Phase6: Executing Instructions");

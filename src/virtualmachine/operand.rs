@@ -1,43 +1,37 @@
-use crate::virtualmachine::variable::VariableData;
-use crate::virtualmachine::vm::VirtualMachine;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SizeType {
+    Byte,
+    Word,
+    DWord,
+    QWord,
+}
+impl SizeType {
+    pub fn from_size(size: usize) -> SizeType {
+        match size {
+            1 => SizeType::Byte,
+            2 => SizeType::Word,
+            4 => SizeType::DWord,
+            8 => SizeType::QWord,
+            _ => panic!("Invalid size: {}", size),
+        }
+    }
+    pub fn to_size(&self) -> usize {
+        match self {
+            SizeType::Byte => 1,
+            SizeType::Word => 2,
+            SizeType::DWord => 4,
+            SizeType::QWord => 8,
+        }
+    }
+}
 
-/// Type for Operand
-/// Derefed: [rax + offset]
-/// Register: rax
-/// Value: constant value
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Operand {
-    Derefed(usize, isize), // number of register
-    Register(usize),       // number of register
-    Value(VariableData),
+    /// value, size
+    Constant(u64),
+    /// register number
+    Register(usize),
+    /// [ register number ]
+    Deref(usize),
 }
-/// helper function
-pub(crate) fn get_operand_value<'a>(
-    // helper function
-    program: &'a VirtualMachine,
-    operand: &'a Operand,
-) -> &'a VariableData {
-    match operand {
-        Operand::Derefed(register, offset) => {
-            &program.stack[(program.registers[*register].to_u64() as isize + *offset) as usize]
-        }
-        Operand::Register(register) => &program.registers[*register],
-        Operand::Value(val) => val,
-    }
-}
-/// helper function
-pub(crate) fn get_operand_value_mut<'a>(
-    // helper function
-    program: &'a mut VirtualMachine,
-    operand: &'a Operand,
-) -> &'a mut VariableData {
-    match operand {
-        Operand::Derefed(register, offset) => {
-            &mut program.stack[(program.registers[*register].to_u64() as isize + *offset) as usize]
-        }
-        Operand::Register(register) => &mut program.registers[*register],
-        Operand::Value(_) => {
-            panic!("get_operand_value_mut: cannot get mutable reference from value")
-        }
-    }
-}
+impl Operand {}

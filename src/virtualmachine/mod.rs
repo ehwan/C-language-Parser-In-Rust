@@ -5,7 +5,8 @@ mod vm;
 
 pub type LabelType = usize;
 
-pub use instruction::Instruction;
-
 pub use generator::InstructionGenerator;
+pub use instruction::Instruction;
+pub use operand::Operand;
+pub use operand::SizeType;
 pub use vm::VirtualMachine;
