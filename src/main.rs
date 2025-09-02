@@ -76,7 +76,7 @@ fn main() {
     println!("ASTs: ");
     let parser = ast::translation_unitParser::new();
     let mut context = ast::translation_unitContext::new();
-    for token in tokens.into_iter().chain(std::iter::once(token::Token::Eof)) {
+    for token in tokens.into_iter() {
         match context.feed(&parser, token, &mut ()) {
             Ok(_) => {}
             Err(err) => {
@@ -85,7 +85,13 @@ fn main() {
             }
         }
     }
-    let translation_unit = context.accept();
+    let translation_unit = match context.accept(&parser, &mut ()) {
+        Ok(tu) => tu,
+        Err(err) => {
+            println!("Error: {:?}", err);
+            return;
+        }
+    };
 
     let mut context = ast2::Context::new();
     let translation_unit = match context.process_translation_unit(translation_unit) {

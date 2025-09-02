@@ -10,21 +10,22 @@ use super::statement::Statement;
 use crate::token::Token;
 
 lr1! {
+
 %lalr;
 
 %tokentype Token;
 
-%token ident Token::Identifier("".to_string());
+%token ident Token::Identifier(_);
 %token lparen Token::LeftParen;
 %token rparen Token::RightParen;
-%token string_literal Token::StringLiteral("".to_string());
-%token constant_character Token::ConstantCharacter(0);
-%token constant_integer Token::ConstantInteger(0);
-%token constant_long Token::ConstantLong(0);
-%token constant_unsigned_integer Token::ConstantUnsignedInteger(0);
-%token constant_unsigned_long Token::ConstantUnsignedLong(0);
-%token constant_float Token::ConstantFloat(0.0);
-%token constant_double Token::ConstantDouble(0.0);
+%token string_literal Token::StringLiteral(_);
+%token constant_character Token::ConstantCharacter(_);
+%token constant_integer Token::ConstantInteger(_);
+%token constant_long Token::ConstantLong(_);
+%token constant_unsigned_integer Token::ConstantUnsignedInteger(_);
+%token constant_unsigned_long Token::ConstantUnsignedLong(_);
+%token constant_float Token::ConstantFloat(_);
+%token constant_double Token::ConstantDouble(_);
 %token lbracket Token::LeftBracket;
 %token rbracket Token::RightBracket;
 %token lbrace Token::LeftBrace;
@@ -101,9 +102,9 @@ lr1! {
 %token struct_ Token::Struct;
 %token union_ Token::Union;
 %token enum_ Token::Enum;
-%eof Token::Eof;
 
 %left else_;
+%precedence IFSTMT;
 
 %start translation_unit;
 
@@ -678,7 +679,7 @@ expression_statement( Statement )
 
 
 selection_statement( Statement )
-    : if_ lparen! expression rparen! statement {
+    : if_ lparen! expression rparen! statement %prec IFSTMT {
         Statement::If( statement::StmtIf{
             cond: expression,
             then_statement: Box::new(statement),
@@ -853,6 +854,7 @@ declarator( Declarator )
 
 direct_declarator( Declarator )
     : ident {
+        println!("direct_declarator ident");
         let Token::Identifier(name) = ident else { unreachable!() };
         Declarator::Identifier(declarator::DeclIdentifier{ name })
     }

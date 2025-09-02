@@ -100,8 +100,6 @@ pub enum Token {
     Pipe,
     Question,
     Whitespace, // one or more whitespaces
-
-    Eof,
 }
 
 impl PartialEq for Token {
