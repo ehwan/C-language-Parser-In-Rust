@@ -15,10 +15,10 @@ pub enum CompileError {
     NoFunctionName,
     InvalidFunctionDefinition,
 
-    LabelDefinitionOutsideFunction,
+    LabelDefinitionOutsideFunction(String),
     MultipleLabelDefinition(String),
 
-    GotoOutsideFunction,
+    GotoOutsideFunction(String),
     GotoInvalidLabel(String),
 
     DeclarationWithoutName,
@@ -57,7 +57,7 @@ pub enum CompileError {
     MultipleVariableDefinition(String),
     VariableNotFound(String),
 
-    NestedFunctionDefinition,
+    NestedFunctionDefinition(String),
 
     FunctionDifferentSignature(String),
     MultipleFunctionDefinition(String),
@@ -95,6 +95,7 @@ pub enum CompileError {
 
     EnumValueNotInteger,
 
+    /// Must be convertible to bool (integer type)
     InvalidIfCondition(PrimitiveType),
     InitializeTypeMismatch(PrimitiveType, PrimitiveType),
 

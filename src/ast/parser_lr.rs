@@ -854,7 +854,6 @@ declarator( Declarator )
 
 direct_declarator( Declarator )
     : ident {
-        println!("direct_declarator ident");
         let Token::Identifier(name) = ident else { unreachable!() };
         Declarator::Identifier(declarator::DeclIdentifier{ name })
     }

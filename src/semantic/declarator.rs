@@ -11,6 +11,15 @@ pub struct CombinedDeclarator {
     pub cv_type: CVType,
 }
 
+impl CombinedDeclarator {
+    pub fn cv_type(&self) -> &CVType {
+        &self.cv_type
+    }
+    pub fn primitive_type(&self) -> &PrimitiveType {
+        &self.cv_type.type_
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SpecifierQualifierCollector {
     pub const_: bool,

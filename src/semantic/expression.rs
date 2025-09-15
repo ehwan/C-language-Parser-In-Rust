@@ -1,6 +1,5 @@
 use crate::ast;
 
-use super::Address;
 use super::CompileError;
 use super::Float;
 use super::Integer;
@@ -12,7 +11,7 @@ pub enum Expression {
     Signed(i64, Integer),
     Unsigned(u64, Integer),
     Float(f64, Float),
-    String(Address),
+    String(String),
 
     Variable(VariableInfo),
 
@@ -28,22 +27,17 @@ pub enum Expression {
     InitializerList(ExprInitializerList),
 }
 impl Expression {
-    /// If this returns true,
-    /// InstructionGenerator::emit_expression(this) emit address of this expression.
-    /// User must read sizeof(this) bytes from the address in RAX register.
-    pub fn is_address(&self) -> bool {
+    pub fn is_reference(&self) -> bool {
         match self {
             Expression::Signed(_, _) | Expression::Unsigned(_, _) | Expression::Float(_, _) => {
                 false
             }
             Expression::String(_) => false,
             Expression::Variable(var) => match &var.cv_type.type_ {
-                PrimitiveType::Array(_) => true,
-                _ => false,
+                PrimitiveType::Array(_) => false,
+                _ => true,
             },
-            Expression::Conditional(expr) => {
-                expr.else_expr.is_address() && expr.then_expr.is_address()
-            }
+            Expression::Conditional(_) => false,
             Expression::Cast(_) => false,
             Expression::Member(_) => true,
             Expression::Arrow(_) => true,
@@ -95,7 +89,7 @@ impl Expression {
                 | ExprBinaryOp::ShiftRightAssign
                 | ExprBinaryOp::Assign => true,
 
-                ExprBinaryOp::Comma => expr.rhs.is_address(),
+                ExprBinaryOp::Comma => expr.rhs.is_reference(),
             },
             Expression::InitializerList(_) => false,
         }
@@ -293,6 +287,9 @@ impl Expression {
                 }
             }
         })
+    }
+    pub fn primitive_type(&self) -> Result<PrimitiveType, CompileError> {
+        Ok(self.cv_type()?.type_)
     }
 }
 

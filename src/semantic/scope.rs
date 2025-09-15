@@ -1,6 +1,5 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use super::VariablePool;
 use super::{CVType, FunctionType, LabelInfo, VariableInfo};
 
 #[derive(Debug, Clone)]
@@ -35,6 +34,7 @@ pub struct BlockScope {
 
 #[derive(Debug, Clone)]
 pub struct VariableScope {
+    pub id: usize,
     pub name: String,
     pub info: VariableInfo,
 }
@@ -44,7 +44,6 @@ pub struct FunctionScope {
     pub name: String,
     pub type_: FunctionType,
     pub labels: HashMap<String, Rc<RefCell<LabelInfo>>>,
-    pub pool: VariablePool,
 }
 impl FunctionScope {
     pub fn new(name: String, type_: FunctionType) -> Self {
@@ -52,7 +51,6 @@ impl FunctionScope {
             name,
             type_,
             labels: HashMap::new(),
-            pool: VariablePool::new(),
         }
     }
 }
@@ -60,13 +58,12 @@ impl FunctionScope {
 #[derive(Debug, Clone)]
 pub struct FunctionDefinition {
     pub body: Box<super::Statement>,
-    pub stack_size: usize,
 }
 #[derive(Debug, Clone)]
 pub struct GlobalScope {
     pub variables: HashMap<String, VariableInfo>,
-    pub pool: VariablePool,
-    pub functions: Vec<Rc<RefCell<Option<FunctionDefinition>>>>,
+    // look up for `variables` for arguments
+    pub functions: HashMap<String, FunctionDefinition>,
     // `typedef`s and `struct`, `union`, `enum` definitions
     pub typedefs: HashMap<String, CVType>,
 }
@@ -74,8 +71,7 @@ impl GlobalScope {
     pub fn new() -> Self {
         GlobalScope {
             variables: HashMap::new(),
-            pool: VariablePool::new(),
-            functions: Vec::new(),
+            functions: Default::default(),
             typedefs: HashMap::new(),
         }
     }

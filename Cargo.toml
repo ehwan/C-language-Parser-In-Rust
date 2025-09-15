@@ -11,4 +11,5 @@ categories = ["parser-implementations", "compilers"]
 
 [dependencies]
 rusty_parser = "1.1.0"
-rusty_lr = { version = "3.31.0", features = [] }
+rusty_lr = { version = "3.32.0", features = [] }
+inkwell = { version = "0.6.0", features = ["llvm14-0"] }

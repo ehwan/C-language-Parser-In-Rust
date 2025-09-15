@@ -37,9 +37,7 @@ pub use expression::Expression;
 
 pub use label::LabelInfo;
 
-pub use variable::Address;
 pub use variable::VariableInfo;
-pub use variable::VariablePool;
 
 pub use error::CompileError;
 

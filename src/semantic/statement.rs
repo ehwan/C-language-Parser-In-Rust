@@ -108,5 +108,4 @@ pub struct StmtVariableDeclaration {
 #[derive(Debug, Clone)]
 pub struct TranslationUnit {
     pub statements: Vec<Statement>,
-    pub text: Vec<u8>,
 }

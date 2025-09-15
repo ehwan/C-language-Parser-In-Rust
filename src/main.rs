@@ -4,10 +4,10 @@ use std::io::{stdin, stdout, Read, Write};
 // use virtualmachine::program::VirtualMachine;
 
 mod ast;
-mod ast2;
 mod preprocess;
+mod semantic;
 mod token;
-mod virtualmachine;
+// mod virtualmachine;
 
 fn main() {
     println!("Enter your code (and ^D for EOF):");
@@ -72,6 +72,10 @@ fn main() {
     println!("{:=^80}", "Phase4: Building AbstractSyntaxTree");
     println!("{:=^80}", "");
 
+    // let mut context = inkwell::context::Context::create();
+    // let mut module = context.create_module("m1");
+    // let mut builder = context.create_builder();
+
     // parse the tokens into AST
     println!("ASTs: ");
     let parser = ast::translation_unitParser::new();
@@ -85,43 +89,48 @@ fn main() {
             }
         }
     }
-    let translation_unit = match context.accept(&parser, &mut ()) {
+    let ast = match context.accept(&parser, &mut ()) {
         Ok(tu) => tu,
         Err(err) => {
             println!("Error: {:?}", err);
             return;
         }
     };
+    println!("{:#?}", ast);
 
-    let mut context = ast2::Context::new();
-    let translation_unit = match context.process_translation_unit(translation_unit) {
-        Ok(tu) => tu,
+    println!("{:=^80}", "");
+    println!("{:=^80}", "Phase5: Semantic Analysis");
+    println!("{:=^80}", "");
+
+    let mut context = semantic::Context::new();
+    let ast = match context.process_translation_unit(ast) {
+        Ok(ast) => ast,
         Err(err) => {
             println!("Error: {:?}", err);
             return;
         }
     };
-    println!("{:#?}", translation_unit);
+    println!("{:#?}", ast);
 
     // generate instructions
-    println!("{:=^80}", "");
-    println!("{:=^80}", "Phase5: Generating Instructions");
-    println!("{:=^80}", "");
+    // println!("{:=^80}", "");
+    // println!("{:=^80}", "Phase5: Generating Instructions");
+    // println!("{:=^80}", "");
 
-    let mut context = virtualmachine::InstructionGenerator::new();
-    let vm = match context.emit(translation_unit) {
-        Ok(vm) => vm,
-        Err(err) => {
-            println!("Error: {:?}", err);
-            return;
-        }
-    };
+    // let mut context = virtualmachine::InstructionGenerator::new();
+    // let vm = match context.emit(translation_unit) {
+    //     Ok(vm) => vm,
+    //     Err(err) => {
+    //         println!("Error: {:?}", err);
+    //         return;
+    //     }
+    // };
 
-    println!("ADDR | {:-^73}", "Result");
+    // println!("ADDR | {:-^73}", "Result");
 
-    for (id, instruction) in vm.instructions.iter().enumerate() {
-        println!("{:4}: {:?}", id, instruction);
-    }
+    // for (id, instruction) in vm.instructions.iter().enumerate() {
+    //     println!("{:4}: {:?}", id, instruction);
+    // }
 
     /*
     // execute instructions

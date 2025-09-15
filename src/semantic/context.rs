@@ -5,7 +5,6 @@ use std::rc::Rc;
 use super::declarator;
 use super::expression;
 use super::statement;
-use super::Address;
 use super::ArrayType;
 use super::CVType;
 use super::CombinedDeclarator;
@@ -45,9 +44,6 @@ pub struct Context {
     pub global_scope: GlobalScope,
     pub function_scope: Option<FunctionScope>,
     pub scopes: Vec<Scope>,
-
-    /// constant text section
-    pub text: Vec<u8>,
 }
 
 impl Context {
@@ -57,18 +53,17 @@ impl Context {
             global_scope: GlobalScope::new(),
             function_scope: None,
             scopes: Vec::new(),
-            text: Vec::new(),
         }
     }
 
     /// generate unique scope id
-    fn generate_scope_id(&mut self) -> usize {
+    fn create_scope_id(&mut self) -> usize {
         self.scope_counter += 1;
         self.scope_counter
     }
     fn begin_switch_scope(&mut self) -> Result<(), CompileError> {
         let scope = SwitchScope {
-            id: self.generate_scope_id(),
+            id: self.create_scope_id(),
             default: false,
         };
         self.scopes.push(Scope::Switch(scope));
@@ -89,7 +84,7 @@ impl Context {
             match scope {
                 Scope::Switch(scope) => return Ok(scope),
                 Scope::Variable(scope) => {
-                    self.end_varaible_scope(scope)?;
+                    self.end_variable_scope(scope)?;
                 }
                 _ => unreachable!("end_switch_scope: unexpected scope"),
             }
@@ -97,7 +92,7 @@ impl Context {
     }
     fn begin_loop_scope(&mut self) -> Result<(), CompileError> {
         let scope = LoopScope {
-            id: self.generate_scope_id(),
+            id: self.create_scope_id(),
         };
         self.scopes.push(Scope::Loop(scope));
         Ok(())
@@ -108,22 +103,22 @@ impl Context {
             match scope {
                 Scope::Loop(scope) => return Ok(scope),
                 Scope::Variable(scope) => {
-                    self.end_varaible_scope(scope)?;
+                    self.end_variable_scope(scope)?;
                 }
                 _ => unreachable!("end_switch_scope: unexpected scope"),
             }
         }
     }
 
-    fn begin_scope(&mut self) -> Result<(), CompileError> {
+    fn begin_block_scope(&mut self) -> Result<(), CompileError> {
         let scope = BlockScope {
-            id: self.generate_scope_id(),
+            id: self.create_scope_id(),
             typedefs: Default::default(),
         };
         self.scopes.push(Scope::Block(scope));
         Ok(())
     }
-    fn nearest_scope(&mut self) -> Option<&mut BlockScope> {
+    fn nearest_block_scope(&mut self) -> Option<&mut BlockScope> {
         for scope in self.scopes.iter_mut().rev() {
             match scope {
                 Scope::Block(scope) => return Some(scope),
@@ -132,13 +127,13 @@ impl Context {
         }
         None
     }
-    fn end_scope(&mut self) -> Result<BlockScope, CompileError> {
+    fn end_block_scope(&mut self) -> Result<BlockScope, CompileError> {
         loop {
             let scope = self.scopes.pop().unwrap();
             match scope {
                 Scope::Block(scope) => return Ok(scope),
                 Scope::Variable(scope) => {
-                    self.end_varaible_scope(scope)?;
+                    self.end_variable_scope(scope)?;
                 }
                 _ => unreachable!("end_switch_scope: unexpected scope"),
             }
@@ -151,7 +146,7 @@ impl Context {
         type_: FunctionType,
     ) -> Result<(), CompileError> {
         if self.function_scope.is_some() {
-            return Err(CompileError::NestedFunctionDefinition);
+            return Err(CompileError::NestedFunctionDefinition(name));
         }
         let scope = FunctionScope::new(name, type_);
         self.function_scope = Some(scope);
@@ -161,7 +156,7 @@ impl Context {
         while let Some(scope) = self.scopes.pop() {
             match scope {
                 Scope::Variable(scope) => {
-                    self.end_varaible_scope(scope)?;
+                    self.end_variable_scope(scope)?;
                 }
                 _ => unreachable!("end_switch_scope: unexpected scope"),
             }
@@ -186,26 +181,20 @@ impl Context {
             }
         }
 
-        let size = cv_type.type_.sizeof()?;
-        let align = cv_type.type_.alignof()?;
-        let offset = self.function_scope.as_mut().unwrap().pool.push(size, align);
         let varinfo = VariableInfo {
             name: name.clone(),
-            address: Address::Local(offset),
             cv_type,
         };
         let scope = VariableScope {
+            id: self.create_scope_id(),
             name,
             info: varinfo.clone(),
         };
         self.scopes.push(Scope::Variable(scope));
         Ok(varinfo)
     }
-    fn end_varaible_scope(&mut self, scope: VariableScope) -> Result<(), CompileError> {
-        if let Some(func) = &mut self.function_scope {
-            func.pool.pop();
-        } else {
-            self.global_scope.pool.pop();
+    fn end_variable_scope(&mut self, scope: VariableScope) -> Result<(), CompileError> {
+        if self.function_scope.is_none() {
             self.global_scope.variables.remove(&scope.name);
         }
         Ok(())
@@ -244,10 +233,7 @@ impl Context {
             statements.push(statement);
         }
 
-        Ok(TranslationUnit {
-            statements,
-            text: std::mem::take(&mut self.text),
-        })
+        Ok(TranslationUnit { statements })
     }
     pub fn process_statement(
         &mut self,
@@ -349,13 +335,31 @@ impl Context {
             expression: self.process_expression(stmt.expression)?,
         }))
     }
+
+    /// Get the directed path from function scope to current scope.
+    /// To check if `goto label` points to a goto-able label
+    fn get_current_scope_path(&self) -> Vec<usize> {
+        let mut path = Vec::new();
+        for s in self.scopes.iter() {
+            match s {
+                // Scope::Block(b) => path.push(b.id), // block scope is not relevant for goto
+                Scope::Loop(l) => path.push(l.id),
+                Scope::Switch(sw) => path.push(sw.id),
+                Scope::Variable(v) => path.push(v.id),
+                _ => {}
+            }
+        }
+        path
+    }
     pub(crate) fn process_statement_labeled(
         &mut self,
         stmt: ast::StmtLabeled,
     ) -> Result<Statement, CompileError> {
+        let path = self.get_current_scope_path();
         if let Some(function_scope) = &mut self.function_scope {
             let label_info = LabelInfo {
                 name: stmt.label.clone(),
+                scope_path: path,
             };
             let label_info = Rc::new(RefCell::new(label_info));
             if let Some(old) = function_scope
@@ -371,15 +375,21 @@ impl Context {
                 }))
             }
         } else {
-            Err(CompileError::LabelDefinitionOutsideFunction)
+            Err(CompileError::LabelDefinitionOutsideFunction(stmt.label))
         }
     }
     pub(crate) fn process_statement_goto(
         &mut self,
         stmt: ast::StmtGoto,
     ) -> Result<Statement, CompileError> {
+        let path = self.get_current_scope_path();
         if let Some(function_scope) = &mut self.function_scope {
             if let Some(label) = function_scope.labels.get(&stmt.label) {
+                // check if `label` is goto-able from current scope
+                let label_path = &label.borrow().scope_path;
+                if !path.starts_with(label_path) {
+                    return Err(CompileError::GotoInvalidLabel(stmt.label));
+                }
                 Ok(Statement::Goto(statement::StmtGoto {
                     label: Rc::clone(label),
                 }))
@@ -387,14 +397,14 @@ impl Context {
                 Err(CompileError::GotoInvalidLabel(stmt.label))
             }
         } else {
-            Err(CompileError::GotoOutsideFunction)
+            Err(CompileError::GotoOutsideFunction(stmt.label))
         }
     }
     pub(crate) fn process_statement_compound(
         &mut self,
         stmt: ast::StmtCompound,
     ) -> Result<Statement, CompileError> {
-        self.begin_scope()?;
+        self.begin_block_scope()?;
 
         let compound = statement::StmtCompound {
             statements: stmt
@@ -404,7 +414,7 @@ impl Context {
                 .collect::<Result<Vec<_>, _>>()?,
         };
 
-        self.end_scope()?;
+        self.end_block_scope()?;
         Ok(Statement::Compound(compound))
     }
     pub(crate) fn process_statement_if(
@@ -412,10 +422,9 @@ impl Context {
         stmt: ast::StmtIf,
     ) -> Result<Statement, CompileError> {
         let cond = self.process_expression(stmt.cond)?;
-        match cond.cv_type()?.type_ {
-            PrimitiveType::Integer(_) => {}
-            PrimitiveType::Pointer(_) => {}
-            type_ => return Err(CompileError::InvalidIfCondition(type_)),
+        let cond_type = cond.primitive_type()?;
+        if !cond_type.is_bool_castable() {
+            return Err(CompileError::InvalidIfCondition(cond_type));
         }
         let then = self.process_statement(*stmt.then_statement)?;
         let else_ = if let Some(stmt) = stmt.else_statement {
@@ -628,31 +637,26 @@ impl Context {
                 // - typedef
                 for init in decl_inits.into_iter() {
                     let init_type = self.process_declarator(*init.declarator, base_type.clone())?;
-                    let Some(name) = init_type.name else {
+                    let Some(name) = init_type.name.clone() else {
                         return Err(CompileError::DeclarationWithoutName);
                     };
 
-                    match &init_type.cv_type.type_ {
+                    match init_type.primitive_type() {
                         // this is function declaration without body
                         PrimitiveType::Function(_func) => {
                             if self.function_scope.is_some() {
-                                return Err(CompileError::NestedFunctionDefinition);
+                                return Err(CompileError::NestedFunctionDefinition(name));
                             }
 
                             if let Some(old) = self.global_scope.variables.insert(
                                 name.clone(),
                                 VariableInfo {
-                                    name,
-                                    address: Address::Function(self.global_scope.functions.len()),
-                                    cv_type: init_type.cv_type.clone(),
+                                    name: name.clone(),
+                                    cv_type: init_type.cv_type().clone(),
                                 },
                             ) {
                                 return Err(CompileError::MultipleVariableDefinition(old.name));
                             }
-                            // body will be `None`, and be `Some` when function definition is found
-                            self.global_scope
-                                .functions
-                                .push(Rc::new(RefCell::new(None)));
                         }
                         _ => {
                             if self.function_scope.is_some() {
@@ -662,11 +666,11 @@ impl Context {
                                 )?;
                                 if let Some(init) = init.initializer {
                                     let init = self.process_expression(init)?;
-                                    let rhs_type = init.cv_type()?.type_;
+                                    let rhs_type = init.primitive_type()?;
                                     if !rhs_type.is_implicitly_castable(&varinfo.cv_type.type_) {
                                         return Err(CompileError::InitializeTypeMismatch(
                                             varinfo.cv_type.type_,
-                                            init.cv_type()?.type_,
+                                            init.primitive_type()?,
                                         ));
                                     }
                                     if rhs_type != varinfo.cv_type.type_ {
@@ -688,22 +692,18 @@ impl Context {
                                     return Err(CompileError::MultipleVariableDefinition(name));
                                 }
 
-                                let size = init_type.cv_type.type_.sizeof()?;
-                                let align = init_type.cv_type.type_.alignof()?;
-                                let offset = self.global_scope.pool.push(size, align);
                                 let varinfo = VariableInfo {
                                     name: name.clone(),
-                                    address: Address::Global(offset),
                                     cv_type: init_type.cv_type,
                                 };
                                 self.global_scope.variables.insert(name, varinfo.clone());
                                 if let Some(init) = init.initializer {
                                     let init = self.process_expression(init)?;
-                                    let rhs_type = init.cv_type()?.type_;
+                                    let rhs_type = init.primitive_type()?;
                                     if !rhs_type.is_implicitly_castable(&varinfo.cv_type.type_) {
                                         return Err(CompileError::InitializeTypeMismatch(
                                             varinfo.cv_type.type_,
-                                            init.cv_type()?.type_,
+                                            init.primitive_type()?,
                                         ));
                                     }
                                     if rhs_type != varinfo.cv_type.type_ {
@@ -748,7 +748,7 @@ impl Context {
                                     // skip this statement
                                     return Ok(Statement::None);
                                 };
-                                if let Some(current_scope) = self.nearest_scope() {
+                                if let Some(current_scope) = self.nearest_block_scope() {
                                     // check if there is other variable with same name
                                     if let Some(old) = current_scope.typedefs.get_mut(&name) {
                                         // type name `name` exists.
@@ -817,7 +817,7 @@ impl Context {
                                     // skip this statement
                                     return Ok(Statement::None);
                                 };
-                                if let Some(current_scope) = self.nearest_scope() {
+                                if let Some(current_scope) = self.nearest_block_scope() {
                                     // check if there is other variable with same name
                                     if let Some(old) = current_scope.typedefs.get(&name) {
                                         // type name `name` exists.
@@ -875,7 +875,7 @@ impl Context {
                                     // skip this statement
                                     return Ok(Statement::None);
                                 };
-                                if let Some(current_scope) = self.nearest_scope() {
+                                if let Some(current_scope) = self.nearest_block_scope() {
                                     // check if there is other variable with same name
                                     if let Some(old) = current_scope.typedefs.get_mut(&name) {
                                         // type name `name` exists.
@@ -942,7 +942,7 @@ impl Context {
                                     // skip this statement
                                     return Ok(Statement::None);
                                 };
-                                if let Some(current_scope) = self.nearest_scope() {
+                                if let Some(current_scope) = self.nearest_block_scope() {
                                     // check if there is other variable with same name
                                     if let Some(old) = current_scope.typedefs.get(&name) {
                                         // type name `name` exists.
@@ -1000,7 +1000,7 @@ impl Context {
                                     // skip this statement
                                     return Ok(Statement::None);
                                 };
-                                if let Some(current_scope) = self.nearest_scope() {
+                                if let Some(current_scope) = self.nearest_block_scope() {
                                     // check if there is other variable with same name
                                     if let Some(old) = current_scope.typedefs.get_mut(&name) {
                                         // type name `name` exists.
@@ -1069,7 +1069,7 @@ impl Context {
                                     // skip this statement
                                     return Ok(Statement::None);
                                 };
-                                if let Some(current_scope) = self.nearest_scope() {
+                                if let Some(current_scope) = self.nearest_block_scope() {
                                     // check if there is other variable with same name
                                     if let Some(old) = current_scope.typedefs.get(&name) {
                                         // type name `name` exists.
@@ -1136,8 +1136,10 @@ impl Context {
         &mut self,
         stmt: ast::StmtFunctionDefinition,
     ) -> Result<Statement, CompileError> {
-        if self.function_scope.is_some() {
-            return Err(CompileError::NestedFunctionDefinition);
+        if let Some(function_scope) = &self.function_scope {
+            return Err(CompileError::NestedFunctionDefinition(
+                function_scope.name.clone(),
+            ));
         }
 
         let (_storage_qualifier, base_type) = match stmt.specs {
@@ -1157,14 +1159,13 @@ impl Context {
         let (function_definition, function_type) = match decl.cv_type.type_ {
             PrimitiveType::Function(func) => {
                 self.begin_function_scope(name.clone(), func.clone())?;
-                self.begin_scope()?;
+                self.begin_block_scope()?;
                 let body = self.process_statement(*stmt.body)?;
-                self.end_scope()?;
-                let scope = self.end_function_scope()?;
+                self.end_block_scope()?;
+                self.end_function_scope()?;
                 (
                     FunctionDefinition {
                         body: Box::new(body),
-                        stack_size: scope.pool.max_size,
                     },
                     func,
                 )
@@ -1185,23 +1186,20 @@ impl Context {
                 }
                 _ => return Err(CompileError::MultipleVariableDefinition(name)),
             }
-            let Address::Function(address) = varinfo.address else {
-                unreachable!();
-            };
-
-            if self.global_scope.functions[address].borrow().is_some() {
+            let old = self
+                .global_scope
+                .functions
+                .insert(name.clone(), function_definition);
+            if old.is_some() {
                 return Err(CompileError::MultipleFunctionDefinition(name));
             }
-            self.global_scope.functions[address].replace(Some(function_definition));
         } else {
-            let function_offset = self.global_scope.functions.len();
             self.global_scope
                 .functions
-                .push(Rc::new(RefCell::new(Some(function_definition))));
+                .insert(name.clone(), function_definition);
 
             let varinfo = VariableInfo {
                 name: name.clone(),
-                address: Address::Function(function_offset),
                 cv_type: CVType::from_primitive(PrimitiveType::Function(function_type)),
             };
             self.global_scope.variables.insert(name, varinfo);
@@ -1280,11 +1278,7 @@ impl Context {
         &mut self,
         expr: ast::ExprString,
     ) -> Result<Expression, CompileError> {
-        let addr = self.text.len();
-        self.text.reserve(expr.value.len() + 1);
-        self.text.extend_from_slice(expr.value.as_bytes());
-        self.text.push(0u8);
-        Ok(Expression::String(Address::Text(addr)))
+        Ok(Expression::String(expr.value))
     }
     pub(crate) fn process_expression_cast(
         &mut self,
@@ -1317,9 +1311,20 @@ impl Context {
             _ => return Err(CompileError::BracketOnNonArrayOrPointer),
         }
         let index = self.process_expression(*expr.index)?;
-        if !matches!(index.cv_type()?.type_, PrimitiveType::Integer(_)) {
+        let index_type = index.cv_type()?;
+        let target_type = PrimitiveType::Integer(Integer::Int64);
+        if index_type.is_implicitly_castable(&target_type) {
             return Err(CompileError::BracketIndexNotInteger);
         }
+
+        let index = if index_type.type_ != target_type {
+            Expression::Cast(super::ExprCast {
+                expr: Box::new(index),
+                type_: target_type,
+            })
+        } else {
+            index
+        };
 
         Ok(Expression::Bracket(expression::ExprBracket {
             src: Box::new(src),
@@ -1335,23 +1340,6 @@ impl Context {
         let else_ = self.process_expression(*expr.else_expr)?;
         if !cond.cv_type()?.type_.is_bool_castable() {
             return Err(CompileError::ConditionalNotBool);
-        }
-        match &cond {
-            Expression::Signed(x, _) => {
-                if *x == 0 {
-                    return Ok(else_);
-                } else {
-                    return Ok(then);
-                }
-            }
-            Expression::Unsigned(x, _) => {
-                if *x == 0 {
-                    return Ok(else_);
-                } else {
-                    return Ok(then);
-                }
-            }
-            _ => {}
         }
         let then_type = then.cv_type()?.type_;
         let else_type = else_.cv_type()?.type_;
@@ -1507,7 +1495,7 @@ impl Context {
         let src_type = src.cv_type()?;
         match expr.op {
             ExprUnaryOp::AddressOf => {
-                if !src.is_address() {
+                if !src.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
             }
@@ -1536,7 +1524,7 @@ impl Context {
                 if src_type.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                if !src.is_address() {
+                if !src.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
             }
@@ -1550,7 +1538,7 @@ impl Context {
                 if src_type.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                if !src.is_address() {
+                if !src.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
             }
@@ -1564,7 +1552,7 @@ impl Context {
                 if src_type.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                if !src.is_address() {
+                if !src.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
             }
@@ -1578,7 +1566,7 @@ impl Context {
                 if src_type.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-                if !src.is_address() {
+                if !src.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
             }
@@ -2161,7 +2149,7 @@ impl Context {
                 _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
             },
             ExprBinaryOp::AddAssign => {
-                if !lhs.is_address() {
+                if !lhs.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
                 if lhs.cv_type()?.const_ {
@@ -2331,7 +2319,7 @@ impl Context {
                 return Ok(assign_op);
             }
             ExprBinaryOp::SubAssign => {
-                if !lhs.is_address() {
+                if !lhs.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
                 if lhs.cv_type()?.const_ {
@@ -2582,7 +2570,7 @@ impl Context {
                 _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
             },
             ExprBinaryOp::MulAssign | ExprBinaryOp::DivAssign => {
-                if !lhs.is_address() {
+                if !lhs.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
                 if lhs.cv_type()?.const_ {
@@ -2666,7 +2654,7 @@ impl Context {
                 _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
             },
             ExprBinaryOp::ModAssign => {
-                if !lhs.is_address() {
+                if !lhs.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
                 if lhs.cv_type()?.const_ {
@@ -2759,7 +2747,7 @@ impl Context {
             ExprBinaryOp::BitwiseAndAssign
             | ExprBinaryOp::BitwiseOrAssign
             | ExprBinaryOp::BitwiseXorAssign => {
-                if !lhs.is_address() {
+                if !lhs.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
                 if lhs.cv_type()?.const_ {
@@ -2804,7 +2792,7 @@ impl Context {
                 _ => return Err(CompileError::BitwiseOpOnNonInteger),
             },
             ExprBinaryOp::ShiftLeftAssign | ExprBinaryOp::ShiftRightAssign => {
-                if !lhs.is_address() {
+                if !lhs.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
                 if lhs.cv_type()?.const_ {
@@ -3695,7 +3683,7 @@ impl Context {
 
             ExprBinaryOp::Comma => {}
             ExprBinaryOp::Assign => {
-                if !lhs.is_address() {
+                if !lhs.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
                 if lhs.cv_type()?.const_ {

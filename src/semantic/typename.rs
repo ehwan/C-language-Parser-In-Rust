@@ -110,6 +110,7 @@ pub enum PrimitiveType {
     Function(FunctionType),
 }
 impl PrimitiveType {
+    // @TODO
     pub fn is_castable(&self, to: &PrimitiveType) -> bool {
         match (self, to) {
             (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => true,
@@ -192,6 +193,7 @@ impl PrimitiveType {
         })
     }
 
+    // @TODO
     pub fn common_type(&self, other: &PrimitiveType) -> Option<PrimitiveType> {
         match (self, other) {
             (PrimitiveType::Void, _) => None,
@@ -425,6 +427,12 @@ impl CVType {
             const_: false,
             volatile: false,
         }
+    }
+    pub fn sizeof(&self) -> Result<usize, CompileError> {
+        self.type_.sizeof()
+    }
+    pub fn alignof(&self) -> Result<usize, CompileError> {
+        self.type_.alignof()
     }
 }
 
