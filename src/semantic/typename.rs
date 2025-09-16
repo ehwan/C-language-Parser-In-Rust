@@ -1,3 +1,5 @@
+use crate::semantic::CombinedDeclarator;
+
 use super::CompileError;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
@@ -275,12 +277,44 @@ impl ArrayType {
         PrimitiveType::Pointer(self.cv_type)
     }
 }
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone)]
 pub struct FunctionType {
     // maybe no need CV qualifier for return type?
     pub return_type: Box<CVType>,
-    pub args: Vec<CVType>,
+    pub args: Vec<CombinedDeclarator>,
     pub variadic: bool,
+}
+impl FunctionType {
+    pub(crate) fn for_cmp(&self) -> (&Box<CVType>, bool, impl Iterator<Item = &CVType> + '_) {
+        (
+            &self.return_type,
+            self.variadic,
+            self.args.iter().map(|arg| &arg.cv_type),
+        )
+    }
+}
+
+impl PartialEq for FunctionType {
+    fn eq(&self, other: &Self) -> bool {
+        let (l0, l1, l2) = self.for_cmp();
+        let (r0, r1, r2) = other.for_cmp();
+        l0 == r0 && l1 == r1 && l2.eq(r2)
+    }
+}
+impl Eq for FunctionType {}
+impl PartialOrd for FunctionType {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let (l0, l1, l2) = self.for_cmp();
+        let (r0, r1, r2) = other.for_cmp();
+        Some(l0.cmp(r0).then(l1.cmp(&r1)).then(l2.cmp(r2)))
+    }
+}
+impl Ord for FunctionType {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let (l0, l1, l2) = self.for_cmp();
+        let (r0, r1, r2) = other.for_cmp();
+        l0.cmp(r0).then(l1.cmp(&r1)).then(l2.cmp(r2))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

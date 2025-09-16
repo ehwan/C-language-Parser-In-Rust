@@ -8,8 +8,7 @@ use super::{CVType, VariableInfo};
 
 #[derive(Debug, Clone)]
 pub enum Expression {
-    Signed(i64, Integer),
-    Unsigned(u64, Integer),
+    Integer(i64, Integer),
     Float(f64, Float),
     String(String),
 
@@ -29,9 +28,7 @@ pub enum Expression {
 impl Expression {
     pub fn is_reference(&self) -> bool {
         match self {
-            Expression::Signed(_, _) | Expression::Unsigned(_, _) | Expression::Float(_, _) => {
-                false
-            }
+            Expression::Integer(_, _) | Expression::Float(_, _) => false,
             Expression::String(_) => false,
             Expression::Variable(var) => match &var.cv_type.type_ {
                 PrimitiveType::Array(_) => false,
@@ -98,8 +95,7 @@ impl Expression {
     pub fn cv_type(&self) -> Result<CVType, CompileError> {
         Ok(match self {
             Expression::Variable(var) => var.cv_type.clone(),
-            Expression::Signed(_, i) => CVType::from_primitive(PrimitiveType::Integer(*i)),
-            Expression::Unsigned(_, i) => CVType::from_primitive(PrimitiveType::Integer(*i)),
+            Expression::Integer(_, i) => CVType::from_primitive(PrimitiveType::Integer(*i)),
             Expression::Float(_, f) => CVType::from_primitive(PrimitiveType::Float(*f)),
             Expression::String(_) => {
                 CVType::from_primitive(PrimitiveType::Pointer(Box::new(CVType {

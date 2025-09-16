@@ -222,18 +222,24 @@ impl Context {
         self.function_scope.is_some()
     }
 
-    pub fn process_translation_unit(
-        &mut self,
-        tu: ast::TranslationUnit,
-    ) -> Result<TranslationUnit, CompileError> {
+    pub fn process(&mut self, tu: ast::TranslationUnit) -> Result<TranslationUnit, CompileError> {
         let mut statements = Vec::new();
 
         for item in tu.statements.into_iter() {
             let statement = self.process_statement(item)?;
-            statements.push(statement);
+            if !matches!(statement, Statement::None) {
+                statements.push(statement);
+            }
         }
 
-        Ok(TranslationUnit { statements })
+        let variables = std::mem::take(&mut self.global_scope.variables);
+        let functions = std::mem::take(&mut self.global_scope.functions);
+
+        Ok(TranslationUnit {
+            statements,
+            variables,
+            functions,
+        })
     }
     pub fn process_statement(
         &mut self,
@@ -1156,19 +1162,24 @@ impl Context {
             None => return Err(CompileError::NoFunctionName),
         };
 
-        let (function_definition, function_type) = match decl.cv_type.type_ {
+        let function_definition = match decl.cv_type.type_ {
             PrimitiveType::Function(func) => {
                 self.begin_function_scope(name.clone(), func.clone())?;
                 self.begin_block_scope()?;
+
+                for arg in &func.args {
+                    if let Some(arg_name) = &arg.name {
+                        self.begin_variable_scope(arg_name.clone(), arg.cv_type.clone())?;
+                    }
+                }
+
                 let body = self.process_statement(*stmt.body)?;
                 self.end_block_scope()?;
                 self.end_function_scope()?;
-                (
-                    FunctionDefinition {
-                        body: Box::new(body),
-                    },
-                    func,
-                )
+                FunctionDefinition {
+                    body: Box::new(body),
+                    type_: func,
+                }
             }
             _ => return Err(CompileError::InvalidFunctionDefinition),
         };
@@ -1180,7 +1191,7 @@ impl Context {
         if let Some(varinfo) = self.global_scope.variables.get(&name) {
             match &varinfo.cv_type.type_ {
                 PrimitiveType::Function(func) => {
-                    if func != &function_type {
+                    if func != &function_definition.type_ {
                         return Err(CompileError::FunctionDifferentSignature(name));
                     }
                 }
@@ -1194,14 +1205,16 @@ impl Context {
                 return Err(CompileError::MultipleFunctionDefinition(name));
             }
         } else {
+            let varinfo = VariableInfo {
+                name: name.clone(),
+                cv_type: CVType::from_primitive(PrimitiveType::Function(
+                    function_definition.type_.clone(),
+                )),
+            };
             self.global_scope
                 .functions
                 .insert(name.clone(), function_definition);
 
-            let varinfo = VariableInfo {
-                name: name.clone(),
-                cv_type: CVType::from_primitive(PrimitiveType::Function(function_type)),
-            };
             self.global_scope.variables.insert(name, varinfo);
         }
 
@@ -1236,31 +1249,31 @@ impl Context {
         &mut self,
         expr: ast::ExprConstantCharacter,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::Signed(expr.value as i64, Integer::Int8))
+        Ok(Expression::Integer(expr.value as i64, Integer::Int8))
     }
     pub(crate) fn process_expression_constantinteger(
         &mut self,
         expr: ast::ExprConstantInteger,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::Signed(expr.value as i64, Integer::Int32))
+        Ok(Expression::Integer(expr.value as i64, Integer::Int32))
     }
     pub(crate) fn process_expression_constantunsignedinteger(
         &mut self,
         expr: ast::ExprConstantUnsignedInteger,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::Unsigned(expr.value as u64, Integer::UInt32))
+        Ok(Expression::Integer(expr.value as i64, Integer::UInt32))
     }
     pub(crate) fn process_expression_constantlong(
         &mut self,
         expr: ast::ExprConstantLong,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::Signed(expr.value, Integer::Int64))
+        Ok(Expression::Integer(expr.value, Integer::Int64))
     }
     pub(crate) fn process_expression_constantunsignedlong(
         &mut self,
         expr: ast::ExprConstantUnsignedLong,
     ) -> Result<Expression, CompileError> {
-        Ok(Expression::Unsigned(expr.value, Integer::UInt64))
+        Ok(Expression::Integer(expr.value as i64, Integer::UInt64))
     }
     pub(crate) fn process_expression_constantfloat(
         &mut self,
@@ -1446,7 +1459,7 @@ impl Context {
                         let arg_expr = self.process_expression(expr)?;
                         let arg_type = arg_expr.cv_type()?.type_;
 
-                        if !arg_type.is_implicitly_castable(&func_info.args[idx].type_) {
+                        if !arg_type.is_implicitly_castable(&func_info.args[idx].primitive_type()) {
                             return Err(CompileError::CallWithWrongArgumentType);
                         }
                         Ok(arg_expr)
@@ -1471,8 +1484,8 @@ impl Context {
         } else {
             base_type
         };
-        Ok(Expression::Unsigned(
-            typename.type_.sizeof()? as u64,
+        Ok(Expression::Integer(
+            typename.type_.sizeof()? as i64,
             Integer::UInt64,
         ))
     }
@@ -1482,8 +1495,8 @@ impl Context {
     ) -> Result<Expression, CompileError> {
         let expr = self.process_expression(*expr.expr)?;
         let typename = expr.cv_type()?;
-        Ok(Expression::Unsigned(
-            typename.type_.sizeof()? as u64,
+        Ok(Expression::Integer(
+            typename.type_.sizeof()? as i64,
             Integer::UInt64,
         ))
     }
@@ -1502,16 +1515,6 @@ impl Context {
             ExprUnaryOp::BitwiseNot => {
                 if !matches!(src_type.type_, PrimitiveType::Integer(_)) {
                     return Err(CompileError::BitwiseOpOnNonInteger);
-                }
-                // compile-time constant
-                match src {
-                    Expression::Signed(x, type_) => {
-                        return Ok(Expression::Unsigned((!x) as u64, type_.to_unsigned()));
-                    }
-                    Expression::Unsigned(x, type_) => {
-                        return Ok(Expression::Unsigned(!x as u64, type_.to_unsigned()));
-                    }
-                    _ => {}
                 }
             }
             ExprUnaryOp::DecrementPost => {
@@ -1574,23 +1577,6 @@ impl Context {
                 if !src_type.type_.is_bool_castable() {
                     return Err(CompileError::LogicalOpOnNonBool);
                 }
-
-                // compile-time constant
-                match src {
-                    Expression::Signed(x, _) => {
-                        return Ok(Expression::Signed(
-                            if x == 0 { 1 } else { 0 },
-                            Integer::Int32,
-                        ))
-                    }
-                    Expression::Unsigned(x, _) => {
-                        return Ok(Expression::Signed(
-                            if x == 0 { 1 } else { 0 },
-                            Integer::Int32,
-                        ))
-                    }
-                    _ => {}
-                }
             }
             ExprUnaryOp::Minus => {
                 if !matches!(
@@ -1598,14 +1584,6 @@ impl Context {
                     PrimitiveType::Integer(_) | PrimitiveType::Float(_)
                 ) {
                     return Err(CompileError::ArithmeticOpOnNonNumeric);
-                }
-                match src {
-                    Expression::Signed(x, type_) => return Ok(Expression::Signed(-x, type_)),
-                    Expression::Unsigned(x, type_) => {
-                        return Ok(Expression::Unsigned((-(x as i64)) as u64, type_));
-                    }
-                    Expression::Float(x, type_) => return Ok(Expression::Float(-x, type_)),
-                    _ => {}
                 }
             }
             ExprUnaryOp::Dereference => {
@@ -1694,11 +1672,10 @@ impl Context {
                                 expr: Box::new(lhs),
                                 type_: PrimitiveType::Integer(Integer::Int64),
                             });
-
                             let lhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             lhs
                         } else {
@@ -1709,7 +1686,7 @@ impl Context {
                             let lhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             lhs
                         }
@@ -1718,14 +1695,14 @@ impl Context {
                             let lhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             lhs
                         } else {
                             let lhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             lhs
                         }
@@ -1755,7 +1732,7 @@ impl Context {
                             let lhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             lhs
                         } else {
@@ -1766,7 +1743,7 @@ impl Context {
                             let lhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             lhs
                         }
@@ -1775,14 +1752,14 @@ impl Context {
                             let lhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             lhs
                         } else {
                             let lhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             lhs
                         }
@@ -1852,7 +1829,7 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             rhs
                         } else {
@@ -1863,7 +1840,7 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             rhs
                         }
@@ -1872,14 +1849,14 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             rhs
                         } else {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             rhs
                         }
@@ -1909,7 +1886,7 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             rhs
                         } else {
@@ -1920,7 +1897,7 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             rhs
                         }
@@ -1929,14 +1906,14 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             rhs
                         } else {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             rhs
                         }
@@ -2049,7 +2026,7 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             rhs
                         } else {
@@ -2060,7 +2037,7 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             rhs
                         }
@@ -2069,14 +2046,14 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             rhs
                         } else {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             rhs
                         }
@@ -2106,7 +2083,7 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             rhs
                         } else {
@@ -2117,7 +2094,7 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             rhs
                         }
@@ -2126,14 +2103,14 @@ impl Context {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Signed(sizeof as i64, Integer::Int64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
                             });
                             rhs
                         } else {
                             let rhs = Expression::Binary(expression::ExprBinary {
                                 op: ExprBinaryOp::Mul,
                                 lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
                             });
                             rhs
                         }
@@ -2253,7 +2230,7 @@ impl Context {
                                 let rhs = Expression::Binary(expression::ExprBinary {
                                     op: ExprBinaryOp::Mul,
                                     lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Signed(
+                                    rhs: Box::new(Expression::Integer(
                                         sizeof as i64,
                                         Integer::Int64,
                                     )),
@@ -2267,7 +2244,10 @@ impl Context {
                                 let rhs = Expression::Binary(expression::ExprBinary {
                                     op: ExprBinaryOp::Mul,
                                     lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                    rhs: Box::new(Expression::Integer(
+                                        sizeof as i64,
+                                        Integer::UInt64,
+                                    )),
                                 });
                                 rhs
                             }
@@ -2276,7 +2256,7 @@ impl Context {
                                 let rhs = Expression::Binary(expression::ExprBinary {
                                     op: ExprBinaryOp::Mul,
                                     lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Signed(
+                                    rhs: Box::new(Expression::Integer(
                                         sizeof as i64,
                                         Integer::Int64,
                                     )),
@@ -2286,7 +2266,10 @@ impl Context {
                                 let rhs = Expression::Binary(expression::ExprBinary {
                                     op: ExprBinaryOp::Mul,
                                     lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                    rhs: Box::new(Expression::Integer(
+                                        sizeof as i64,
+                                        Integer::UInt64,
+                                    )),
                                 });
                                 rhs
                             }
@@ -2423,7 +2406,7 @@ impl Context {
                                 let rhs = Expression::Binary(expression::ExprBinary {
                                     op: ExprBinaryOp::Mul,
                                     lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Signed(
+                                    rhs: Box::new(Expression::Integer(
                                         sizeof as i64,
                                         Integer::Int64,
                                     )),
@@ -2437,7 +2420,10 @@ impl Context {
                                 let rhs = Expression::Binary(expression::ExprBinary {
                                     op: ExprBinaryOp::Mul,
                                     lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                    rhs: Box::new(Expression::Integer(
+                                        sizeof as i64,
+                                        Integer::UInt64,
+                                    )),
                                 });
                                 rhs
                             }
@@ -2446,7 +2432,7 @@ impl Context {
                                 let rhs = Expression::Binary(expression::ExprBinary {
                                     op: ExprBinaryOp::Mul,
                                     lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Signed(
+                                    rhs: Box::new(Expression::Integer(
                                         sizeof as i64,
                                         Integer::Int64,
                                     )),
@@ -2456,7 +2442,10 @@ impl Context {
                                 let rhs = Expression::Binary(expression::ExprBinary {
                                     op: ExprBinaryOp::Mul,
                                     lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Unsigned(sizeof, Integer::UInt64)),
+                                    rhs: Box::new(Expression::Integer(
+                                        sizeof as i64,
+                                        Integer::UInt64,
+                                    )),
                                 });
                                 rhs
                             }
@@ -3847,8 +3836,7 @@ impl Context {
                                 if let Some(expr) = def.value {
                                     let expr = self.process_expression(expr)?;
                                     let value = match expr {
-                                        Expression::Signed(v, _) => v,
-                                        Expression::Unsigned(v, _) => v as i64,
+                                        Expression::Integer(v, _) => v,
                                         _ => return Err(CompileError::EnumValueNotInteger),
                                     };
                                     members.push((def.name, Some(value)));
@@ -4020,8 +4008,7 @@ impl Context {
                                 if let Some(expr) = def.value {
                                     let expr = self.process_expression(expr)?;
                                     let value = match expr {
-                                        Expression::Signed(v, _) => v,
-                                        Expression::Unsigned(v, _) => v as i64,
+                                        Expression::Integer(v, _) => v,
                                         _ => return Err(CompileError::EnumValueNotInteger),
                                     };
                                     members.push((def.name, Some(value)));
@@ -4102,14 +4089,13 @@ impl Context {
     ) -> Result<CombinedDeclarator, CompileError> {
         let size = self.process_expression(decl.size)?;
         let size = match size {
-            Expression::Signed(v, _) => {
+            Expression::Integer(v, _) => {
                 if v < 0 {
                     return Err(CompileError::NegativeArraySize);
                 } else {
                     v as usize
                 }
             }
-            Expression::Unsigned(v, _) => v as usize,
             _ => return Err(CompileError::ArraySizeNotInteger),
         };
         if let Some(decl) = decl.declarator {
@@ -4145,16 +4131,19 @@ impl Context {
             .params
             .params
             .into_iter()
-            .map(|param| -> Result<CVType, CompileError> {
+            .map(|param| -> Result<CombinedDeclarator, CompileError> {
                 // @TODO storage_qualifier check
                 let (_storage_qualifier, base_type) =
                     self.process_decl_specs(param.specs.into_iter())?;
 
                 if let Some(decl) = param.declarator {
                     let res = self.process_declarator(*decl, base_type)?;
-                    Ok(res.cv_type)
+                    Ok(res)
                 } else {
-                    Ok(base_type)
+                    Ok(CombinedDeclarator {
+                        name: None,
+                        cv_type: base_type,
+                    })
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;

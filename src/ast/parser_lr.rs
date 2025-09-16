@@ -9,9 +9,10 @@ use super::statement::Statement;
 
 use crate::token::Token;
 
-lr1! {
+%%
+// lr1! {
 
-%lalr;
+// %lalr;
 
 %tokentype Token;
 
@@ -105,6 +106,7 @@ lr1! {
 
 %left else_;
 %precedence IFSTMT;
+%nooptim;
 
 %start translation_unit;
 
@@ -1245,4 +1247,4 @@ init_declarator_list( Vec<declarator::DeclInit> )
     }
     ;
 
-}
+// }

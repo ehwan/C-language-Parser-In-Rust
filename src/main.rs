@@ -1,13 +1,10 @@
 use std::io::{stdin, stdout, Read, Write};
 
-// use virtualmachine::instruction::generation::InstructionGenerator;
-// use virtualmachine::program::VirtualMachine;
-
 mod ast;
+mod llvm;
 mod preprocess;
 mod semantic;
 mod token;
-// mod virtualmachine;
 
 fn main() {
     println!("Enter your code (and ^D for EOF):");
@@ -81,6 +78,13 @@ fn main() {
     let parser = ast::translation_unitParser::new();
     let mut context = ast::translation_unitContext::new();
     for token in tokens.into_iter() {
+        println!("=====");
+        if !context.can_feed(&parser, &token) {
+            println!("Error: Unexpected token: {:?}", token);
+            println!("Backtrace: {:?}", context.backtrace(&parser));
+            println!("State: {}", context.state());
+            break;
+        }
         match context.feed(&parser, token, &mut ()) {
             Ok(_) => {}
             Err(err) => {
@@ -103,7 +107,7 @@ fn main() {
     println!("{:=^80}", "");
 
     let mut context = semantic::Context::new();
-    let ast = match context.process_translation_unit(ast) {
+    let ast = match context.process(ast) {
         Ok(ast) => ast,
         Err(err) => {
             println!("Error: {:?}", err);
@@ -113,9 +117,12 @@ fn main() {
     println!("{:#?}", ast);
 
     // generate instructions
-    // println!("{:=^80}", "");
-    // println!("{:=^80}", "Phase5: Generating Instructions");
-    // println!("{:=^80}", "");
+    println!("{:=^80}", "");
+    println!("{:=^80}", "Phase6: Generating Instructions");
+    println!("{:=^80}", "");
+
+    let mut context = llvm::Context::new();
+    context.compile(ast);
 
     // let mut context = virtualmachine::InstructionGenerator::new();
     // let vm = match context.emit(translation_unit) {

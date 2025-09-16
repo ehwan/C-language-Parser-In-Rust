@@ -1,4 +1,6 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+
+use super::scope::FunctionDefinition;
 
 use super::{Expression, LabelInfo, VariableInfo};
 
@@ -108,4 +110,6 @@ pub struct StmtVariableDeclaration {
 #[derive(Debug, Clone)]
 pub struct TranslationUnit {
     pub statements: Vec<Statement>,
+    pub variables: HashMap<String, VariableInfo>,
+    pub functions: HashMap<String, FunctionDefinition>,
 }

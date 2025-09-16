@@ -1,7 +1,10 @@
 mod declarator;
 mod expression;
-mod parser_lr;
+// mod parser_lr;
+mod parser_lr_expanded;
 mod statement;
+
+use parser_lr_expanded as parser_lr;
 
 pub use parser_lr::translation_unitContext;
 pub use parser_lr::translation_unitParseError;

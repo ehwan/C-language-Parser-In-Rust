@@ -58,6 +58,7 @@ impl FunctionScope {
 #[derive(Debug, Clone)]
 pub struct FunctionDefinition {
     pub body: Box<super::Statement>,
+    pub type_: FunctionType,
 }
 #[derive(Debug, Clone)]
 pub struct GlobalScope {
