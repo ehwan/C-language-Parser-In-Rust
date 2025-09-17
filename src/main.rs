@@ -122,7 +122,9 @@ fn main() {
     println!("{:=^80}", "");
 
     let mut context = llvm::Context::new();
-    context.compile(ast);
+    let module = context.compile(ast).unwrap();
+
+    module.module.print_to_stderr();
 
     // let mut context = virtualmachine::InstructionGenerator::new();
     // let vm = match context.emit(translation_unit) {

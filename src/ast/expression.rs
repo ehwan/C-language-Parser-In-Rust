@@ -163,7 +163,7 @@ pub enum ExprBinaryOperator {
     GreaterThanOrEqual,
     Equal,
     NotEqual,
-    Assign,
+    Assign(bool), // force cast rhs to lhs
     AddAssign,
     SubAssign,
     MulAssign,

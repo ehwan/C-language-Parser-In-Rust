@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::semantic::ArrayType;
 
 use super::CompileError;
 use super::Float;
@@ -32,25 +33,26 @@ impl Expression {
             Expression::String(_) => false,
             Expression::Variable(var) => match &var.cv_type.type_ {
                 PrimitiveType::Array(_) => false,
+                PrimitiveType::Function(_) => false,
                 _ => true,
             },
             Expression::Conditional(_) => false,
             Expression::Cast(_) => false,
-            Expression::Member(_) => true,
+            Expression::Member(src) => src.src.is_reference(),
             Expression::Arrow(_) => true,
             Expression::Paren(_) => false,
             Expression::Bracket(_) => true,
             Expression::Unary(expr) => match expr.op {
-                ExprUnaryOp::AddressOf => false,
-                ExprUnaryOp::BitwiseNot => false,
-                ExprUnaryOp::DecrementPost => false,
-                ExprUnaryOp::DecrementPre => true,
-                ExprUnaryOp::IncrementPost => false,
-                ExprUnaryOp::IncrementPre => true,
-                ExprUnaryOp::LogicalNot => false,
+                ExprUnaryOp::Plus => false,
                 ExprUnaryOp::Minus => false,
+                ExprUnaryOp::LogicalNot => false,
+                ExprUnaryOp::BitwiseNot => false,
                 ExprUnaryOp::Dereference => true,
-                ExprUnaryOp::Plus => unreachable!("Unary Plus"),
+                ExprUnaryOp::AddressOf => false,
+                ExprUnaryOp::IncrementPre => true,
+                ExprUnaryOp::DecrementPre => true,
+                ExprUnaryOp::DecrementPost => false,
+                ExprUnaryOp::IncrementPost => false,
             },
             Expression::Binary(expr) => match expr.op {
                 ExprBinaryOp::Add
@@ -84,7 +86,7 @@ impl Expression {
                 | ExprBinaryOp::BitwiseXorAssign
                 | ExprBinaryOp::ShiftLeftAssign
                 | ExprBinaryOp::ShiftRightAssign
-                | ExprBinaryOp::Assign => true,
+                | ExprBinaryOp::Assign(_) => true,
 
                 ExprBinaryOp::Comma => expr.rhs.is_reference(),
             },
@@ -97,12 +99,18 @@ impl Expression {
             Expression::Variable(var) => var.cv_type.clone(),
             Expression::Integer(_, i) => CVType::from_primitive(PrimitiveType::Integer(*i)),
             Expression::Float(_, f) => CVType::from_primitive(PrimitiveType::Float(*f)),
-            Expression::String(_) => {
-                CVType::from_primitive(PrimitiveType::Pointer(Box::new(CVType {
+            Expression::String(str) => {
+                let str = str.as_bytes();
+                let ch_type = CVType {
                     type_: PrimitiveType::Integer(Integer::Int8),
                     const_: true,
                     volatile: false,
-                })))
+                };
+                let array_type = PrimitiveType::Array(ArrayType {
+                    cv_type: Box::new(ch_type),
+                    size: str.len() + 1,
+                });
+                CVType::from_primitive(array_type)
             }
             Expression::Cast(expr) => CVType::from_primitive(expr.type_.clone()),
             Expression::Bracket(expr) => match expr.src.cv_type()?.type_ {
@@ -125,8 +133,10 @@ impl Expression {
                 _ => unreachable!("Paren expression type"),
             },
             Expression::Unary(expr) => match expr.op {
-                ExprUnaryOp::AddressOf => {
-                    CVType::from_primitive(PrimitiveType::Pointer(Box::new(expr.expr.cv_type()?)))
+                ExprUnaryOp::Plus => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::Minus => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::LogicalNot => {
+                    CVType::from_primitive(PrimitiveType::Integer(Integer::Int8))
                 }
                 ExprUnaryOp::BitwiseNot => match expr.expr.cv_type()?.type_ {
                     PrimitiveType::Integer(i) => {
@@ -134,20 +144,18 @@ impl Expression {
                     }
                     _ => unreachable!("BitwiseNot expression type"),
                 },
-                ExprUnaryOp::DecrementPost => CVType::from_primitive(expr.expr.cv_type()?.type_),
-                ExprUnaryOp::DecrementPre => CVType::from_primitive(expr.expr.cv_type()?.type_),
-                ExprUnaryOp::IncrementPost => CVType::from_primitive(expr.expr.cv_type()?.type_),
-                ExprUnaryOp::IncrementPre => CVType::from_primitive(expr.expr.cv_type()?.type_),
-                ExprUnaryOp::LogicalNot => {
-                    CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
-                }
-                ExprUnaryOp::Minus => CVType::from_primitive(expr.expr.cv_type()?.type_),
                 ExprUnaryOp::Dereference => match expr.expr.cv_type()?.type_ {
                     PrimitiveType::Pointer(t) => *t,
                     PrimitiveType::Array(t) => *t.cv_type,
                     _ => unreachable!("Dereference expression type"),
                 },
-                ExprUnaryOp::Plus => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::AddressOf => {
+                    CVType::from_primitive(PrimitiveType::Pointer(Box::new(expr.expr.cv_type()?)))
+                }
+                ExprUnaryOp::IncrementPre => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::DecrementPre => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::IncrementPost => CVType::from_primitive(expr.expr.cv_type()?.type_),
+                ExprUnaryOp::DecrementPost => CVType::from_primitive(expr.expr.cv_type()?.type_),
             },
             Expression::Binary(expr) => {
                 let lhs_type = expr.lhs.cv_type()?;
@@ -161,12 +169,6 @@ impl Expression {
                             }
                             (PrimitiveType::Integer(_), PrimitiveType::Float(b)) => {
                                 PrimitiveType::Float(b)
-                            }
-                            (PrimitiveType::Integer(_), PrimitiveType::Pointer(b)) => {
-                                PrimitiveType::Pointer(b)
-                            }
-                            (PrimitiveType::Integer(_), PrimitiveType::Array(b)) => {
-                                PrimitiveType::Pointer(b.cv_type)
                             }
 
                             (PrimitiveType::Float(a), PrimitiveType::Integer(_)) => {
@@ -208,6 +210,10 @@ impl Expression {
                             }
                             (PrimitiveType::Array(a), PrimitiveType::Integer(b)) => {
                                 PrimitiveType::Pointer(a.cv_type)
+                            }
+
+                            (PrimitiveType::Pointer(a), PrimitiveType::Pointer(b)) => {
+                                PrimitiveType::Integer(Integer::Int64)
                             }
 
                             _ => unreachable!("Sub expression type"),
@@ -264,7 +270,7 @@ impl Expression {
                     | ExprBinaryOp::GreaterThanOrEqual
                     | ExprBinaryOp::LogicalAnd
                     | ExprBinaryOp::LogicalOr => {
-                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int32))
+                        CVType::from_primitive(PrimitiveType::Integer(Integer::Int8))
                     }
 
                     ExprBinaryOp::AddAssign
@@ -277,7 +283,7 @@ impl Expression {
                     | ExprBinaryOp::BitwiseXorAssign
                     | ExprBinaryOp::ShiftLeftAssign
                     | ExprBinaryOp::ShiftRightAssign
-                    | ExprBinaryOp::Assign => lhs_type,
+                    | ExprBinaryOp::Assign(_) => lhs_type,
 
                     ExprBinaryOp::Comma => rhs_type,
                 }
@@ -339,6 +345,6 @@ pub struct ExprInitializerList {
 #[derive(Debug, Clone)]
 pub struct ExprMember {
     pub src: Box<Expression>,
-    pub member_offset: usize,
+    pub member_index: usize,
     pub member_type: CVType,
 }

@@ -2929,7 +2929,7 @@ impl translation_unitDataStack {
         __location_stack.truncate(__location_stack.len() - 3usize);
         let __res = {
             Expression::Binary(expression::ExprBinary {
-                op: expression::ExprBinaryOperator::Assign,
+                op: expression::ExprBinaryOperator::Assign(false),
                 lhs: Box::new(unary_expression),
                 rhs: Box::new(assignment_expression),
             })

@@ -1408,11 +1408,11 @@ impl Context {
                     return Err(CompileError::MemberOnIncompleteType);
                 };
 
-                for member in body.members.iter() {
+                for (member_index, member) in body.members.iter().enumerate() {
                     if expr.member == member.name {
                         return Ok(Expression::Member(expression::ExprMember {
                             src: Box::new(src),
-                            member_offset: member.offset,
+                            member_index,
                             member_type: member.cv_type.clone(),
                         }));
                     }
@@ -1438,11 +1438,11 @@ impl Context {
                     return Err(CompileError::ArrowOnIncompleteType);
                 };
 
-                for member in body.members.iter() {
+                for (member_index, member) in body.members.iter().enumerate() {
                     if expr.member == member.name {
                         return Ok(Expression::Arrow(expression::ExprMember {
                             src: Box::new(src),
-                            member_offset: member.offset,
+                            member_index,
                             member_type: member.cv_type.clone(),
                         }));
                     }
@@ -1629,6 +1629,111 @@ impl Context {
         &mut self,
         expr: ast::ExprBinary,
     ) -> Result<Expression, CompileError> {
+        // pre filter for assignment operators like +=, -=, etc.
+        match expr.op {
+            ExprBinaryOp::AddAssign => {
+                let lhs = expr.lhs;
+                let rhs = expr.rhs;
+                let op = ExprBinaryOp::Add;
+                return self.process_expression_binary(ast::ExprBinary {
+                    op: ExprBinaryOp::Assign(true),
+                    lhs: lhs.clone(),
+                    rhs: Box::new(ast::Expression::Binary(ast::ExprBinary { op, lhs, rhs })),
+                });
+            }
+            ExprBinaryOp::SubAssign => {
+                let lhs = expr.lhs;
+                let rhs = expr.rhs;
+                let op = ExprBinaryOp::Sub;
+                return self.process_expression_binary(ast::ExprBinary {
+                    op: ExprBinaryOp::Assign(true),
+                    lhs: lhs.clone(),
+                    rhs: Box::new(ast::Expression::Binary(ast::ExprBinary { op, lhs, rhs })),
+                });
+            }
+            ExprBinaryOp::MulAssign => {
+                let lhs = expr.lhs;
+                let rhs = expr.rhs;
+                let op = ExprBinaryOp::Mul;
+                return self.process_expression_binary(ast::ExprBinary {
+                    op: ExprBinaryOp::Assign(true),
+                    lhs: lhs.clone(),
+                    rhs: Box::new(ast::Expression::Binary(ast::ExprBinary { op, lhs, rhs })),
+                });
+            }
+            ExprBinaryOp::DivAssign => {
+                let lhs = expr.lhs;
+                let rhs = expr.rhs;
+                let op = ExprBinaryOp::Div;
+                return self.process_expression_binary(ast::ExprBinary {
+                    op: ExprBinaryOp::Assign(true),
+                    lhs: lhs.clone(),
+                    rhs: Box::new(ast::Expression::Binary(ast::ExprBinary { op, lhs, rhs })),
+                });
+            }
+            ExprBinaryOp::ModAssign => {
+                let lhs = expr.lhs;
+                let rhs = expr.rhs;
+                let op = ExprBinaryOp::Mod;
+                return self.process_expression_binary(ast::ExprBinary {
+                    op: ExprBinaryOp::Assign(true),
+                    lhs: lhs.clone(),
+                    rhs: Box::new(ast::Expression::Binary(ast::ExprBinary { op, lhs, rhs })),
+                });
+            }
+            ExprBinaryOp::BitwiseAndAssign => {
+                let lhs = expr.lhs;
+                let rhs = expr.rhs;
+                let op = ExprBinaryOp::BitwiseAnd;
+                return self.process_expression_binary(ast::ExprBinary {
+                    op: ExprBinaryOp::Assign(true),
+                    lhs: lhs.clone(),
+                    rhs: Box::new(ast::Expression::Binary(ast::ExprBinary { op, lhs, rhs })),
+                });
+            }
+            ExprBinaryOp::BitwiseOrAssign => {
+                let lhs = expr.lhs;
+                let rhs = expr.rhs;
+                let op = ExprBinaryOp::BitwiseOr;
+                return self.process_expression_binary(ast::ExprBinary {
+                    op: ExprBinaryOp::Assign(true),
+                    lhs: lhs.clone(),
+                    rhs: Box::new(ast::Expression::Binary(ast::ExprBinary { op, lhs, rhs })),
+                });
+            }
+            ExprBinaryOp::BitwiseXorAssign => {
+                let lhs = expr.lhs;
+                let rhs = expr.rhs;
+                let op = ExprBinaryOp::BitwiseXor;
+                return self.process_expression_binary(ast::ExprBinary {
+                    op: ExprBinaryOp::Assign(true),
+                    lhs: lhs.clone(),
+                    rhs: Box::new(ast::Expression::Binary(ast::ExprBinary { op, lhs, rhs })),
+                });
+            }
+            ExprBinaryOp::ShiftLeftAssign => {
+                let lhs = expr.lhs;
+                let rhs = expr.rhs;
+                let op = ExprBinaryOp::ShiftLeft;
+                return self.process_expression_binary(ast::ExprBinary {
+                    op: ExprBinaryOp::Assign(true),
+                    lhs: lhs.clone(),
+                    rhs: Box::new(ast::Expression::Binary(ast::ExprBinary { op, lhs, rhs })),
+                });
+            }
+            ExprBinaryOp::ShiftRightAssign => {
+                let lhs = expr.lhs;
+                let rhs = expr.rhs;
+                let op = ExprBinaryOp::ShiftRight;
+                return self.process_expression_binary(ast::ExprBinary {
+                    op: ExprBinaryOp::Assign(true),
+                    lhs: lhs.clone(),
+                    rhs: Box::new(ast::Expression::Binary(ast::ExprBinary { op, lhs, rhs })),
+                });
+            }
+            _ => {}
+        }
+
         let lhs = self.process_expression(*expr.lhs)?;
         let rhs = self.process_expression(*expr.rhs)?;
         let lhs_type = lhs.cv_type()?.type_;
@@ -1674,119 +1779,6 @@ impl Context {
                         rhs: Box::new(rhs),
                     }));
                 }
-                (PrimitiveType::Integer(a), PrimitiveType::Pointer(p)) => {
-                    let sizeof = p.sizeof()? as u64;
-
-                    let rhs = Expression::Cast(expression::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Integer(Integer::UInt64),
-                    });
-
-                    let lhs = if a.sizeof() != 64 {
-                        if a.is_signed() {
-                            let lhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(lhs),
-                                type_: PrimitiveType::Integer(Integer::Int64),
-                            });
-                            let lhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            lhs
-                        } else {
-                            let lhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(lhs),
-                                type_: PrimitiveType::Integer(Integer::UInt64),
-                            });
-                            let lhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            lhs
-                        }
-                    } else {
-                        if a.is_signed() {
-                            let lhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            lhs
-                        } else {
-                            let lhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            lhs
-                        }
-                    };
-
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: ExprBinaryOp::Add,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Integer(a), PrimitiveType::Array(p)) => {
-                    let sizeof = p.cv_type.sizeof()? as u64;
-
-                    let rhs = Expression::Cast(expression::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Integer(Integer::UInt64),
-                    });
-
-                    let lhs = if a.sizeof() != 64 {
-                        if a.is_signed() {
-                            let lhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(lhs),
-                                type_: PrimitiveType::Integer(Integer::Int64),
-                            });
-
-                            let lhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            lhs
-                        } else {
-                            let lhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(lhs),
-                                type_: PrimitiveType::Integer(Integer::UInt64),
-                            });
-                            let lhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            lhs
-                        }
-                    } else {
-                        if a.is_signed() {
-                            let lhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            lhs
-                        } else {
-                            let lhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(lhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            lhs
-                        }
-                    };
-
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: ExprBinaryOp::Add,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
 
                 (PrimitiveType::Float(f), PrimitiveType::Integer(_)) => {
                     let rhs = Expression::Cast(super::ExprCast {
@@ -1827,114 +1819,14 @@ impl Context {
                     }));
                 }
 
-                (PrimitiveType::Pointer(p), PrimitiveType::Integer(b)) => {
-                    let sizeof = p.sizeof()? as u64;
-
-                    let lhs = Expression::Cast(expression::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Integer(Integer::UInt64),
-                    });
-
-                    let rhs = if b.sizeof() != 64 {
-                        if b.is_signed() {
-                            let rhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(Integer::Int64),
-                            });
-
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            rhs
-                        } else {
-                            let rhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(Integer::UInt64),
-                            });
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            rhs
-                        }
-                    } else {
-                        if b.is_signed() {
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            rhs
-                        } else {
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            rhs
-                        }
-                    };
-
+                (PrimitiveType::Pointer(_), PrimitiveType::Integer(_)) => {
                     return Ok(Expression::Binary(expression::ExprBinary {
                         op: ExprBinaryOp::Add,
                         lhs: Box::new(lhs),
                         rhs: Box::new(rhs),
                     }));
                 }
-                (PrimitiveType::Array(p), PrimitiveType::Integer(b)) => {
-                    let sizeof = p.cv_type.sizeof()? as u64;
-
-                    let lhs = Expression::Cast(expression::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Integer(Integer::UInt64),
-                    });
-
-                    let rhs = if b.sizeof() != 64 {
-                        if b.is_signed() {
-                            let rhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(Integer::Int64),
-                            });
-
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            rhs
-                        } else {
-                            let rhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(Integer::UInt64),
-                            });
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            rhs
-                        }
-                    } else {
-                        if b.is_signed() {
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            rhs
-                        } else {
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            rhs
-                        }
-                    };
-
+                (PrimitiveType::Array(_), PrimitiveType::Integer(_)) => {
                     return Ok(Expression::Binary(expression::ExprBinary {
                         op: ExprBinaryOp::Add,
                         lhs: Box::new(lhs),
@@ -1944,7 +1836,6 @@ impl Context {
 
                 _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
             },
-
             ExprBinaryOp::Sub => match (lhs_type, rhs_type) {
                 (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
                     let common_type = a.common_type(&b);
@@ -2024,114 +1915,25 @@ impl Context {
                     }));
                 }
 
-                (PrimitiveType::Pointer(p), PrimitiveType::Integer(b)) => {
-                    let sizeof = p.sizeof()? as u64;
-
-                    let lhs = Expression::Cast(expression::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Integer(Integer::UInt64),
-                    });
-
-                    let rhs = if b.sizeof() != 64 {
-                        if b.is_signed() {
-                            let rhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(Integer::Int64),
-                            });
-
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            rhs
-                        } else {
-                            let rhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(Integer::UInt64),
-                            });
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            rhs
-                        }
-                    } else {
-                        if b.is_signed() {
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            rhs
-                        } else {
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            rhs
-                        }
-                    };
-
+                (PrimitiveType::Pointer(_), PrimitiveType::Integer(_)) => {
                     return Ok(Expression::Binary(expression::ExprBinary {
                         op: ExprBinaryOp::Sub,
                         lhs: Box::new(lhs),
                         rhs: Box::new(rhs),
                     }));
                 }
-                (PrimitiveType::Array(p), PrimitiveType::Integer(b)) => {
-                    let sizeof = p.cv_type.sizeof()? as u64;
+                (PrimitiveType::Array(_), PrimitiveType::Integer(_)) => {
+                    return Ok(Expression::Binary(expression::ExprBinary {
+                        op: ExprBinaryOp::Sub,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }));
+                }
 
-                    let lhs = Expression::Cast(expression::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Integer(Integer::UInt64),
-                    });
-
-                    let rhs = if b.sizeof() != 64 {
-                        if b.is_signed() {
-                            let rhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(Integer::Int64),
-                            });
-
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            rhs
-                        } else {
-                            let rhs = Expression::Cast(expression::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(Integer::UInt64),
-                            });
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            rhs
-                        }
-                    } else {
-                        if b.is_signed() {
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::Int64)),
-                            });
-                            rhs
-                        } else {
-                            let rhs = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mul,
-                                lhs: Box::new(rhs),
-                                rhs: Box::new(Expression::Integer(sizeof as i64, Integer::UInt64)),
-                            });
-                            rhs
-                        }
-                    };
-
+                (PrimitiveType::Pointer(a), PrimitiveType::Pointer(b)) => {
+                    if a != b {
+                        return Err(CompileError::PointerSubDifferentType);
+                    }
                     return Ok(Expression::Binary(expression::ExprBinary {
                         op: ExprBinaryOp::Sub,
                         lhs: Box::new(lhs),
@@ -2141,358 +1943,6 @@ impl Context {
 
                 _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
             },
-            ExprBinaryOp::AddAssign => {
-                if !lhs.is_reference() {
-                    return Err(CompileError::NotAssignable);
-                }
-                if lhs.cv_type()?.const_ {
-                    return Err(CompileError::AssignToConst);
-                }
-                let lhs_cloned = lhs.clone();
-                let binary_op = match (lhs_type, rhs_type) {
-                    (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                        let common_type = a.common_type(&b);
-                        let lhs = if a != common_type {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(lhs),
-                                type_: PrimitiveType::Integer(common_type.clone()),
-                            })
-                        } else {
-                            lhs
-                        };
-
-                        let rhs = if b != common_type {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(common_type.clone()),
-                            })
-                        } else {
-                            rhs
-                        };
-
-                        Expression::Binary(expression::ExprBinary {
-                            op: expr.op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        })
-                    }
-                    (PrimitiveType::Integer(_), PrimitiveType::Float(f)) => {
-                        let lhs = Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Float(f),
-                        });
-
-                        Expression::Binary(expression::ExprBinary {
-                            op: expr.op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        })
-                    }
-
-                    (PrimitiveType::Float(f), PrimitiveType::Integer(_)) => {
-                        let rhs = Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Float(f),
-                        });
-
-                        Expression::Binary(expression::ExprBinary {
-                            op: expr.op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        })
-                    }
-                    (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
-                        let common_type = a.common_type(&b);
-                        let lhs = if a != common_type {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(lhs),
-                                type_: PrimitiveType::Float(common_type.clone()),
-                            })
-                        } else {
-                            lhs
-                        };
-
-                        let rhs = if b != common_type {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Float(common_type.clone()),
-                            })
-                        } else {
-                            rhs
-                        };
-
-                        Expression::Binary(expression::ExprBinary {
-                            op: expr.op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        })
-                    }
-
-                    (PrimitiveType::Pointer(p), PrimitiveType::Integer(b)) => {
-                        let sizeof = p.sizeof()? as u64;
-
-                        let lhs = Expression::Cast(expression::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Integer(Integer::UInt64),
-                        });
-
-                        let rhs = if b.sizeof() != 64 {
-                            if b.is_signed() {
-                                let rhs = Expression::Cast(expression::ExprCast {
-                                    expr: Box::new(rhs),
-                                    type_: PrimitiveType::Integer(Integer::Int64),
-                                });
-
-                                let rhs = Expression::Binary(expression::ExprBinary {
-                                    op: ExprBinaryOp::Mul,
-                                    lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Integer(
-                                        sizeof as i64,
-                                        Integer::Int64,
-                                    )),
-                                });
-                                rhs
-                            } else {
-                                let rhs = Expression::Cast(expression::ExprCast {
-                                    expr: Box::new(rhs),
-                                    type_: PrimitiveType::Integer(Integer::UInt64),
-                                });
-                                let rhs = Expression::Binary(expression::ExprBinary {
-                                    op: ExprBinaryOp::Mul,
-                                    lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Integer(
-                                        sizeof as i64,
-                                        Integer::UInt64,
-                                    )),
-                                });
-                                rhs
-                            }
-                        } else {
-                            if b.is_signed() {
-                                let rhs = Expression::Binary(expression::ExprBinary {
-                                    op: ExprBinaryOp::Mul,
-                                    lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Integer(
-                                        sizeof as i64,
-                                        Integer::Int64,
-                                    )),
-                                });
-                                rhs
-                            } else {
-                                let rhs = Expression::Binary(expression::ExprBinary {
-                                    op: ExprBinaryOp::Mul,
-                                    lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Integer(
-                                        sizeof as i64,
-                                        Integer::UInt64,
-                                    )),
-                                });
-                                rhs
-                            }
-                        };
-
-                        Expression::Binary(expression::ExprBinary {
-                            op: ExprBinaryOp::Add,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        })
-                    }
-
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                };
-
-                let rhs = if lhs_cloned.cv_type()?.type_ != binary_op.cv_type()?.type_ {
-                    Expression::Cast(super::ExprCast {
-                        expr: Box::new(binary_op),
-                        type_: lhs_cloned.cv_type()?.type_.clone(),
-                    })
-                } else {
-                    binary_op
-                };
-
-                let assign_op = Expression::Binary(expression::ExprBinary {
-                    op: ExprBinaryOp::Assign,
-                    lhs: Box::new(lhs_cloned),
-                    rhs: Box::new(rhs),
-                });
-                return Ok(assign_op);
-            }
-            ExprBinaryOp::SubAssign => {
-                if !lhs.is_reference() {
-                    return Err(CompileError::NotAssignable);
-                }
-                if lhs.cv_type()?.const_ {
-                    return Err(CompileError::AssignToConst);
-                }
-                let lhs_cloned = lhs.clone();
-                let binary_op = match (lhs_type, rhs_type) {
-                    (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                        let common_type = a.common_type(&b);
-                        let lhs = if a != common_type {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(lhs),
-                                type_: PrimitiveType::Integer(common_type.clone()),
-                            })
-                        } else {
-                            lhs
-                        };
-
-                        let rhs = if b != common_type {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(common_type.clone()),
-                            })
-                        } else {
-                            rhs
-                        };
-
-                        Expression::Binary(expression::ExprBinary {
-                            op: expr.op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        })
-                    }
-                    (PrimitiveType::Integer(_), PrimitiveType::Float(f)) => {
-                        let lhs = Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Float(f),
-                        });
-
-                        return Ok(Expression::Binary(expression::ExprBinary {
-                            op: expr.op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        }));
-                    }
-
-                    (PrimitiveType::Float(f), PrimitiveType::Integer(_)) => {
-                        let rhs = Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Float(f),
-                        });
-
-                        Expression::Binary(expression::ExprBinary {
-                            op: expr.op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        })
-                    }
-                    (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
-                        let common_type = a.common_type(&b);
-                        let lhs = if a != common_type {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(lhs),
-                                type_: PrimitiveType::Float(common_type.clone()),
-                            })
-                        } else {
-                            lhs
-                        };
-
-                        let rhs = if b != common_type {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Float(common_type.clone()),
-                            })
-                        } else {
-                            rhs
-                        };
-
-                        Expression::Binary(expression::ExprBinary {
-                            op: expr.op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        })
-                    }
-
-                    (PrimitiveType::Pointer(p), PrimitiveType::Integer(b)) => {
-                        let sizeof = p.sizeof()? as u64;
-
-                        let lhs = Expression::Cast(expression::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Integer(Integer::UInt64),
-                        });
-
-                        let rhs = if b.sizeof() != 64 {
-                            if b.is_signed() {
-                                let rhs = Expression::Cast(expression::ExprCast {
-                                    expr: Box::new(rhs),
-                                    type_: PrimitiveType::Integer(Integer::Int64),
-                                });
-
-                                let rhs = Expression::Binary(expression::ExprBinary {
-                                    op: ExprBinaryOp::Mul,
-                                    lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Integer(
-                                        sizeof as i64,
-                                        Integer::Int64,
-                                    )),
-                                });
-                                rhs
-                            } else {
-                                let rhs = Expression::Cast(expression::ExprCast {
-                                    expr: Box::new(rhs),
-                                    type_: PrimitiveType::Integer(Integer::UInt64),
-                                });
-                                let rhs = Expression::Binary(expression::ExprBinary {
-                                    op: ExprBinaryOp::Mul,
-                                    lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Integer(
-                                        sizeof as i64,
-                                        Integer::UInt64,
-                                    )),
-                                });
-                                rhs
-                            }
-                        } else {
-                            if b.is_signed() {
-                                let rhs = Expression::Binary(expression::ExprBinary {
-                                    op: ExprBinaryOp::Mul,
-                                    lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Integer(
-                                        sizeof as i64,
-                                        Integer::Int64,
-                                    )),
-                                });
-                                rhs
-                            } else {
-                                let rhs = Expression::Binary(expression::ExprBinary {
-                                    op: ExprBinaryOp::Mul,
-                                    lhs: Box::new(rhs),
-                                    rhs: Box::new(Expression::Integer(
-                                        sizeof as i64,
-                                        Integer::UInt64,
-                                    )),
-                                });
-                                rhs
-                            }
-                        };
-
-                        Expression::Binary(expression::ExprBinary {
-                            op: ExprBinaryOp::Sub,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        })
-                    }
-
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                };
-
-                let rhs = if lhs_cloned.cv_type()?.type_ != binary_op.cv_type()?.type_ {
-                    Expression::Cast(super::ExprCast {
-                        expr: Box::new(binary_op),
-                        type_: lhs_cloned.cv_type()?.type_.clone(),
-                    })
-                } else {
-                    binary_op
-                };
-
-                let assign_op = Expression::Binary(expression::ExprBinary {
-                    op: ExprBinaryOp::Assign,
-                    lhs: Box::new(lhs_cloned),
-                    rhs: Box::new(rhs),
-                });
-                return Ok(assign_op);
-            }
             ExprBinaryOp::Mul | ExprBinaryOp::Div => match (lhs_type, rhs_type) {
                 (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
                     let common_type = a.common_type(&b);
@@ -2574,60 +2024,6 @@ impl Context {
 
                 _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
             },
-            ExprBinaryOp::MulAssign | ExprBinaryOp::DivAssign => {
-                if !lhs.is_reference() {
-                    return Err(CompileError::NotAssignable);
-                }
-                if lhs.cv_type()?.const_ {
-                    return Err(CompileError::AssignToConst);
-                }
-                let common_type = match (&lhs_type, &rhs_type) {
-                    (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                        PrimitiveType::Integer(a.common_type(&b))
-                    }
-                    (PrimitiveType::Integer(_), PrimitiveType::Float(f)) => {
-                        PrimitiveType::Float(*f)
-                    }
-
-                    (PrimitiveType::Float(f), PrimitiveType::Integer(_)) => {
-                        PrimitiveType::Float(*f)
-                    }
-                    (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
-                        PrimitiveType::Float(a.common_type(&b))
-                    }
-
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                };
-
-                let lhs_casted = if lhs_type != common_type {
-                    Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs.clone()),
-                        type_: common_type.clone(),
-                    })
-                } else {
-                    lhs.clone()
-                };
-                let rhs = if rhs_type != common_type {
-                    Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: common_type.clone(),
-                    })
-                } else {
-                    rhs
-                };
-
-                let op = Expression::Binary(expression::ExprBinary {
-                    op: expr.op,
-                    lhs: Box::new(lhs_casted),
-                    rhs: Box::new(rhs),
-                });
-                let assign_op = Expression::Binary(expression::ExprBinary {
-                    op: ExprBinaryOp::Assign,
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(op),
-                });
-                return Ok(assign_op);
-            }
             ExprBinaryOp::Mod => match (lhs_type, rhs_type) {
                 (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
                     let common_type = a.common_type(&b);
@@ -2658,67 +2054,6 @@ impl Context {
 
                 _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
             },
-            ExprBinaryOp::ModAssign => {
-                if !lhs.is_reference() {
-                    return Err(CompileError::NotAssignable);
-                }
-                if lhs.cv_type()?.const_ {
-                    return Err(CompileError::AssignToConst);
-                }
-                match (lhs_type, rhs_type) {
-                    (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                        let common_type = a.common_type(&b);
-
-                        let rhs = if b != common_type {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(common_type.clone()),
-                            })
-                        } else {
-                            rhs
-                        };
-
-                        if a != common_type {
-                            let lhs_casted = Expression::Cast(super::ExprCast {
-                                expr: Box::new(lhs.clone()),
-                                type_: PrimitiveType::Integer(common_type.clone()),
-                            });
-                            let mod_op = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mod,
-                                lhs: Box::new(lhs_casted),
-                                rhs: Box::new(rhs),
-                            });
-                            let mod_op = Expression::Cast(super::ExprCast {
-                                expr: Box::new(mod_op),
-                                type_: PrimitiveType::Integer(a.clone()),
-                            });
-                            let assign_op = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Assign,
-                                lhs: Box::new(lhs),
-                                rhs: Box::new(mod_op),
-                            });
-
-                            return Ok(assign_op);
-                        } else {
-                            let lhs_casted = lhs.clone();
-                            let mod_op = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Mod,
-                                lhs: Box::new(lhs_casted),
-                                rhs: Box::new(rhs),
-                            });
-                            let assign_op = Expression::Binary(expression::ExprBinary {
-                                op: ExprBinaryOp::Assign,
-                                lhs: Box::new(lhs),
-                                rhs: Box::new(mod_op),
-                            });
-
-                            return Ok(assign_op);
-                        }
-                    }
-
-                    _ => return Err(CompileError::ArithmeticOpOnNonNumeric),
-                }
-            }
             ExprBinaryOp::BitwiseAnd | ExprBinaryOp::BitwiseOr | ExprBinaryOp::BitwiseXor => {
                 match (lhs_type, rhs_type) {
                     (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
@@ -2749,45 +2084,8 @@ impl Context {
                     _ => return Err(CompileError::BitwiseOpOnNonInteger),
                 }
             }
-            ExprBinaryOp::BitwiseAndAssign
-            | ExprBinaryOp::BitwiseOrAssign
-            | ExprBinaryOp::BitwiseXorAssign => {
-                if !lhs.is_reference() {
-                    return Err(CompileError::NotAssignable);
-                }
-                if lhs.cv_type()?.const_ {
-                    return Err(CompileError::AssignToConst);
-                }
-                match (lhs_type, rhs_type) {
-                    (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                        let rhs = if a != b {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(a.clone()),
-                            })
-                        } else {
-                            rhs
-                        };
-                        return Ok(Expression::Binary(expression::ExprBinary {
-                            op: expr.op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        }));
-                    }
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-            }
             ExprBinaryOp::ShiftLeft | ExprBinaryOp::ShiftRight => match (lhs_type, rhs_type) {
-                (PrimitiveType::Integer(_), PrimitiveType::Integer(b)) => {
-                    let rhs = if b != Integer::UInt8 {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Integer(Integer::UInt8),
-                        })
-                    } else {
-                        rhs
-                    };
-
+                (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => {
                     return Ok(Expression::Binary(expression::ExprBinary {
                         op: expr.op,
                         lhs: Box::new(lhs),
@@ -2796,906 +2094,155 @@ impl Context {
                 }
                 _ => return Err(CompileError::BitwiseOpOnNonInteger),
             },
-            ExprBinaryOp::ShiftLeftAssign | ExprBinaryOp::ShiftRightAssign => {
+            ExprBinaryOp::Equal
+            | ExprBinaryOp::NotEqual
+            | ExprBinaryOp::LessThan
+            | ExprBinaryOp::LessThanOrEqual
+            | ExprBinaryOp::GreaterThan
+            | ExprBinaryOp::GreaterThanOrEqual => match (&lhs_type, &rhs_type) {
+                (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
+                    let common_type = a.common_type(&b);
+                    let lhs = if a != &common_type {
+                        Expression::Cast(super::ExprCast {
+                            expr: Box::new(lhs),
+                            type_: PrimitiveType::Integer(common_type),
+                        })
+                    } else {
+                        lhs
+                    };
+                    let rhs = if b != &common_type {
+                        Expression::Cast(super::ExprCast {
+                            expr: Box::new(rhs),
+                            type_: PrimitiveType::Integer(common_type),
+                        })
+                    } else {
+                        rhs
+                    };
+                    return Ok(Expression::Binary(expression::ExprBinary {
+                        op: expr.op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }));
+                }
+                (PrimitiveType::Integer(_), PrimitiveType::Float(b)) => {
+                    let lhs = Expression::Cast(super::ExprCast {
+                        expr: Box::new(lhs),
+                        type_: PrimitiveType::Float(*b),
+                    });
+                    return Ok(Expression::Binary(expression::ExprBinary {
+                        op: expr.op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }));
+                }
+
+                (PrimitiveType::Float(a), PrimitiveType::Integer(_)) => {
+                    let rhs = Expression::Cast(super::ExprCast {
+                        expr: Box::new(rhs),
+                        type_: PrimitiveType::Float(*a),
+                    });
+                    return Ok(Expression::Binary(expression::ExprBinary {
+                        op: expr.op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }));
+                }
+                (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
+                    let common_type = a.common_type(&b);
+                    let lhs = if a != &common_type {
+                        Expression::Cast(super::ExprCast {
+                            expr: Box::new(lhs),
+                            type_: PrimitiveType::Float(common_type),
+                        })
+                    } else {
+                        lhs
+                    };
+                    let rhs = if b != &common_type {
+                        Expression::Cast(super::ExprCast {
+                            expr: Box::new(rhs),
+                            type_: PrimitiveType::Float(common_type),
+                        })
+                    } else {
+                        rhs
+                    };
+                    return Ok(Expression::Binary(expression::ExprBinary {
+                        op: expr.op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }));
+                }
+
+                (PrimitiveType::Pointer(a), PrimitiveType::Pointer(b)) => {
+                    if a != b {
+                        return Err(CompileError::DistinctPointer(
+                            a.as_ref().clone(),
+                            b.as_ref().clone(),
+                        ));
+                    }
+                    return Ok(Expression::Binary(expression::ExprBinary {
+                        op: expr.op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }));
+                }
+                (PrimitiveType::Pointer(a), PrimitiveType::Array(b)) => {
+                    if a != &b.cv_type {
+                        return Err(CompileError::DistinctPointer(
+                            a.as_ref().clone(),
+                            b.cv_type.as_ref().clone(),
+                        ));
+                    }
+                    return Ok(Expression::Binary(expression::ExprBinary {
+                        op: expr.op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }));
+                }
+                (PrimitiveType::Array(a), PrimitiveType::Pointer(b)) => {
+                    if &a.cv_type != b {
+                        return Err(CompileError::DistinctPointer(
+                            a.cv_type.as_ref().clone(),
+                            b.as_ref().clone(),
+                        ));
+                    }
+                    return Ok(Expression::Binary(expression::ExprBinary {
+                        op: expr.op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }));
+                }
+                (PrimitiveType::Array(a), PrimitiveType::Array(b)) => {
+                    if a.cv_type != b.cv_type {
+                        return Err(CompileError::DistinctPointer(
+                            a.cv_type.as_ref().clone(),
+                            b.cv_type.as_ref().clone(),
+                        ));
+                    }
+                    return Ok(Expression::Binary(expression::ExprBinary {
+                        op: expr.op,
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                    }));
+                }
+
+                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
+            },
+
+            ExprBinaryOp::Assign(force_cast) => {
                 if !lhs.is_reference() {
                     return Err(CompileError::NotAssignable);
                 }
                 if lhs.cv_type()?.const_ {
                     return Err(CompileError::AssignToConst);
                 }
-
-                match (lhs_type, rhs_type) {
-                    (PrimitiveType::Integer(_), PrimitiveType::Integer(b)) => {
-                        let rhs = if b != Integer::UInt8 {
-                            Expression::Cast(super::ExprCast {
-                                expr: Box::new(rhs),
-                                type_: PrimitiveType::Integer(Integer::UInt8),
-                            })
-                        } else {
-                            rhs
-                        };
-
-                        return Ok(Expression::Binary(expression::ExprBinary {
-                            op: expr.op,
-                            lhs: Box::new(lhs),
-                            rhs: Box::new(rhs),
-                        }));
+                if force_cast {
+                    if !rhs_type.is_castable(&lhs_type) {
+                        return Err(CompileError::InvalidOperandType(lhs_type, rhs_type));
                     }
-                    _ => return Err(CompileError::BitwiseOpOnNonInteger),
-                }
-            }
-            ExprBinaryOp::Equal => match (&lhs_type, &rhs_type) {
-                (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Integer(_), PrimitiveType::Float(b)) => {
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Float(*b),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Float(a), PrimitiveType::Integer(_)) => {
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Float(*a),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Pointer(a), PrimitiveType::Pointer(b)) => {
-                    if a != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
+                } else {
+                    if !rhs_type.is_implicitly_castable(&lhs_type) {
+                        return Err(CompileError::InvalidOperandType(lhs_type, rhs_type));
                     }
-                }
-                (PrimitiveType::Pointer(a), PrimitiveType::Array(b)) => {
-                    if a != &b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Pointer(b)) => {
-                    if &a.cv_type != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Array(b)) => {
-                    if a.cv_type != b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
-            },
-            ExprBinaryOp::NotEqual => match (&lhs_type, &rhs_type) {
-                (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Integer(_), PrimitiveType::Float(b)) => {
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Float(*b),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Float(a), PrimitiveType::Integer(_)) => {
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Float(*a),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Pointer(a), PrimitiveType::Pointer(b)) => {
-                    if a != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-                }
-                (PrimitiveType::Pointer(a), PrimitiveType::Array(b)) => {
-                    if a != &b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Pointer(b)) => {
-                    if &a.cv_type != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Array(b)) => {
-                    if a.cv_type != b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
-            },
-            ExprBinaryOp::LessThan => match (&lhs_type, &rhs_type) {
-                (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Integer(_), PrimitiveType::Float(b)) => {
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Float(*b),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Float(a), PrimitiveType::Integer(_)) => {
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Float(*a),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Pointer(a), PrimitiveType::Pointer(b)) => {
-                    if a != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-                }
-                (PrimitiveType::Pointer(a), PrimitiveType::Array(b)) => {
-                    if a != &b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Pointer(b)) => {
-                    if &a.cv_type != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Array(b)) => {
-                    if a.cv_type != b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
-            },
-            ExprBinaryOp::LessThanOrEqual => match (&lhs_type, &rhs_type) {
-                (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Integer(_), PrimitiveType::Float(b)) => {
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Float(*b),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Float(a), PrimitiveType::Integer(_)) => {
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Float(*a),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Pointer(a), PrimitiveType::Pointer(b)) => {
-                    if a != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-                }
-                (PrimitiveType::Pointer(a), PrimitiveType::Array(b)) => {
-                    if a != &b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Pointer(b)) => {
-                    if &a.cv_type != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Array(b)) => {
-                    if a.cv_type != b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
-            },
-            ExprBinaryOp::GreaterThan => match (&lhs_type, &rhs_type) {
-                (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Integer(_), PrimitiveType::Float(b)) => {
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Float(*b),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Float(a), PrimitiveType::Integer(_)) => {
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Float(*a),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Pointer(a), PrimitiveType::Pointer(b)) => {
-                    if a != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-                }
-                (PrimitiveType::Pointer(a), PrimitiveType::Array(b)) => {
-                    if a != &b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Pointer(b)) => {
-                    if &a.cv_type != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Array(b)) => {
-                    if a.cv_type != b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
-            },
-            ExprBinaryOp::GreaterThanOrEqual => match (&lhs_type, &rhs_type) {
-                (PrimitiveType::Integer(a), PrimitiveType::Integer(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Integer(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Integer(_), PrimitiveType::Float(b)) => {
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Float(*b),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Float(a), PrimitiveType::Integer(_)) => {
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Float(*a),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Float(a), PrimitiveType::Float(b)) => {
-                    let common_type = a.common_type(&b);
-                    let lhs = if a != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(lhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        lhs
-                    };
-                    let rhs = if b != &common_type {
-                        Expression::Cast(super::ExprCast {
-                            expr: Box::new(rhs),
-                            type_: PrimitiveType::Float(common_type),
-                        })
-                    } else {
-                        rhs
-                    };
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                (PrimitiveType::Pointer(a), PrimitiveType::Pointer(b)) => {
-                    if a != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-                }
-                (PrimitiveType::Pointer(a), PrimitiveType::Array(b)) => {
-                    if a != &b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Pointer(b)) => {
-                    if &a.cv_type != b {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-                (PrimitiveType::Array(a), PrimitiveType::Array(b)) => {
-                    if a.cv_type != b.cv_type {
-                        return Err(CompileError::DistinctPointer(
-                            a.cv_type.as_ref().clone(),
-                            b.cv_type.as_ref().clone(),
-                        ));
-                    }
-
-                    let lhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(lhs),
-                        type_: PrimitiveType::Pointer(a.cv_type.clone()),
-                    });
-                    let rhs = Expression::Cast(super::ExprCast {
-                        expr: Box::new(rhs),
-                        type_: PrimitiveType::Pointer(b.cv_type.clone()),
-                    });
-                    return Ok(Expression::Binary(expression::ExprBinary {
-                        op: expr.op,
-                        lhs: Box::new(lhs),
-                        rhs: Box::new(rhs),
-                    }));
-                }
-
-                _ => return Err(CompileError::InvalidOperandType(lhs_type, rhs_type)),
-            },
-            ExprBinaryOp::LogicalAnd => {
-                if !lhs_type.is_bool_castable() || !rhs_type.is_bool_castable() {
-                    return Err(CompileError::LogicalOpOnNonBool);
-                }
-            }
-            ExprBinaryOp::LogicalOr => {
-                if !lhs_type.is_bool_castable() || !rhs_type.is_bool_castable() {
-                    return Err(CompileError::LogicalOpOnNonBool);
-                }
-            }
-
-            ExprBinaryOp::Comma => {}
-            ExprBinaryOp::Assign => {
-                if !lhs.is_reference() {
-                    return Err(CompileError::NotAssignable);
-                }
-                if lhs.cv_type()?.const_ {
-                    return Err(CompileError::AssignToConst);
-                }
-                if !rhs_type.is_implicitly_castable(&lhs_type) {
-                    return Err(CompileError::InvalidOperandType(lhs_type, rhs_type));
                 }
                 let rhs = if lhs_type != rhs_type {
                     Expression::Cast(expression::ExprCast {
@@ -3711,6 +2258,30 @@ impl Context {
                     rhs: Box::new(rhs),
                 }));
             }
+
+            ExprBinaryOp::LogicalAnd => {
+                if !lhs_type.is_bool_castable() || !rhs_type.is_bool_castable() {
+                    return Err(CompileError::LogicalOpOnNonBool);
+                }
+            }
+            ExprBinaryOp::LogicalOr => {
+                if !lhs_type.is_bool_castable() || !rhs_type.is_bool_castable() {
+                    return Err(CompileError::LogicalOpOnNonBool);
+                }
+            }
+
+            ExprBinaryOp::Comma => {}
+
+            ExprBinaryOp::AddAssign
+            | ExprBinaryOp::SubAssign
+            | ExprBinaryOp::MulAssign
+            | ExprBinaryOp::DivAssign
+            | ExprBinaryOp::ModAssign
+            | ExprBinaryOp::BitwiseAndAssign
+            | ExprBinaryOp::BitwiseOrAssign
+            | ExprBinaryOp::BitwiseXorAssign
+            | ExprBinaryOp::ShiftLeftAssign
+            | ExprBinaryOp::ShiftRightAssign => unreachable!("Should be handled before"),
         }
 
         Ok(Expression::Binary(expression::ExprBinary {

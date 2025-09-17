@@ -100,4 +100,6 @@ pub enum CompileError {
     InitializeTypeMismatch(PrimitiveType, PrimitiveType),
 
     DistinctPointer(CVType, CVType),
+
+    PointerSubDifferentType,
 }

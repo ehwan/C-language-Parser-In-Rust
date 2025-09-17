@@ -1,3 +1,5 @@
+use inkwell::AddressSpace;
+
 use crate::semantic::CombinedDeclarator;
 
 use super::CompileError;
@@ -69,6 +71,23 @@ impl Integer {
         let unsigned = self.is_unsigned() || other.is_unsigned();
         Integer::from_size_signed(size, unsigned)
     }
+
+    pub fn to_llvm_type<'ctx>(
+        &self,
+        context: &'ctx inkwell::context::Context,
+    ) -> inkwell::types::AnyTypeEnum<'ctx> {
+        use inkwell::types::AnyType;
+        match self {
+            Integer::Int8 => context.i8_type().as_any_type_enum(),
+            Integer::Int16 => context.i16_type().as_any_type_enum(),
+            Integer::Int32 => context.i32_type().as_any_type_enum(),
+            Integer::Int64 => context.i64_type().as_any_type_enum(),
+            Integer::UInt8 => context.i8_type().as_any_type_enum(),
+            Integer::UInt16 => context.i16_type().as_any_type_enum(),
+            Integer::UInt32 => context.i32_type().as_any_type_enum(),
+            Integer::UInt64 => context.i64_type().as_any_type_enum(),
+        }
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
 pub enum Float {
@@ -95,6 +114,17 @@ impl Float {
             _ => Float::Float32,
         }
     }
+
+    pub fn to_llvm_type<'ctx>(
+        &self,
+        context: &'ctx inkwell::context::Context,
+    ) -> inkwell::types::AnyTypeEnum<'ctx> {
+        use inkwell::types::AnyType;
+        match self {
+            Float::Float32 => context.f32_type().as_any_type_enum(),
+            Float::Float64 => context.f64_type().as_any_type_enum(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -112,7 +142,6 @@ pub enum PrimitiveType {
     Function(FunctionType),
 }
 impl PrimitiveType {
-    // @TODO
     pub fn is_castable(&self, to: &PrimitiveType) -> bool {
         match (self, to) {
             (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => true,
@@ -265,6 +294,64 @@ impl PrimitiveType {
             (PrimitiveType::Function(_), _) => None,
         }
     }
+
+    pub fn is_function(&self) -> bool {
+        matches!(self, PrimitiveType::Function(_))
+    }
+
+    pub fn to_llvm_type<'ctx>(
+        &self,
+        context: &'ctx inkwell::context::Context,
+    ) -> inkwell::types::AnyTypeEnum<'ctx> {
+        use inkwell::types::AnyType;
+        use inkwell::types::AnyTypeEnum;
+        use inkwell::types::BasicType;
+        use inkwell::types::BasicTypeEnum;
+        match self {
+            PrimitiveType::Void => context.void_type().as_any_type_enum(),
+            PrimitiveType::Integer(integer) => integer.to_llvm_type(context),
+            PrimitiveType::Float(float) => float.to_llvm_type(context),
+
+            PrimitiveType::Pointer(ty) => {
+                let ptr_type = match ty.to_llvm_type(context) {
+                    AnyTypeEnum::FunctionType(f) => f.ptr_type(AddressSpace::default()),
+                    AnyTypeEnum::VoidType(_) => context.i8_type().ptr_type(AddressSpace::default()),
+                    ty => {
+                        let ty: BasicTypeEnum = ty.try_into().unwrap();
+                        ty.ptr_type(AddressSpace::default())
+                    }
+                };
+                ptr_type.as_any_type_enum()
+            }
+            PrimitiveType::Array(array) => {
+                let basic_type: BasicTypeEnum = array
+                    .cv_type
+                    .type_
+                    .to_llvm_type(context)
+                    .try_into()
+                    .unwrap();
+                basic_type.array_type(array.size as u32).as_any_type_enum()
+            }
+            PrimitiveType::Struct(s) => {
+                let body = s.body.as_ref().unwrap();
+                let members = body
+                    .members
+                    .iter()
+                    .map(|m| {
+                        let basic_type: BasicTypeEnum =
+                            m.cv_type.type_.to_llvm_type(context).try_into().unwrap();
+                        basic_type
+                    })
+                    .collect::<Vec<_>>();
+                context.struct_type(&members, false).as_any_type_enum()
+            }
+            PrimitiveType::Union(_) => {
+                unreachable!("union type is not supported yet")
+            }
+            PrimitiveType::Enum(_) => context.i64_type().as_any_type_enum(),
+            PrimitiveType::Function(f) => f.to_llvm_type(context).as_any_type_enum(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -291,6 +378,27 @@ impl FunctionType {
             self.variadic,
             self.args.iter().map(|arg| &arg.cv_type),
         )
+    }
+
+    pub fn to_llvm_type<'ctx>(
+        &self,
+        context: &'ctx inkwell::context::Context,
+    ) -> inkwell::types::FunctionType<'ctx> {
+        use inkwell::types::BasicType;
+        use inkwell::types::BasicTypeEnum;
+
+        let return_type: BasicTypeEnum = self.return_type.to_llvm_type(context).try_into().unwrap();
+
+        let param_types = self
+            .args
+            .iter()
+            .map(|p| {
+                let basic_type: BasicTypeEnum =
+                    p.cv_type.type_.to_llvm_type(context).try_into().unwrap();
+                basic_type.into()
+            })
+            .collect::<Vec<_>>();
+        return_type.fn_type(&param_types, self.variadic)
     }
 }
 

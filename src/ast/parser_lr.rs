@@ -511,7 +511,7 @@ assignment_expression( Expression )
     : conditional_expression
     | unary_expression assign assignment_expression {
         Expression::Binary( expression::ExprBinary{
-            op: expression::ExprBinaryOperator::Assign,
+            op: expression::ExprBinaryOperator::Assign(false),
             lhs: Box::new(unary_expression),
             rhs: Box::new(assignment_expression),
         })
