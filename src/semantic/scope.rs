@@ -59,6 +59,8 @@ impl FunctionScope {
 pub struct FunctionDefinition {
     pub body: Box<super::Statement>,
     pub type_: FunctionType,
+    /// this is same uid as VariableInfo's uid
+    pub uid: usize,
 }
 #[derive(Debug, Clone)]
 pub struct GlobalScope {

@@ -41,6 +41,9 @@ use super::LabelInfo;
 pub struct Context {
     /// for unique scope id generation
     pub scope_counter: usize,
+    /// for unique variable id generation
+    pub variable_counter: usize,
+
     pub global_scope: GlobalScope,
     pub function_scope: Option<FunctionScope>,
     pub scopes: Vec<Scope>,
@@ -50,6 +53,7 @@ impl Context {
     pub fn new() -> Self {
         Context {
             scope_counter: 0,
+            variable_counter: 0,
             global_scope: GlobalScope::new(),
             function_scope: None,
             scopes: Vec::new(),
@@ -60,6 +64,10 @@ impl Context {
     fn create_scope_id(&mut self) -> usize {
         self.scope_counter += 1;
         self.scope_counter
+    }
+    fn create_variable_id(&mut self) -> usize {
+        self.variable_counter += 1;
+        self.variable_counter
     }
     fn begin_switch_scope(&mut self) -> Result<(), CompileError> {
         let scope = SwitchScope {
@@ -183,6 +191,7 @@ impl Context {
 
         let varinfo = VariableInfo {
             name: name.clone(),
+            uid: self.create_variable_id(),
             cv_type,
         };
         let scope = VariableScope {
@@ -654,11 +663,13 @@ impl Context {
                                 return Err(CompileError::NestedFunctionDefinition(name));
                             }
 
+                            let uid = self.create_variable_id();
                             if let Some(old) = self.global_scope.variables.insert(
                                 name.clone(),
                                 VariableInfo {
                                     name: name.clone(),
                                     cv_type: init_type.cv_type().clone(),
+                                    uid,
                                 },
                             ) {
                                 return Err(CompileError::MultipleVariableDefinition(old.name));
@@ -700,6 +711,7 @@ impl Context {
 
                                 let varinfo = VariableInfo {
                                     name: name.clone(),
+                                    uid: self.create_variable_id(),
                                     cv_type: init_type.cv_type,
                                 };
                                 self.global_scope.variables.insert(name, varinfo.clone());
@@ -1162,7 +1174,7 @@ impl Context {
             None => return Err(CompileError::NoFunctionName),
         };
 
-        let function_definition = match decl.cv_type.type_ {
+        let mut function_definition = match decl.cv_type.type_ {
             PrimitiveType::Function(func) => {
                 self.begin_function_scope(name.clone(), func.clone())?;
                 self.begin_block_scope()?;
@@ -1179,6 +1191,7 @@ impl Context {
                 FunctionDefinition {
                     body: Box::new(body),
                     type_: func,
+                    uid: 0,
                 }
             }
             _ => return Err(CompileError::InvalidFunctionDefinition),
@@ -1197,6 +1210,7 @@ impl Context {
                 }
                 _ => return Err(CompileError::MultipleVariableDefinition(name)),
             }
+            function_definition.uid = varinfo.uid;
             let old = self
                 .global_scope
                 .functions
@@ -1210,7 +1224,9 @@ impl Context {
                 cv_type: CVType::from_primitive(PrimitiveType::Function(
                     function_definition.type_.clone(),
                 )),
+                uid: self.create_variable_id(),
             };
+            function_definition.uid = varinfo.uid;
             self.global_scope
                 .functions
                 .insert(name.clone(), function_definition);
