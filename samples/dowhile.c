@@ -1,16 +1,13 @@
-int main()
-{
+extern int printf(char const *, ...);
+int main() {
   int i = 0;
-  do
-  {
-    print(i);
-    if (i == 3)
-    {
+  do {
+    printf("%d\n", i);
+    if (i == 3) {
       i += 2;
       continue;
     }
-    if (i == 8)
-    {
+    if (i == 8) {
       break;
     }
 

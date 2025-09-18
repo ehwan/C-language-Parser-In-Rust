@@ -2,19 +2,11 @@
 
 C language lexer & parser & virtual executer from scratch in Rust.
 
-## syntax not supported
- - `#include`
- - `#pragma`
- - `union` 
- - `enum`
- - type qualifiers (`volatile`, `restrict` `static` `extern`)
-
 ## Features
  - Tokenizer (Lexer)
  - Preprocessor
  - Parser ( AST Builder )
- - Code Generator
- - Virtual Machine (Instruction Executor)
+ - Virtual Machine ( LLVM via [inkwell](https://github.com/TheDan64/inkwell) )
 
 ## How it works
 ### Phase 1: Tokenizing
@@ -33,15 +25,11 @@ Preprocess the source code by expanding macros and removing preprocessor directi
 ### Phase 4: Building AbstractSyntaxTree
 Build an Abstract Syntax Tree (AST) from the preprocessed token stream. The AST will be used to generate instructions.
 
-### Phase 5: Generating Instructions
-Generate a sequence of virtual instructions from the AST. The instructions will be executed at the software level.
+### Phase 5: Semantic Analysis
+Iterate through the AST and check for semantic errors, such as type mismatches and undeclared variables.
 
-### Phase 6: Executing Instructions
-Execute the generated instructions. The virtual machine will simulate the execution of the code.
-
-### Note
-This process will not generate binary or assembly code. Instead, it will produce a sequence of virtual instructions (`src/virtualmachine/instruction`) which will be executed at the software level.
-
+### Phase 6: LLVM linkage
+Generate LLVM IR from the AST and execute it using the LLVM JIT compiler.
 
 ## How to run
 ```sh
@@ -57,6 +45,8 @@ Sample C codes (only with implemented features) are in `samples/` directory. Try
 ```c
 /// samples/sample.c
 
+extern int printf(const char *fmt, ...);
+
 // declaration of function fibonacci sequence
 int fibonacci(int);
 
@@ -65,30 +55,28 @@ int fibonacci(int);
 #if MY_MACRO_FUNC(1, 2) == 3
 
 // main function
-int main()
-{
-  print_str("Hello, World!"); // built in function 'print_str'
+int main() {
   int var = 10;
-  int* ptr = &var;
+  int *ptr = &var;
+  printf("Hello, World!\n");
   *ptr = MY_MACRO_FUNC(40, 60);
-  print(ptr, *ptr, var); // built in function 'print'
+  printf("%p, %d, %d\n", (void *)ptr, *ptr, var);
 
-  print(MY_MACRO_FUNC(10, 20));
+  printf("%d\n", MY_MACRO_FUNC(10, 20));
 
   // print fibonacci sequence
-  print_str("Fibonacci sequence:");
-  int i;
-  for (i = 1; i <= 10; i++)
-  {
-    print(i, fibonacci(i));
+  printf("%s\n", "Fibonacci sequence:");
+  int i = 1;
+  for (i = 1; i <= 10; i++) {
+    printf("for i = %d, ", i);
+    printf("%d\n", fibonacci(i));
   }
 
   return 0;
 }
 
 // definition of function fibonacci sequence using recursion
-int fibonacci(int n)
-{
+int fibonacci(int n) {
   if (n <= 2)
     return 1;
   else
@@ -115,38 +103,38 @@ Enter your code (and ^D for EOF):
 ===============================Phase1: Tokenizing===============================
 ================================================================================
 LINE | ---------------------------------Result----------------------------------
-   0: 
-   1: Identifier("int") Whitespace Identifier("fibonacci") LeftParen Identifier("int") RightParen SemiColon 
+   0: Identifier("extern") Whitespace Identifier("int") Whitespace Identifier("printf") LeftParen Identifier("const") Whitespace Identifier("char") Whitespace Star Identifier("fmt") Comma Whitespace Ellipsis RightParen SemiColon 
+   1: 
    2: 
-   3: PreprocessorDefine Whitespace Identifier("MY_MACRO_FUNC") LeftParen Identifier("x") Comma Whitespace Identifier("y") RightParen Whitespace Identifier("y") Whitespace Plus Whitespace Identifier("x") 
+   3: Identifier("int") Whitespace Identifier("fibonacci") LeftParen Identifier("int") RightParen SemiColon 
    4: 
-   5: PreprocessorIf Whitespace Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(1) Comma Whitespace ConstantInteger(2) RightParen Whitespace EqOp Whitespace ConstantInteger(3) 
+   5: PreprocessorDefine Whitespace Identifier("MY_MACRO_FUNC") LeftParen Identifier("x") Comma Whitespace Identifier("y") RightParen Whitespace Identifier("y") Whitespace Plus Whitespace Identifier("x") 
    6: 
-   7: 
-   8: Identifier("int") Whitespace Identifier("main") LeftParen RightParen 
-   9: LeftBrace 
-  10: Whitespace Identifier("print_str") LeftParen StringLiteral("Hello, World!") RightParen SemiColon Whitespace 
+   7: PreprocessorIf Whitespace Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(1) Comma Whitespace ConstantInteger(2) RightParen Whitespace EqOp Whitespace ConstantInteger(3) 
+   8: 
+   9: 
+  10: Identifier("int") Whitespace Identifier("main") LeftParen RightParen Whitespace LeftBrace 
   11: Whitespace Identifier("int") Whitespace Identifier("var") Whitespace Equal Whitespace ConstantInteger(10) SemiColon 
-  12: Whitespace Identifier("int") Star Whitespace Identifier("ptr") Whitespace Equal Whitespace Ampersand Identifier("var") SemiColon 
-  13: Whitespace Star Identifier("ptr") Whitespace Equal Whitespace Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(40) Comma Whitespace ConstantInteger(60) RightParen SemiColon 
-  14: Whitespace Identifier("print") LeftParen Identifier("ptr") Comma Whitespace Star Identifier("ptr") Comma Whitespace Identifier("var") RightParen SemiColon Whitespace 
-  15: 
-  16: Whitespace Identifier("print") LeftParen Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(10) Comma Whitespace ConstantInteger(20) RightParen RightParen SemiColon 
-  17: 
-  18: Whitespace 
-  19: Whitespace Identifier("print_str") LeftParen StringLiteral("Fibonacci sequence:") RightParen SemiColon 
-  20: Whitespace Identifier("int") Whitespace Identifier("i") SemiColon 
-  21: Whitespace Identifier("for") Whitespace LeftParen Identifier("i") Whitespace Equal Whitespace ConstantInteger(1) SemiColon Whitespace Identifier("i") Whitespace LeOp Whitespace ConstantInteger(10) SemiColon Whitespace Identifier("i") IncOp RightParen 
-  22: Whitespace LeftBrace 
-  23: Whitespace Identifier("print") LeftParen Identifier("i") Comma Whitespace Identifier("fibonacci") LeftParen Identifier("i") RightParen RightParen SemiColon 
-  24: Whitespace RightBrace 
-  25: 
-  26: Whitespace Identifier("return") Whitespace ConstantInteger(0) SemiColon 
-  27: RightBrace 
-  28: 
+  12: Whitespace Identifier("int") Whitespace Star Identifier("ptr") Whitespace Equal Whitespace Ampersand Identifier("var") SemiColon 
+  13: Whitespace Identifier("printf") LeftParen StringLiteral("Hello, World!\n") RightParen SemiColon 
+  14: Whitespace Star Identifier("ptr") Whitespace Equal Whitespace Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(40) Comma Whitespace ConstantInteger(60) RightParen SemiColon 
+  15: Whitespace Identifier("printf") LeftParen StringLiteral("%p, %d, %d\n") Comma Whitespace LeftParen Identifier("void") Whitespace Star RightParen Identifier("ptr") Comma Whitespace Star Identifier("ptr") Comma Whitespace Identifier("var") RightParen SemiColon 
+  16: 
+  17: Whitespace Identifier("printf") LeftParen StringLiteral("%d\n") Comma Whitespace Identifier("MY_MACRO_FUNC") LeftParen ConstantInteger(10) Comma Whitespace ConstantInteger(20) RightParen RightParen SemiColon 
+  18: 
+  19: Whitespace 
+  20: Whitespace Identifier("printf") LeftParen StringLiteral("%s\n") Comma Whitespace StringLiteral("Fibonacci sequence:") RightParen SemiColon 
+  21: Whitespace Identifier("int") Whitespace Identifier("i") Whitespace Equal Whitespace ConstantInteger(1) SemiColon 
+  22: Whitespace Identifier("for") Whitespace LeftParen Identifier("i") Whitespace Equal Whitespace ConstantInteger(1) SemiColon Whitespace Identifier("i") Whitespace LeOp Whitespace ConstantInteger(10) SemiColon Whitespace Identifier("i") IncOp RightParen Whitespace LeftBrace 
+  23: Whitespace Identifier("printf") LeftParen StringLiteral("for i = %d, ") Comma Whitespace Identifier("i") RightParen SemiColon 
+  24: Whitespace Identifier("printf") LeftParen StringLiteral("%d\n") Comma Whitespace Identifier("fibonacci") LeftParen Identifier("i") RightParen RightParen SemiColon 
+  25: Whitespace RightBrace 
+  26: 
+  27: Whitespace Identifier("return") Whitespace ConstantInteger(0) SemiColon 
+  28: RightBrace 
   29: 
-  30: Identifier("int") Whitespace Identifier("fibonacci") LeftParen Identifier("int") Whitespace Identifier("n") RightParen 
-  31: LeftBrace 
+  30: 
+  31: Identifier("int") Whitespace Identifier("fibonacci") LeftParen Identifier("int") Whitespace Identifier("n") RightParen Whitespace LeftBrace 
   32: Whitespace Identifier("if") Whitespace LeftParen Identifier("n") Whitespace LeOp Whitespace ConstantInteger(2) RightParen 
   33: Whitespace Identifier("return") Whitespace ConstantInteger(1) SemiColon 
   34: Whitespace Identifier("else") 
@@ -162,568 +150,284 @@ LINE | ---------------------------------Result----------------------------------
 =============================Phase2: Line Analysis==============================
 ================================================================================
 LINE | ---------------------------------Result----------------------------------
-   0: RawTokens { tokens: [Identifier("int"), Identifier("fibonacci"), LeftParen, Identifier("int"), RightParen, SemiColon] }
-   1: DefineFunction { name: "MY_MACRO_FUNC", param_count: 2, replacement: [PreprocessorPlaceholder(1), Plus, PreprocessorPlaceholder(0)] }
-   2: If { expression_tokens: [Identifier("MY_MACRO_FUNC"), LeftParen, ConstantInteger(1), Comma, ConstantInteger(2), RightParen, EqOp, ConstantInteger(3)] }
-   3: RawTokens { tokens: [Identifier("int"), Identifier("main"), LeftParen, RightParen] }
-   4: RawTokens { tokens: [LeftBrace] }
-   5: RawTokens { tokens: [Identifier("print_str"), LeftParen, StringLiteral("Hello, World!"), RightParen, SemiColon] }
-   6: RawTokens { tokens: [Identifier("int"), Identifier("var"), Equal, ConstantInteger(10), SemiColon] }
-   7: RawTokens { tokens: [Identifier("int"), Star, Identifier("ptr"), Equal, Ampersand, Identifier("var"), SemiColon] }
+   0: RawTokens { tokens: [Identifier("extern"), Identifier("int"), Identifier("printf"), LeftParen, Identifier("const"), Identifier("char"), Star, Identifier("fmt"), Comma, Ellipsis, RightParen, SemiColon] }
+   1: RawTokens { tokens: [Identifier("int"), Identifier("fibonacci"), LeftParen, Identifier("int"), RightParen, SemiColon] }
+   2: DefineFunction { name: "MY_MACRO_FUNC", param_count: 2, replacement: [PreprocessorPlaceholder(1), Plus, PreprocessorPlaceholder(0)] }
+   3: If { expression_tokens: [Identifier("MY_MACRO_FUNC"), LeftParen, ConstantInteger(1), Comma, ConstantInteger(2), RightParen, EqOp, ConstantInteger(3)] }
+   4: RawTokens { tokens: [Identifier("int"), Identifier("main"), LeftParen, RightParen, LeftBrace] }
+   5: RawTokens { tokens: [Identifier("int"), Identifier("var"), Equal, ConstantInteger(10), SemiColon] }
+   6: RawTokens { tokens: [Identifier("int"), Star, Identifier("ptr"), Equal, Ampersand, Identifier("var"), SemiColon] }
+   7: RawTokens { tokens: [Identifier("printf"), LeftParen, StringLiteral("Hello, World!\n"), RightParen, SemiColon] }
    8: RawTokens { tokens: [Star, Identifier("ptr"), Equal, Identifier("MY_MACRO_FUNC"), LeftParen, ConstantInteger(40), Comma, ConstantInteger(60), RightParen, SemiColon] }
-   9: RawTokens { tokens: [Identifier("print"), LeftParen, Identifier("ptr"), Comma, Star, Identifier("ptr"), Comma, Identifier("var"), RightParen, SemiColon] }
-  10: RawTokens { tokens: [Identifier("print"), LeftParen, Identifier("MY_MACRO_FUNC"), LeftParen, ConstantInteger(10), Comma, ConstantInteger(20), RightParen, RightParen, SemiColon] }
-  11: RawTokens { tokens: [Identifier("print_str"), LeftParen, StringLiteral("Fibonacci sequence:"), RightParen, SemiColon] }
-  12: RawTokens { tokens: [Identifier("int"), Identifier("i"), SemiColon] }
-  13: RawTokens { tokens: [Identifier("for"), LeftParen, Identifier("i"), Equal, ConstantInteger(1), SemiColon, Identifier("i"), LeOp, ConstantInteger(10), SemiColon, Identifier("i"), IncOp, RightParen] }
-  14: RawTokens { tokens: [LeftBrace] }
-  15: RawTokens { tokens: [Identifier("print"), LeftParen, Identifier("i"), Comma, Identifier("fibonacci"), LeftParen, Identifier("i"), RightParen, RightParen, SemiColon] }
+   9: RawTokens { tokens: [Identifier("printf"), LeftParen, StringLiteral("%p, %d, %d\n"), Comma, LeftParen, Identifier("void"), Star, RightParen, Identifier("ptr"), Comma, Star, Identifier("ptr"), Comma, Identifier("var"), RightParen, SemiColon] }
+  10: RawTokens { tokens: [Identifier("printf"), LeftParen, StringLiteral("%d\n"), Comma, Identifier("MY_MACRO_FUNC"), LeftParen, ConstantInteger(10), Comma, ConstantInteger(20), RightParen, RightParen, SemiColon] }
+  11: RawTokens { tokens: [Identifier("printf"), LeftParen, StringLiteral("%s\n"), Comma, StringLiteral("Fibonacci sequence:"), RightParen, SemiColon] }
+  12: RawTokens { tokens: [Identifier("int"), Identifier("i"), Equal, ConstantInteger(1), SemiColon] }
+  13: RawTokens { tokens: [Identifier("for"), LeftParen, Identifier("i"), Equal, ConstantInteger(1), SemiColon, Identifier("i"), LeOp, ConstantInteger(10), SemiColon, Identifier("i"), IncOp, RightParen, LeftBrace] }
+  14: RawTokens { tokens: [Identifier("printf"), LeftParen, StringLiteral("for i = %d, "), Comma, Identifier("i"), RightParen, SemiColon] }
+  15: RawTokens { tokens: [Identifier("printf"), LeftParen, StringLiteral("%d\n"), Comma, Identifier("fibonacci"), LeftParen, Identifier("i"), RightParen, RightParen, SemiColon] }
   16: RawTokens { tokens: [RightBrace] }
   17: RawTokens { tokens: [Identifier("return"), ConstantInteger(0), SemiColon] }
   18: RawTokens { tokens: [RightBrace] }
-  19: RawTokens { tokens: [Identifier("int"), Identifier("fibonacci"), LeftParen, Identifier("int"), Identifier("n"), RightParen] }
-  20: RawTokens { tokens: [LeftBrace] }
-  21: RawTokens { tokens: [Identifier("if"), LeftParen, Identifier("n"), LeOp, ConstantInteger(2), RightParen] }
-  22: RawTokens { tokens: [Identifier("return"), ConstantInteger(1), SemiColon] }
-  23: RawTokens { tokens: [Identifier("else")] }
-  24: RawTokens { tokens: [Identifier("return"), Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(1), RightParen, Plus, Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(2), RightParen, SemiColon] }
-  25: RawTokens { tokens: [RightBrace] }
-  26: Else
-  27: RawTokens { tokens: [Identifier("THIS"), Identifier("WILL"), Identifier("BE"), Identifier("IGNORED")] }
-  28: EndIf
+  19: RawTokens { tokens: [Identifier("int"), Identifier("fibonacci"), LeftParen, Identifier("int"), Identifier("n"), RightParen, LeftBrace] }
+  20: RawTokens { tokens: [Identifier("if"), LeftParen, Identifier("n"), LeOp, ConstantInteger(2), RightParen] }
+  21: RawTokens { tokens: [Identifier("return"), ConstantInteger(1), SemiColon] }
+  22: RawTokens { tokens: [Identifier("else")] }
+  23: RawTokens { tokens: [Identifier("return"), Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(1), RightParen, Plus, Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(2), RightParen, SemiColon] }
+  24: RawTokens { tokens: [RightBrace] }
+  25: Else
+  26: RawTokens { tokens: [Identifier("THIS"), Identifier("WILL"), Identifier("BE"), Identifier("IGNORED")] }
+  27: EndIf
 ================================================================================
 =============================Phase3: Preprocessing==============================
 ================================================================================
 LINE | ---------------------------------Result----------------------------------
-   0: [Int, Identifier("fibonacci"), LeftParen, Int, RightParen, SemiColon]
-   1: [Int, Identifier("main"), LeftParen, RightParen]
-   2: [LeftBrace]
-   3: [Identifier("print_str"), LeftParen, StringLiteral("Hello, World!"), RightParen, SemiColon]
-   4: [Int, Identifier("var"), Equal, ConstantInteger(10), SemiColon]
-   5: [Int, Star, Identifier("ptr"), Equal, Ampersand, Identifier("var"), SemiColon]
+   0: [Extern, Int, Identifier("printf"), LeftParen, Const, Char, Star, Identifier("fmt"), Comma, Ellipsis, RightParen, SemiColon]
+   1: [Int, Identifier("fibonacci"), LeftParen, Int, RightParen, SemiColon]
+   2: [Int, Identifier("main"), LeftParen, RightParen, LeftBrace]
+   3: [Int, Identifier("var"), Equal, ConstantInteger(10), SemiColon]
+   4: [Int, Star, Identifier("ptr"), Equal, Ampersand, Identifier("var"), SemiColon]
+   5: [Identifier("printf"), LeftParen, StringLiteral("Hello, World!\n"), RightParen, SemiColon]
    6: [Star, Identifier("ptr"), Equal, ConstantInteger(60), Plus, ConstantInteger(40), SemiColon]
-   7: [Identifier("print"), LeftParen, Identifier("ptr"), Comma, Star, Identifier("ptr"), Comma, Identifier("var"), RightParen, SemiColon]
-   8: [Identifier("print"), LeftParen, ConstantInteger(20), Plus, ConstantInteger(10), RightParen, SemiColon]
-   9: [Identifier("print_str"), LeftParen, StringLiteral("Fibonacci sequence:"), RightParen, SemiColon]
-  10: [Int, Identifier("i"), SemiColon]
-  11: [For, LeftParen, Identifier("i"), Equal, ConstantInteger(1), SemiColon, Identifier("i"), LeOp, ConstantInteger(10), SemiColon, Identifier("i"), IncOp, RightParen]
-  12: [LeftBrace]
-  13: [Identifier("print"), LeftParen, Identifier("i"), Comma, Identifier("fibonacci"), LeftParen, Identifier("i"), RightParen, RightParen, SemiColon]
+   7: [Identifier("printf"), LeftParen, StringLiteral("%p, %d, %d\n"), Comma, LeftParen, Void, Star, RightParen, Identifier("ptr"), Comma, Star, Identifier("ptr"), Comma, Identifier("var"), RightParen, SemiColon]
+   8: [Identifier("printf"), LeftParen, StringLiteral("%d\n"), Comma, ConstantInteger(20), Plus, ConstantInteger(10), RightParen, SemiColon]
+   9: [Identifier("printf"), LeftParen, StringLiteral("%s\n"), Comma, StringLiteral("Fibonacci sequence:"), RightParen, SemiColon]
+  10: [Int, Identifier("i"), Equal, ConstantInteger(1), SemiColon]
+  11: [For, LeftParen, Identifier("i"), Equal, ConstantInteger(1), SemiColon, Identifier("i"), LeOp, ConstantInteger(10), SemiColon, Identifier("i"), IncOp, RightParen, LeftBrace]
+  12: [Identifier("printf"), LeftParen, StringLiteral("for i = %d, "), Comma, Identifier("i"), RightParen, SemiColon]
+  13: [Identifier("printf"), LeftParen, StringLiteral("%d\n"), Comma, Identifier("fibonacci"), LeftParen, Identifier("i"), RightParen, RightParen, SemiColon]
   14: [RightBrace]
   15: [Return, ConstantInteger(0), SemiColon]
   16: [RightBrace]
-  17: [Int, Identifier("fibonacci"), LeftParen, Int, Identifier("n"), RightParen]
-  18: [LeftBrace]
-  19: [If, LeftParen, Identifier("n"), LeOp, ConstantInteger(2), RightParen]
-  20: [Return, ConstantInteger(1), SemiColon]
-  21: [Else]
-  22: [Return, Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(1), RightParen, Plus, Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(2), RightParen, SemiColon]
-  23: [RightBrace]
+  17: [Int, Identifier("fibonacci"), LeftParen, Int, Identifier("n"), RightParen, LeftBrace]
+  18: [If, LeftParen, Identifier("n"), LeOp, ConstantInteger(2), RightParen]
+  19: [Return, ConstantInteger(1), SemiColon]
+  20: [Else]
+  21: [Return, Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(1), RightParen, Plus, Identifier("fibonacci"), LeftParen, Identifier("n"), Minus, ConstantInteger(2), RightParen, SemiColon]
+  22: [RightBrace]
 ================================================================================
 ======================Phase4: Building AbstractSyntaxTree=======================
 ================================================================================
 ASTs: 
 TranslationUnit {
     statements: [
-        FunctionDeclaration {
-            return_type: Int32,
-            name: "fibonacci",
-            params: [
-                Int32,
-            ],
-        },
-        FunctionDefinitionStatement {
-            return_type: Int32,
-            name: "main",
-            params: [],
-            body: CompoundStatement {
-                statements: [
-                    ExpressionStatement {
-                        expression: PostParen {
-                            src: PrimaryIdentifier {
-                                name: "print_str",
-                            },
-                            args: [
-                                StringLiteral {
-                                    value: "Hello, World!",
-                                },
-                            ],
-                        },
-                    },
-                    DeclarationStatement {
-                        vars: [
-                            (
-                                "var",
-                                Int32,
-                                Some(
-                                    ConstantInteger {
-                                        value: 10,
-                                    },
-                                ),
-                            ),
-                        ],
-                    },
-                    DeclarationStatement {
-                        vars: [
-                            (
-                                "ptr",
-                                Pointer(
-                                    Int32,
-                                ),
-                                Some(
-                                    UnaryExpression {
-                                        op: AddressOf,
-                                        src: PrimaryIdentifier {
-                                            name: "var",
-                                        },
-                                    },
-                                ),
-                            ),
-                        ],
-                    },
-                    ExpressionStatement {
-                        expression: AssignExpression {
-                            lhs: UnaryExpression {
-                                op: Dereference,
-                                src: PrimaryIdentifier {
-                                    name: "ptr",
-                                },
-                            },
-                            rhs: AdditiveExpression {
-                                op: Add,
-                                lhs: ConstantInteger {
-                                    value: 60,
-                                },
-                                rhs: ConstantInteger {
-                                    value: 40,
-                                },
-                            },
-                        },
-                    },
-                    ExpressionStatement {
-                        expression: PostParen {
-                            src: PrimaryIdentifier {
-                                name: "print",
-                            },
-                            args: [
-                                PrimaryIdentifier {
-                                    name: "ptr",
-                                },
-                                UnaryExpression {
-                                    op: Dereference,
-                                    src: PrimaryIdentifier {
-                                        name: "ptr",
-                                    },
-                                },
-                                PrimaryIdentifier {
-                                    name: "var",
-                                },
-                            ],
-                        },
-                    },
-                    ExpressionStatement {
-                        expression: PostParen {
-                            src: PrimaryIdentifier {
-                                name: "print",
-                            },
-                            args: [
-                                AdditiveExpression {
-                                    op: Add,
-                                    lhs: ConstantInteger {
-                                        value: 20,
-                                    },
-                                    rhs: ConstantInteger {
-                                        value: 10,
-                                    },
-                                },
-                            ],
-                        },
-                    },
-                    ExpressionStatement {
-                        expression: PostParen {
-                            src: PrimaryIdentifier {
-                                name: "print_str",
-                            },
-                            args: [
-                                StringLiteral {
-                                    value: "Fibonacci sequence:",
-                                },
-                            ],
-                        },
-                    },
-                    DeclarationStatement {
-                        vars: [
-                            (
-                                "i",
-                                Int32,
-                                None,
-                            ),
-                        ],
-                    },
-                    ForStatement {
-                        init: AssignExpression {
-                            lhs: PrimaryIdentifier {
-                                name: "i",
-                            },
-                            rhs: ConstantInteger {
-                                value: 1,
-                            },
-                        },
-                        cond: ComparisonExpression {
-                            op: LessThanOrEqual,
-                            lhs: PrimaryIdentifier {
-                                name: "i",
-                            },
-                            rhs: ConstantInteger {
-                                value: 10,
-                            },
-                        },
-                        next: Some(
-                            PostIncrement {
-                                src: PrimaryIdentifier {
-                                    name: "i",
-                                },
-                            },
-                        ),
-                        statement: CompoundStatement {
-                            statements: [
-                                ExpressionStatement {
-                                    expression: PostParen {
-                                        src: PrimaryIdentifier {
-                                            name: "print",
-                                        },
-                                        args: [
-                                            PrimaryIdentifier {
-                                                name: "i",
-                                            },
-                                            PostParen {
-                                                src: PrimaryIdentifier {
-                                                    name: "fibonacci",
-                                                },
-                                                args: [
-                                                    PrimaryIdentifier {
-                                                        name: "i",
-                                                    },
-                                                ],
-                                            },
-                                        ],
-                                    },
-                                },
-                            ],
-                        },
-                    },
-                    ReturnStatement {
-                        expr: Some(
-                            ConstantInteger {
-                                value: 0,
-                            },
-                        ),
-                    },
-                ],
-            },
-        },
-        FunctionDefinitionStatement {
-            return_type: Int32,
-            name: "fibonacci",
-            params: [
-                (
-                    Some(
-                        "n",
+        Declaration(
+            StmtDeclaration {
+                specs: [
+                    StorageClassSpecifier(
+                        Extern,
                     ),
-                    Int32,
-                ),
-            ],
-            body: CompoundStatement {
-                statements: [
-                    IfStatement {
-                        cond: ComparisonExpression {
-                            op: LessThanOrEqual,
-                            lhs: PrimaryIdentifier {
-                                name: "n",
-                            },
-                            rhs: ConstantInteger {
-                                value: 2,
-                            },
-                        },
-                        then_statement: ReturnStatement {
-                            expr: Some(
-                                ConstantInteger {
-                                    value: 1,
+                    TypeSpecifier(
+                        Int,
+                    ),
+                ],
+                inits: Some(
+                    [
+                        DeclInit {
+                            declarator: Function(
+                                ...
+                                ...
+                                ...
+                                                            ),
+                                                        },
+                                                    ),
+                                                ),
+                                            },
+                                        ),
+                                    ),
                                 },
                             ),
-                        },
-                        else_statement: Some(
-                            ReturnStatement {
-                                expr: Some(
-                                    AdditiveExpression {
-                                        op: Add,
-                                        lhs: PostParen {
-                                            src: PrimaryIdentifier {
-                                                name: "fibonacci",
-                                            },
-                                            args: [
-                                                AdditiveExpression {
-                                                    op: Sub,
-                                                    lhs: PrimaryIdentifier {
-                                                        name: "n",
-                                                    },
-                                                    rhs: ConstantInteger {
-                                                        value: 1,
-                                                    },
-                                                },
-                                            ],
-                                        },
-                                        rhs: PostParen {
-                                            src: PrimaryIdentifier {
-                                                name: "fibonacci",
-                                            },
-                                            args: [
-                                                AdditiveExpression {
-                                                    op: Sub,
-                                                    lhs: PrimaryIdentifier {
-                                                        name: "n",
-                                                    },
-                                                    rhs: ConstantInteger {
-                                                        value: 2,
-                                                    },
-                                                },
-                                            ],
-                                        },
-                                    },
-                                ),
-                            },
-                        ),
+                        ],
                     },
-                ],
+                ),
             },
-        },
+        ),
     ],
 }
 ================================================================================
-========================Phase5: Generating Instructions=========================
+===========================Phase5: Semantic Analysis============================
 ================================================================================
-ADDR | ---------------------------------Result----------------------------------
-Instructions: 
-   0: DefineLabel { label: "main" }
-   1: PushStack { operand: Register(5) }
-   2: MoveRegister { operand_from: Register(6), operand_to: Register(5) }
-   3: MoveRegister { operand_from: Value(UInt64(0)), operand_to: Register(0) }
-   4: PrintStr { str: Register(0) }
-   5: MoveRegister { operand_from: Value(Int32(10)), operand_to: Register(0) }
-   6: Assign { lhs_type: Int32, lhs: Register(1), rhs: Register(0) }
-   7: PushStack { operand: Register(1) }
-   8: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-   9: AddAssign { lhs: Register(0), rhs: Value(Int64(0)) }
-  10: Assign { lhs_type: Pointer(Int32), lhs: Register(1), rhs: Register(0) }
-  11: PushStack { operand: Register(1) }
-  12: MoveRegister { operand_from: Value(Int32(40)), operand_to: Register(0) }
-  13: PushStack { operand: Register(0) }
-  14: MoveRegister { operand_from: Value(Int32(60)), operand_to: Register(0) }
-  15: Assign { lhs_type: UInt32, lhs: Register(0), rhs: Register(0) }
-  16: PopStack { operand: Register(1) }
-  17: AddAssign { lhs: Register(0), rhs: Register(1) }
-  18: PushStack { operand: Register(0) }
-  19: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-  20: AddAssign { lhs: Register(0), rhs: Value(Int64(1)) }
-  21: MoveRegister { operand_from: Derefed(0, 0), operand_to: Register(0) }
-  22: PopStack { operand: Register(1) }
-  23: Assign { lhs_type: Int32, lhs: Derefed(0, 0), rhs: Register(1) }
-  24: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-  25: AddAssign { lhs: Register(0), rhs: Value(Int64(0)) }
-  26: PushStack { operand: Derefed(0, 0) }
-  27: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-  28: AddAssign { lhs: Register(0), rhs: Value(Int64(1)) }
-  29: MoveRegister { operand_from: Derefed(0, 0), operand_to: Register(0) }
-  30: PushStack { operand: Derefed(0, 0) }
-  31: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-  32: AddAssign { lhs: Register(0), rhs: Value(Int64(1)) }
-  33: PushStack { operand: Derefed(0, 0) }
-  34: PushStack { operand: Value(UInt64(3)) }
-  35: Print
-  36: MoveRegister { operand_from: Value(Int32(10)), operand_to: Register(0) }
-  37: PushStack { operand: Register(0) }
-  38: MoveRegister { operand_from: Value(Int32(20)), operand_to: Register(0) }
-  39: Assign { lhs_type: UInt32, lhs: Register(0), rhs: Register(0) }
-  40: PopStack { operand: Register(1) }
-  41: AddAssign { lhs: Register(0), rhs: Register(1) }
-  42: PushStack { operand: Register(0) }
-  43: PushStack { operand: Value(UInt64(1)) }
-  44: Print
-  45: MoveRegister { operand_from: Value(UInt64(14)), operand_to: Register(0) }
-  46: PrintStr { str: Register(0) }
-  47: PushStack { operand: Value(Int32(0)) }
-  48: MoveRegister { operand_from: Value(Int32(1)), operand_to: Register(0) }
-  49: PushStack { operand: Register(0) }
-  50: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-  51: AddAssign { lhs: Register(0), rhs: Value(Int64(2)) }
-  52: PopStack { operand: Register(1) }
-  53: Assign { lhs_type: Int32, lhs: Derefed(0, 0), rhs: Register(1) }
-  54: DefineLabel { label: ".__L0__" }
-  55: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-  56: AddAssign { lhs: Register(0), rhs: Value(Int64(2)) }
-  57: PushStack { operand: Derefed(0, 0) }
-  58: MoveRegister { operand_from: Value(Int32(10)), operand_to: Register(0) }
-  59: PopStack { operand: Register(1) }
-  60: LessThan { lhs: Register(0), rhs: Register(1), to: Register(0) }
-  61: LogicalNot { operand: Register(0) }
-  62: JumpZero { label: ".__L1__", operand_cond: Register(0) }
-  63: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-  64: AddAssign { lhs: Register(0), rhs: Value(Int64(2)) }
-  65: PushStack { operand: Derefed(0, 0) }
-  66: Call { label: "fibonacci" }
-  67: SubAssign { lhs: Register(6), rhs: Value(UInt64(1)) }
-  68: PushStack { operand: Register(0) }
-  69: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-  70: AddAssign { lhs: Register(0), rhs: Value(Int64(2)) }
-  71: PushStack { operand: Derefed(0, 0) }
-  72: PushStack { operand: Value(UInt64(2)) }
-  73: Print
-  74: DefineLabel { label: ".__L2__" }
-  75: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-  76: AddAssign { lhs: Register(0), rhs: Value(Int64(2)) }
-  77: MoveRegister { operand_from: Register(0), operand_to: Register(1) }
-  78: MoveRegister { operand_from: Derefed(1, 0), operand_to: Register(0) }
-  79: AddAssign { lhs: Derefed(1, 0), rhs: Value(UInt8(1)) }
-  80: Jump { label: ".__L0__" }
-  81: DefineLabel { label: ".__L1__" }
-  82: MoveRegister { operand_from: Value(Int32(0)), operand_to: Register(0) }
-  83: Return
-  84: Panic { message: "Function main must return a Int32 value" }
-  85: DefineLabel { label: "fibonacci" }
-  86: PushStack { operand: Register(5) }
-  87: MoveRegister { operand_from: Register(6), operand_to: Register(5) }
-  88: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
-  89: AddAssign { lhs: Register(0), rhs: Value(Int64(-3)) }
-  90: PushStack { operand: Derefed(0, 0) }
-  91: MoveRegister { operand_from: Value(Int32(2)), operand_to: Register(0) }
-  92: PopStack { operand: Register(1) }
-  93: LessThan { lhs: Register(0), rhs: Register(1), to: Register(0) }
-  94: LogicalNot { operand: Register(0) }
-  95: JumpZero { label: ".__L3__", operand_cond: Register(0) }
-  96: MoveRegister { operand_from: Value(Int32(1)), operand_to: Register(0) }
-  97: Return
-  98: Jump { label: ".__L4__" }
-  99: DefineLabel { label: ".__L3__" }
- 100: MoveRegister { operand_from: Value(Int32(2)), operand_to: Register(0) }
- 101: PushStack { operand: Register(0) }
- 102: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
- 103: AddAssign { lhs: Register(0), rhs: Value(Int64(-3)) }
- 104: Assign { lhs_type: UInt32, lhs: Register(0), rhs: Derefed(0, 0) }
- 105: PopStack { operand: Register(1) }
- 106: SubAssign { lhs: Register(0), rhs: Register(1) }
- 107: PushStack { operand: Register(0) }
- 108: Call { label: "fibonacci" }
- 109: SubAssign { lhs: Register(6), rhs: Value(UInt64(1)) }
- 110: PushStack { operand: Register(0) }
- 111: MoveRegister { operand_from: Value(Int32(1)), operand_to: Register(0) }
- 112: PushStack { operand: Register(0) }
- 113: MoveRegister { operand_from: Register(5), operand_to: Register(0) }
- 114: AddAssign { lhs: Register(0), rhs: Value(Int64(-3)) }
- 115: Assign { lhs_type: UInt32, lhs: Register(0), rhs: Derefed(0, 0) }
- 116: PopStack { operand: Register(1) }
- 117: SubAssign { lhs: Register(0), rhs: Register(1) }
- 118: PushStack { operand: Register(0) }
- 119: Call { label: "fibonacci" }
- 120: SubAssign { lhs: Register(6), rhs: Value(UInt64(1)) }
- 121: Assign { lhs_type: UInt32, lhs: Register(0), rhs: Register(0) }
- 122: PopStack { operand: Register(1) }
- 123: AddAssign { lhs: Register(0), rhs: Register(1) }
- 124: Return
- 125: DefineLabel { label: ".__L4__" }
- 126: Panic { message: "Function fibonacci must return a Int32 value" }
-  --------------------------------Start Address---------------------------------
- 127: Call { label: "main" }
+TranslationUnit {
+    statements: [],
+    variables: {
+        "printf": VariableInfo {
+            name: "printf",
+            uid: 1,
+            cv_type: CVType {
+                type_: Function(
+                    FunctionType {
+                        return_type: CVType {
+                            type_: Integer(
+                                Int32,
+                            ),
+                            const_: false,
+                            volatile: false,
+                        },
+                        args: [
+                            CombinedDeclarator {
+                                name: Some(
+                                    "fmt",
+                                ),
+                                cv_type: CVType {
+                                    type_: Pointer(
+                                        ...
+                                        ...
+                                        ...
+                                                        ),
+                                                    },
+                                                ),
+                                            ),
+                                        },
+                                    ),
+                                ),
+                            },
+                        ),
+                    ],
+                },
+            ),
+            type_: FunctionType {
+                return_type: CVType {
+                    type_: Integer(
+                        Int32,
+                    ),
+                    const_: false,
+                    volatile: false,
+                },
+                args: [
+                    CombinedDeclarator {
+                        name: Some(
+                            "n",
+                        ),
+                        cv_type: CVType {
+                            type_: Integer(
+                                Int32,
+                            ),
+                            const_: false,
+                            volatile: false,
+                        },
+                    },
+                ],
+                variadic: false,
+            },
+            uid: 2,
+            args: [
+                VariableInfo {
+                    name: "n",
+                    uid: 7,
+                    cv_type: CVType {
+                        type_: Integer(
+                            Int32,
+                        ),
+                        const_: false,
+                        volatile: false,
+                    },
+                    storage: None,
+                },
+            ],
+        },
+    },
+}
 ================================================================================
-=========================Phase6: Executing Instructions=========================
+========================Phase6: Generating Instructions=========================
 ================================================================================
-"Hello, World!"
-Print: UInt64(36), Int32(100), Int32(100), 
-Print: UInt32(30), 
-"Fibonacci sequence:"
-Print: Int32(1), Int32(1), 
-Print: Int32(2), Int32(1), 
-Print: Int32(3), UInt32(2), 
-Print: Int32(4), UInt32(3), 
-Print: Int32(5), UInt32(5), 
-Print: Int32(6), UInt32(8), 
-Print: Int32(7), UInt32(13), 
-Print: Int32(8), UInt32(21), 
-Print: Int32(9), UInt32(34), 
-Print: Int32(10), UInt32(55), 
-```
+; ModuleID = 'main_module'
+source_filename = "main_module"
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 
-The visualized AST will be:
+@str = private unnamed_addr constant [15 x i8] c"Hello, World!\0A\00", align 1
+@str.1 = private unnamed_addr constant [12 x i8] c"%p, %d, %d\0A\00", align 1
+@str.2 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
+@str.3 = private unnamed_addr constant [4 x i8] c"%s\0A\00", align 1
+@str.4 = private unnamed_addr constant [20 x i8] c"Fibonacci sequence:\00", align 1
+@str.5 = private unnamed_addr constant [13 x i8] c"for i = %d, \00", align 1
+@str.6 = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
 
-![AST](tree.png)
+declare i32 @printf(i8* %0, ...)
 
-```
-TranslationUnit
-├── DeclarationStatement
-│   └── Vars
-│       └── (Some("fibonacci"), Function(Int32, [Int32]), None)
-├── FunctionDefinitionStatement: main
-│   ├── ReturnType: Int32
-│   ├── Name: main
-│   ├── Params: []
-│   └── Body: CompoundStatement
-│       ├── ExpressionStatement
-│       │   └── PostParen
-│       │       ├── Src: PrimaryIdentifier(print_str)
-│       │       └── Args: [StringLiteral("Hello, World!")]
-│       ├── DeclarationStatement
-│       │   └── Vars
-│       │       └── (Some("var"), Int32, ConstantInteger(10))
-│       ├── DeclarationStatement
-│       │   └── Vars
-│       │       └── (Some("ptr"), Pointer(Int32), UnaryExpression(AddressOf, PrimaryIdentifier(var)))
-│       ├── ExpressionStatement
-│       │   └── AssignExpression
-│       │       ├── Op: Assign
-│       │       ├── Lhs: UnaryExpression(Dereference, PrimaryIdentifier(ptr))
-│       │       └── Rhs: ConstantInteger(100)
-│       ├── ExpressionStatement
-│       │   └── PostParen
-│       │       ├── Src: PrimaryIdentifier(print)
-│       │       └── Args: [PrimaryIdentifier(ptr), UnaryExpression(Dereference, PrimaryIdentifier(ptr)), PrimaryIdentifier(var)]
-│       ├── ExpressionStatement
-│       │   └── PostParen
-│       │       ├── Src: PrimaryIdentifier(print_str)
-│       │       └── Args: [StringLiteral("Fibonacci sequence:")]
-│       ├── DeclarationStatement
-│       │   └── Vars
-│       │       └── (Some("i"), Int32, None)
-│       ├── ForStatement
-│       │   ├── Init: AssignExpression
-│       │   │   ├── Op: Assign
-│       │   │   ├── Lhs: PrimaryIdentifier(i)
-│       │   │   └── Rhs: ConstantInteger(1)
-│       │   ├── Cond: ComparisonExpression
-│       │   │   ├── Op: LessThanOrEqual
-│       │   │   ├── Lhs: PrimaryIdentifier(i)
-│       │   │   └── Rhs: ConstantInteger(10)
-│       │   ├── Next: PostIncrement(PrimaryIdentifier(i))
-│       │   └── Statement: CompoundStatement
-│       │       └── ExpressionStatement
-│       │           └── PostParen
-│       │               ├── Src: PrimaryIdentifier(print)
-│       │               └── Args: [PrimaryIdentifier(i), PostParen(PrimaryIdentifier(fibonacci), [PrimaryIdentifier(i)])]
-│       └── ReturnStatement
-│           └── Expr: ConstantInteger(0)
-├── FunctionDefinitionStatement: fibonacci
-│   ├── ReturnType: Int32
-│   ├── Name: fibonacci
-│   ├── Params: [(Some("n"), Int32)]
-│   └── Body: CompoundStatement
-│       └── IfStatement
-│           ├── Cond: ComparisonExpression
-│           │   ├── Op: LessThanOrEqual
-│           │   ├── Lhs: PrimaryIdentifier(n)
-│           │   └── Rhs: ConstantInteger(2)
-│           ├── Then: ReturnStatement
-│           │   └── Expr: ConstantInteger(1)
-│           └── Else: ReturnStatement
-│               └── Expr: AdditiveExpression
-│                   ├── Op: Add
-│                   ├── Lhs: PostParen(PrimaryIdentifier(fibonacci), [AdditiveExpression(Sub, PrimaryIdentifier(n), ConstantInteger(1))])
-│                   └── Rhs: PostParen(PrimaryIdentifier(fibonacci), [AdditiveExpression(Sub, PrimaryIdentifier(n), ConstantInteger(2))])
+define i32 @fibonacci(i32 %0) {
+func_block:
+  %n = alloca i32, align 4
+  store i32 %0, i32* %n, align 4
+  %load = load i32, i32* %n, align 4
+  %sle = icmp sle i32 %load, 2
+  %zext = zext i1 %sle to i8
+  %ifcond = icmp ne i8 %zext, 0
+  br i1 %ifcond, label %then_block, label %else_block
+
+then_block:                                       ; preds = %func_block
+  ret i32 1
+
+else_block:                                       ; preds = %func_block
+  %load1 = load i32, i32* %n, align 4
+  %sub = sub i32 %load1, 1
+  %function_call = call i32 @fibonacci(i32 %sub)
+  %load2 = load i32, i32* %n, align 4
+  %sub3 = sub i32 %load2, 2
+  %function_call4 = call i32 @fibonacci(i32 %sub3)
+  %add = add i32 %function_call, %function_call4
+  ret i32 %add
+
+merge_block:                                      ; No predecessors!
+}
+
+define i32 @main() {
+func_block:
+  %var = alloca i32, align 4
+  store i32 10, i32* %var, align 4
+  %ptr = alloca i32*, align 8
+  store i32* %var, i32** %ptr, align 8
+  %function_call = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([15 x i8], [15 x i8]* @str, i32 0, i32 0))
+  %load = load i32*, i32** %ptr, align 8
+  store i32 100, i32* %load, align 4
+  %load1 = load i32*, i32** %ptr, align 8
+  %ptr_ptr = bitcast i32* %load1 to i8*
+  %load2 = load i32*, i32** %ptr, align 8
+  %load3 = load i32, i32* %load2, align 4
+  %load4 = load i32, i32* %var, align 4
+  %function_call5 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([12 x i8], [12 x i8]* @str.1, i32 0, i32 0), i8* %ptr_ptr, i32 %load3, i32 %load4)
+  %function_call6 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @str.2, i32 0, i32 0), i32 30)
+  %function_call7 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @str.3, i32 0, i32 0), i8* getelementptr inbounds ([20 x i8], [20 x i8]* @str.4, i32 0, i32 0))
+  %i = alloca i32, align 4
+  store i32 1, i32* %i, align 4
+  store i32 1, i32* %i, align 4
+  br label %body_block
+
+body_block:                                       ; preds = %continue_block, %func_block
+  %load8 = load i32, i32* %i, align 4
+  %function_call9 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([13 x i8], [13 x i8]* @str.5, i32 0, i32 0), i32 %load8)
+  %load10 = load i32, i32* %i, align 4
+  %function_call11 = call i32 @fibonacci(i32 %load10)
+  %function_call12 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @str.6, i32 0, i32 0), i32 %function_call11)
+  br label %continue_block
+
+continue_block:                                   ; preds = %body_block
+  %load13 = load i32, i32* %i, align 4
+  %inc = add i32 %load13, 1
+  store i32 %inc, i32* %i, align 4
+  %load14 = load i32, i32* %i, align 4
+  %sle = icmp sle i32 %load14, 10
+  %zext = zext i1 %sle to i8
+  %ifcond = icmp ne i8 %zext, 0
+  br i1 %ifcond, label %body_block, label %break_block
+
+break_block:                                      ; preds = %continue_block
+  ret i32 0
+}
+
+
+Program returned: 0
+Hello, World!
+0x7ffc4f2c0a04, 100, 100
+30
+Fibonacci sequence:
+for i = 1, 1
+for i = 2, 1
+for i = 3, 2
+for i = 4, 3
+for i = 5, 5
+for i = 6, 8
+for i = 7, 13
+for i = 8, 21
+for i = 9, 34
+for i = 10, 55
 ```

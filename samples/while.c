@@ -1,15 +1,12 @@
-int main()
-{
+extern int printf(const char *fmt, ...);
+int main() {
   int i = 0;
-  while (i < 10)
-  {
-    if (i == 6)
-    {
+  while (i < 10) {
+    if (i == 6) {
       break;
     }
-    print(i);
-    if (i == 3)
-    {
+    printf("%d\n", i);
+    if (i == 3) {
       i += 2;
       continue;
     }

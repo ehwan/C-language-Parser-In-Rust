@@ -1,12 +1,10 @@
 use std::io::{stdin, stdout, Read, Write};
 
-use virtualmachine::instruction::generation::InstructionGenerator;
-use virtualmachine::program::VirtualMachine;
-
 mod ast;
+mod llvm;
 mod preprocess;
+mod semantic;
 mod token;
-mod virtualmachine;
 
 fn main() {
     println!("Enter your code (and ^D for EOF):");
@@ -71,35 +69,62 @@ fn main() {
     println!("{:=^80}", "Phase4: Building AbstractSyntaxTree");
     println!("{:=^80}", "");
 
+    // let mut context = inkwell::context::Context::create();
+    // let mut module = context.create_module("m1");
+    // let mut builder = context.create_builder();
+
     // parse the tokens into AST
     println!("ASTs: ");
-    let parser = ast::parser::ASTParser::new();
-    let translation_unit = parser.parse(tokens);
-    println!("{:#?}", translation_unit);
+    let parser = ast::translation_unitParser::new();
+    let mut context = ast::translation_unitContext::new();
+    for token in tokens.into_iter() {
+        if !context.can_feed(&parser, &token) {
+            println!("Error: Unexpected token: {:?}", token);
+            println!("Backtrace: {:?}", context.backtrace(&parser));
+            println!("State: {}", context.state());
+            break;
+        }
+        match context.feed(&parser, token, &mut ()) {
+            Ok(_) => {}
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
+            }
+        }
+    }
+    let ast = match context.accept(&parser, &mut ()) {
+        Ok(tu) => tu,
+        Err(err) => {
+            println!("Error: {:?}", err);
+            return;
+        }
+    };
+    println!("{:#?}", ast);
+
+    println!("{:=^80}", "");
+    println!("{:=^80}", "Phase5: Semantic Analysis");
+    println!("{:=^80}", "");
+
+    let mut context = semantic::Context::new();
+    let ast = match context.process(ast) {
+        Ok(ast) => ast,
+        Err(err) => {
+            println!("Error: {:?}", err);
+            return;
+        }
+    };
+    println!("{:#?}", ast);
 
     // generate instructions
     println!("{:=^80}", "");
-    println!("{:=^80}", "Phase5: Generating Instructions");
+    println!("{:=^80}", "Phase6: Generating Instructions");
     println!("{:=^80}", "");
-    println!("ADDR | {:-^73}", "Result");
 
-    let mut instructions: InstructionGenerator = InstructionGenerator::new();
-    translation_unit.emit(&mut instructions);
+    let context = llvm::Context::new();
+    let module = context.compile(ast).unwrap();
 
-    println!("Instructions: ");
-    for (id, instruction) in instructions.instructions.iter().enumerate() {
-        if id == instructions.start_address {
-            println!("{: ^2}{:-^78}", "", "Start Address");
-        }
-        println!("{:4}: {:?}", id, instruction);
-    }
+    module.module.print_to_stderr();
 
-    // execute instructions
-    println!("{:=^80}", "");
-    println!("{:=^80}", "Phase6: Executing Instructions");
-    println!("{:=^80}", "");
-    let mut vm: VirtualMachine = VirtualMachine::new();
-    vm.execute(&mut instructions);
-
-    stdout().flush().expect("Failed to flush stdout");
+    let returned = module.run();
+    println!("Program returned: {}", returned);
 }
