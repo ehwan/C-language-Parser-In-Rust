@@ -40,6 +40,7 @@ pub struct ContextInternal<'ctx> {
     context: &'ctx inkwell::context::Context,
     pub module: inkwell::module::Module<'ctx>,
     pub builder: inkwell::builder::Builder<'ctx>,
+    pub execution: inkwell::execution_engine::ExecutionEngine<'ctx>,
 
     variable_map: BTreeMap<usize, inkwell::values::AnyValueEnum<'ctx>>,
     current_function: Option<inkwell::values::FunctionValue<'ctx>>,
@@ -47,20 +48,32 @@ pub struct ContextInternal<'ctx> {
 }
 
 impl<'ctx> ContextInternal<'ctx> {
-    pub fn new(context: &'ctx inkwell::context::Context) -> Self {
+    fn new(context: &'ctx inkwell::context::Context) -> Self {
         let module = context.create_module("main_module");
+        let execution = module
+            .create_jit_execution_engine(inkwell::OptimizationLevel::None)
+            .unwrap();
         let builder = context.create_builder();
         Self {
             context,
             module,
             builder,
+            execution,
             variable_map: Default::default(),
             current_function: None,
             loop_stack: Default::default(),
         }
     }
 
-    pub fn compile(&mut self, ast: TranslationUnit) -> Result<(), CompileError> {
+    pub fn run(&self) -> i32 {
+        type MainFunc = unsafe extern "C" fn() -> i32;
+        unsafe {
+            let main_func = self.execution.get_function::<MainFunc>("main").unwrap();
+            main_func.call()
+        }
+    }
+
+    fn compile(&mut self, ast: TranslationUnit) -> Result<(), CompileError> {
         for (var_name, var_def) in ast.variables.into_iter() {
             // functions are also in this map, but we skip them here
             if var_def.cv_type.type_.is_function() {
@@ -310,6 +323,10 @@ impl<'ctx> ContextInternal<'ctx> {
             continue_block,
         });
 
+        self.builder
+            .build_unconditional_branch(body_block)
+            .map_err(CompileError::BuilderError)?;
+
         self.builder.position_at_end(body_block);
         self.compile_statement(*stmt.body)?;
         self.builder
@@ -335,7 +352,7 @@ impl<'ctx> ContextInternal<'ctx> {
         /*
         continue_block:
             eval_cond
-            if !cond goto break_block
+            if cond goto body_block else break_block
 
         body_block:
             body
@@ -357,6 +374,9 @@ impl<'ctx> ContextInternal<'ctx> {
             continue_block,
         });
 
+        self.builder
+            .build_unconditional_branch(continue_block)
+            .map_err(CompileError::BuilderError)?;
         self.builder.position_at_end(continue_block);
         let cond = self.compile_expression(stmt.condition)?;
         let cond1bit = self.to_1bit_bool(cond)?;
@@ -399,6 +419,9 @@ impl<'ctx> ContextInternal<'ctx> {
             continue_block,
         });
 
+        self.builder
+            .build_unconditional_branch(body_block)
+            .map_err(CompileError::BuilderError)?;
         self.builder.position_at_end(body_block);
         self.compile_statement(*stmt.body)?;
         self.builder

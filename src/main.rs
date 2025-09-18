@@ -121,34 +121,11 @@ fn main() {
     println!("{:=^80}", "Phase6: Generating Instructions");
     println!("{:=^80}", "");
 
-    let mut context = llvm::Context::new();
+    let context = llvm::Context::new();
     let module = context.compile(ast).unwrap();
 
     module.module.print_to_stderr();
 
-    // let mut context = virtualmachine::InstructionGenerator::new();
-    // let vm = match context.emit(translation_unit) {
-    //     Ok(vm) => vm,
-    //     Err(err) => {
-    //         println!("Error: {:?}", err);
-    //         return;
-    //     }
-    // };
-
-    // println!("ADDR | {:-^73}", "Result");
-
-    // for (id, instruction) in vm.instructions.iter().enumerate() {
-    //     println!("{:4}: {:?}", id, instruction);
-    // }
-
-    /*
-    // execute instructions
-    println!("{:=^80}", "");
-    println!("{:=^80}", "Phase6: Executing Instructions");
-    println!("{:=^80}", "");
-    let mut vm: VirtualMachine = VirtualMachine::new();
-    vm.execute(&mut instructions);
-
-    stdout().flush().expect("Failed to flush stdout");
-    */
+    let returned = module.run();
+    println!("Program returned: {}", returned);
 }

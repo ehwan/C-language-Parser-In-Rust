@@ -629,7 +629,22 @@ impl Context {
         // @TODO type check
 
         let expr = if let Some(expr) = stmt.expr {
-            Some(self.process_expression(expr)?)
+            let ret = self.process_expression(expr)?;
+            let func = self.function_scope.as_ref().unwrap();
+            let ret_type = ret.cv_type()?.type_;
+            let func_ret_type = func.type_.return_type.type_.clone();
+            if ret_type == func_ret_type {
+                Some(ret)
+            } else {
+                if ret_type.is_implicitly_castable(&func_ret_type) {
+                    Some(Expression::Cast(ExprCast {
+                        type_: func_ret_type,
+                        expr: Box::new(ret),
+                    }))
+                } else {
+                    return Err(CompileError::ReturnTypeMismatch(func.name.clone()));
+                }
+            }
         } else {
             None
         };

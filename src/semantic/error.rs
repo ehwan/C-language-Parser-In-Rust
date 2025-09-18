@@ -104,4 +104,6 @@ pub enum CompileError {
     PointerSubDifferentType,
 
     InvalidStorageClassSpecifier,
+
+    ReturnTypeMismatch(String),
 }
