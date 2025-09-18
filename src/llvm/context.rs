@@ -704,9 +704,11 @@ impl<'ctx> ContextInternal<'ctx> {
                         .map(|v| v.as_any_value_enum())
                 }
                 (PrimitiveType::Array(_), PrimitiveType::Pointer(rhs_type)) => {
-                    let rhs_type_llvm = rhs_type.to_llvm_type(&self.context).into_int_type();
+                    let rhs_type_llvm = PrimitiveType::Pointer(rhs_type)
+                        .to_llvm_type(&self.context)
+                        .into_pointer_type();
                     self.builder
-                        .build_ptr_to_int(lhs.into_pointer_value(), rhs_type_llvm, "ptr_int")
+                        .build_pointer_cast(lhs.into_pointer_value(), rhs_type_llvm, "ptr_ptr")
                         .map_err(CompileError::BuilderError)
                         .map(|v| v.as_any_value_enum())
                 }
