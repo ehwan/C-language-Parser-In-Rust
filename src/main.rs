@@ -78,7 +78,6 @@ fn main() {
     let parser = ast::translation_unitParser::new();
     let mut context = ast::translation_unitContext::new();
     for token in tokens.into_iter() {
-        println!("=====");
         if !context.can_feed(&parser, &token) {
             println!("Error: Unexpected token: {:?}", token);
             println!("Backtrace: {:?}", context.backtrace(&parser));
