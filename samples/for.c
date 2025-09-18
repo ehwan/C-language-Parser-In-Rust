@@ -1,22 +1,19 @@
-int main()
-{
+extern int printf(char const *, ...);
+int main() {
   int i;
 
-  for (i = 1; i <= 5; i++)
-  {
-    if (i == 3)
-    {
+  for (i = 1; i <= 5; i++) {
+    if (i == 3) {
       continue;
     }
-    print(i);
+    printf("%d\n", i);
 
-    if (i == 4)
-    {
+    if (i == 4) {
       break;
     }
   }
   // this will print 1, 2, 4
 
-  print(100);
+  printf("%d\n", 100);
   return 0;
 }

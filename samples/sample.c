@@ -1,3 +1,5 @@
+extern int printf(const char *fmt, ...);
+
 // declaration of function fibonacci sequence
 int fibonacci(int);
 
@@ -7,19 +9,20 @@ int fibonacci(int);
 
 // main function
 int main() {
-  // print_str("Hello, World!"); // built in function 'print_str'
   int var = 10;
   int *ptr = &var;
+  printf("Hello, World!\n");
   *ptr = MY_MACRO_FUNC(40, 60);
-  // print(ptr, *ptr, var); // built in function 'print'
+  printf("%p, %d, %d\n", (void *)ptr, *ptr, var);
 
-  // print(MY_MACRO_FUNC(10, 20));
+  printf("%d\n", MY_MACRO_FUNC(10, 20));
 
   // print fibonacci sequence
-  // print_str("Fibonacci sequence:");
-  int i;
+  printf("%s\n", "Fibonacci sequence:");
+  int i = 1;
   for (i = 1; i <= 10; i++) {
-    // print(i, fibonacci(i));
+    printf("for i = %d, ", i);
+    printf("%d\n", fibonacci(i));
   }
 
   return 0;
