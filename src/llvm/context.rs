@@ -115,34 +115,51 @@ impl<'ctx> ContextInternal<'ctx> {
             }
         }
 
-        /*
-        let i32_type = self.context.i32_type();
-        let char_ptr_type = self.context.i8_type().ptr_type(AddressSpace::default());
-        let printf_type = i32_type.fn_type(&[char_ptr_type.into()], true); // 가변 인자(true)
-        let printf_func = self.module.add_function(
-            "printf",
-            printf_type,
-            Some(inkwell::module::Linkage::External),
-        );
-        */
+        // add functions before compiling function bodies
+        for (func_name, func_def) in ast.functions.iter() {
+            let function_type = func_def.type_.to_llvm_type(&self.context);
+            if !self.variable_map.contains_key(&func_def.uid) {
+                let function = self
+                    .module
+                    .add_function(&func_name, function_type, None)
+                    .as_any_value_enum();
+                self.variable_map.insert(func_def.uid, function);
+            }
+        }
 
         for (func_name, func_def) in ast.functions.into_iter() {
-            let function_type = func_def.type_.to_llvm_type(&self.context);
-
             let function = self
                 .variable_map
-                .entry(func_def.uid)
-                .or_insert_with(|| {
-                    self.module
-                        .add_function(&func_name, function_type, None)
-                        .as_any_value_enum()
-                })
+                .get(&func_def.uid)
+                .unwrap()
                 .into_function_value();
             self.current_function = Some(function.clone());
 
             let function_block = self.context.append_basic_block(function, "func_block");
             self.builder.position_at_end(function_block);
 
+            // allocate space for arguments and store argument values
+            for (idx, arg_value) in function.get_param_iter().enumerate() {
+                let arg_info = &func_def.args[idx];
+                let arg_name = &arg_info.name;
+                let arg_type: BasicTypeEnum = func_def.args[idx]
+                    .cv_type
+                    .type_
+                    .to_llvm_type(&self.context)
+                    .try_into()
+                    .unwrap();
+                let arg_alloca = self
+                    .builder
+                    .build_alloca(arg_type, arg_name)
+                    .map_err(CompileError::BuilderError)?;
+
+                self.builder
+                    .build_store(arg_alloca, arg_value)
+                    .map_err(CompileError::BuilderError)?;
+
+                self.variable_map
+                    .insert(arg_info.uid, arg_alloca.as_any_value_enum());
+            }
             self.compile_statement(*func_def.body)?;
         }
 
@@ -282,7 +299,7 @@ impl<'ctx> ContextInternal<'ctx> {
     }
     fn compile_statement_return(&mut self, stmt: StmtReturn) -> Result<(), CompileError> {
         if let Some(val) = stmt.expression {
-            let ret_val: BasicValueEnum = self.compile_expression(val)?.try_into().unwrap();
+            let ret_val: BasicValueEnum = self.compile_expression_deref(val)?.try_into().unwrap();
             self.builder
                 .build_return(Some(&ret_val))
                 .map_err(CompileError::BuilderError)?;
@@ -457,11 +474,13 @@ impl<'ctx> ContextInternal<'ctx> {
             self.variable_map
                 .insert(var_info.uid, var.as_any_value_enum());
 
-            let init_value: BasicValueEnum =
-                self.compile_expression(init_value)?.try_into().unwrap();
-            self.builder
-                .build_store(var, init_value)
-                .map_err(CompileError::BuilderError)?;
+            if let Some(init_value) = init_value {
+                let init_value: BasicValueEnum =
+                    self.compile_expression(init_value)?.try_into().unwrap();
+                self.builder
+                    .build_store(var, init_value)
+                    .map_err(CompileError::BuilderError)?;
+            }
         }
         Ok(())
     }
@@ -915,9 +934,7 @@ impl<'ctx> ContextInternal<'ctx> {
                 Ok(ptr.as_any_value_enum())
             }
             ExprUnaryOp::IncrementPost => {
-                let ptr = self
-                    .compile_expression_deref(*expr.expr)?
-                    .into_pointer_value();
+                let ptr = self.compile_expression(*expr.expr)?.into_pointer_value();
                 let val = self
                     .builder
                     .build_load(ptr, "load")

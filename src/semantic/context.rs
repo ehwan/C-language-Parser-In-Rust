@@ -714,14 +714,16 @@ impl Context {
                                         let lhs_type = varinfo.cv_type.type_.clone();
                                         pairs.push((
                                             varinfo,
-                                            Expression::Cast(ExprCast {
+                                            Some(Expression::Cast(ExprCast {
                                                 type_: lhs_type,
                                                 expr: Box::new(init),
-                                            }),
+                                            })),
                                         ));
                                     } else {
-                                        pairs.push((varinfo, init));
+                                        pairs.push((varinfo, Some(init)));
                                     }
+                                } else {
+                                    pairs.push((varinfo, None));
                                 }
                             } else {
                                 if self.global_scope.variables.contains_key(&name) {
@@ -749,15 +751,16 @@ impl Context {
                                         let lhs_type = varinfo.cv_type.type_.clone();
                                         pairs.push((
                                             varinfo,
-                                            Expression::Cast(ExprCast {
+                                            Some(Expression::Cast(ExprCast {
                                                 type_: lhs_type,
                                                 expr: Box::new(init),
-                                            }),
+                                            })),
                                         ));
                                     } else {
-                                        pairs.push((varinfo, init));
+                                        pairs.push((varinfo, Some(init)));
                                     }
                                 } else {
+                                    pairs.push((varinfo, None));
                                     // @TODO
                                     // default value since this variable is in static storage
                                 }
@@ -1196,14 +1199,16 @@ impl Context {
                 self.begin_function_scope(name.clone(), func.clone())?;
                 self.begin_block_scope()?;
 
+                let mut args = Vec::new();
+
                 for arg in &func.args {
-                    if let Some(arg_name) = &arg.name {
-                        self.begin_variable_scope(
-                            arg_name.clone(),
-                            arg.cv_type.clone(),
-                            storage_qualifier,
-                        )?;
-                    }
+                    let arg_name = arg.name.as_deref().unwrap_or("_").to_string();
+                    let arg_info = self.begin_variable_scope(
+                        arg_name,
+                        arg.cv_type.clone(),
+                        storage_qualifier,
+                    )?;
+                    args.push(arg_info);
                 }
 
                 let body = self.process_statement(*stmt.body)?;
@@ -1213,6 +1218,7 @@ impl Context {
                     body: Box::new(body),
                     type_: func,
                     uid: 0,
+                    args,
                 }
             }
             _ => return Err(CompileError::InvalidFunctionDefinition),

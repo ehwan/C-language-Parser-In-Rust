@@ -61,6 +61,7 @@ pub struct FunctionDefinition {
     pub type_: FunctionType,
     /// this is same uid as VariableInfo's uid
     pub uid: usize,
+    pub args: Vec<VariableInfo>,
 }
 #[derive(Debug, Clone)]
 pub struct GlobalScope {
