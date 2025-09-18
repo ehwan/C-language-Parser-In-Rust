@@ -754,7 +754,10 @@ impl<'ctx> ContextInternal<'ctx> {
         let args = expr
             .args
             .into_iter()
-            .map(|arg| self.compile_expression(arg).map(|v| v.try_into().unwrap()))
+            .map(|arg| {
+                self.compile_expression_deref(arg)
+                    .map(|v| v.try_into().unwrap())
+            })
             .collect::<Result<Vec<_>, CompileError>>()?;
         let res = self
             .builder
