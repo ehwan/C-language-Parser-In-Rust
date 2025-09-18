@@ -166,7 +166,18 @@ impl<'ctx> ContextInternal<'ctx> {
         self.current_function = None;
         Ok(())
     }
+    fn is_block_terminated(&self) -> bool {
+        self.builder
+            .get_insert_block()
+            .as_ref()
+            .unwrap()
+            .get_terminator()
+            .is_some()
+    }
     fn compile_statement(&mut self, stmt: Statement) -> Result<(), CompileError> {
+        if self.is_block_terminated() {
+            return Ok(());
+        }
         match stmt {
             Statement::None => Ok(()),
             Statement::Expression(stmt) => self.compile_statement_expression(stmt),
@@ -263,17 +274,21 @@ impl<'ctx> ContextInternal<'ctx> {
 
         self.builder.position_at_end(then_block);
         self.compile_statement(*stmt.then)?;
-        self.builder
-            .build_unconditional_branch(merge_block)
-            .map_err(CompileError::BuilderError)?;
+        if !self.is_block_terminated() {
+            self.builder
+                .build_unconditional_branch(merge_block)
+                .map_err(CompileError::BuilderError)?;
+        }
 
         self.builder.position_at_end(else_block);
         if let Some(else_stmt) = stmt.else_ {
             self.compile_statement(*else_stmt)?;
         }
-        self.builder
-            .build_unconditional_branch(merge_block)
-            .map_err(CompileError::BuilderError)?;
+        if !self.is_block_terminated() {
+            self.builder
+                .build_unconditional_branch(merge_block)
+                .map_err(CompileError::BuilderError)?;
+        }
 
         self.builder.position_at_end(merge_block);
         Ok(())
@@ -346,9 +361,11 @@ impl<'ctx> ContextInternal<'ctx> {
 
         self.builder.position_at_end(body_block);
         self.compile_statement(*stmt.body)?;
-        self.builder
-            .build_unconditional_branch(continue_block)
-            .map_err(CompileError::BuilderError)?;
+        if !self.is_block_terminated() {
+            self.builder
+                .build_unconditional_branch(continue_block)
+                .map_err(CompileError::BuilderError)?;
+        }
 
         self.builder.position_at_end(continue_block);
         if let Some(next) = stmt.next {
@@ -403,9 +420,11 @@ impl<'ctx> ContextInternal<'ctx> {
 
         self.builder.position_at_end(body_block);
         self.compile_statement(*stmt.body)?;
-        self.builder
-            .build_unconditional_branch(continue_block)
-            .map_err(CompileError::BuilderError)?;
+        if !self.is_block_terminated() {
+            self.builder
+                .build_unconditional_branch(continue_block)
+                .map_err(CompileError::BuilderError)?;
+        }
 
         self.builder.position_at_end(break_block);
         self.loop_stack.pop();
@@ -441,9 +460,11 @@ impl<'ctx> ContextInternal<'ctx> {
             .map_err(CompileError::BuilderError)?;
         self.builder.position_at_end(body_block);
         self.compile_statement(*stmt.body)?;
-        self.builder
-            .build_unconditional_branch(continue_block)
-            .map_err(CompileError::BuilderError)?;
+        if !self.is_block_terminated() {
+            self.builder
+                .build_unconditional_branch(continue_block)
+                .map_err(CompileError::BuilderError)?;
+        }
 
         self.builder.position_at_end(continue_block);
         let cond = self.compile_expression(stmt.condition)?;
