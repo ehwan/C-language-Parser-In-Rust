@@ -2,7 +2,7 @@ use super::expression::Expression;
 
 use std::vec::Vec;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageClassSpecifier {
     Static,
     Typedef,

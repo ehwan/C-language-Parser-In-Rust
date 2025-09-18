@@ -5,6 +5,7 @@ use std::rc::Rc;
 use super::declarator;
 use super::expression;
 use super::statement;
+use super::typename::StorageClassSpecifier;
 use super::ArrayType;
 use super::CVType;
 use super::CombinedDeclarator;
@@ -21,7 +22,6 @@ use super::PrimitiveType;
 use super::Statement;
 use super::StmtSwitchCase;
 use super::StmtVariableDeclaration;
-use super::StorageQualifier;
 use super::StructType;
 use super::TranslationUnit;
 use super::VariableInfo;
@@ -176,6 +176,7 @@ impl Context {
         &mut self,
         name: String,
         cv_type: CVType,
+        storage: Option<StorageClassSpecifier>,
     ) -> Result<VariableInfo, CompileError> {
         // search for `name` in current scope
         for scope in self.scopes.iter().rev() {
@@ -193,6 +194,7 @@ impl Context {
             name: name.clone(),
             uid: self.create_variable_id(),
             cv_type,
+            storage,
         };
         let scope = VariableScope {
             id: self.create_scope_id(),
@@ -641,7 +643,7 @@ impl Context {
     ) -> Result<Statement, CompileError> {
         // @TODO storage_qualifier check
         // currently ignore all storage qualifiers
-        let (_storage_qualifier, base_type) = self.process_decl_specs(stmt.specs.into_iter())?;
+        let (storage_qualifier, base_type) = self.process_decl_specs(stmt.specs.into_iter())?;
 
         match stmt.inits {
             Some(decl_inits) => {
@@ -670,6 +672,7 @@ impl Context {
                                     name: name.clone(),
                                     cv_type: init_type.cv_type().clone(),
                                     uid,
+                                    storage: storage_qualifier,
                                 },
                             ) {
                                 return Err(CompileError::MultipleVariableDefinition(old.name));
@@ -680,6 +683,7 @@ impl Context {
                                 let varinfo = self.begin_variable_scope(
                                     name.clone(),
                                     init_type.cv_type.clone(),
+                                    storage_qualifier,
                                 )?;
                                 if let Some(init) = init.initializer {
                                     let init = self.process_expression(init)?;
@@ -713,6 +717,7 @@ impl Context {
                                     name: name.clone(),
                                     uid: self.create_variable_id(),
                                     cv_type: init_type.cv_type,
+                                    storage: storage_qualifier,
                                 };
                                 self.global_scope.variables.insert(name, varinfo.clone());
                                 if let Some(init) = init.initializer {
@@ -1160,12 +1165,9 @@ impl Context {
             ));
         }
 
-        let (_storage_qualifier, base_type) = match stmt.specs {
+        let (storage_qualifier, base_type) = match stmt.specs {
             Some(specs) => self.process_decl_specs(specs.into_iter())?,
-            None => (
-                StorageQualifier::new(),
-                CVType::from_primitive(PrimitiveType::Void),
-            ),
+            None => (None, CVType::from_primitive(PrimitiveType::Void)),
         };
         // @TODO storage_qualifier check
         let decl = self.process_declarator(stmt.decl, base_type)?;
@@ -1181,7 +1183,11 @@ impl Context {
 
                 for arg in &func.args {
                     if let Some(arg_name) = &arg.name {
-                        self.begin_variable_scope(arg_name.clone(), arg.cv_type.clone())?;
+                        self.begin_variable_scope(
+                            arg_name.clone(),
+                            arg.cv_type.clone(),
+                            storage_qualifier,
+                        )?;
                     }
                 }
 
@@ -1225,6 +1231,7 @@ impl Context {
                     function_definition.type_.clone(),
                 )),
                 uid: self.create_variable_id(),
+                storage: storage_qualifier,
             };
             function_definition.uid = varinfo.uid;
             self.global_scope
@@ -1475,10 +1482,23 @@ impl Context {
                         let arg_expr = self.process_expression(expr)?;
                         let arg_type = arg_expr.cv_type()?.type_;
 
-                        if !arg_type.is_implicitly_castable(&func_info.args[idx].primitive_type()) {
+                        if idx < func_info.args.len()
+                            && !arg_type
+                                .is_implicitly_castable(&func_info.args[idx].primitive_type())
+                        {
                             return Err(CompileError::CallWithWrongArgumentType);
                         }
-                        Ok(arg_expr)
+
+                        if idx < func_info.args.len()
+                            && &arg_type != func_info.args[idx].primitive_type()
+                        {
+                            Ok(Expression::Cast(super::ExprCast {
+                                expr: Box::new(arg_expr),
+                                type_: func_info.args[idx].primitive_type().clone(),
+                            }))
+                        } else {
+                            Ok(arg_expr)
+                        }
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
@@ -2474,19 +2494,18 @@ impl Context {
     pub(crate) fn process_decl_specs(
         &mut self,
         specs: impl Iterator<Item = ast::DeclarationSpecifier>,
-    ) -> Result<(StorageQualifier, CVType), CompileError> {
-        let mut storage_qualifier = StorageQualifier::new();
+    ) -> Result<(Option<StorageClassSpecifier>, CVType), CompileError> {
+        let mut storage_qualifier = None;
         let mut collector = declarator::SpecifierQualifierCollector::new();
 
         for s in specs {
             match s {
-                ast::DeclarationSpecifier::StorageClassSpecifier(s) => match s {
-                    ast::StorageClassSpecifier::Auto => storage_qualifier.auto = true,
-                    ast::StorageClassSpecifier::Register => storage_qualifier.register = true,
-                    ast::StorageClassSpecifier::Static => storage_qualifier.static_ = true,
-                    ast::StorageClassSpecifier::Extern => storage_qualifier.extern_ = true,
-                    ast::StorageClassSpecifier::Typedef => storage_qualifier.typedef = true,
-                },
+                ast::DeclarationSpecifier::StorageClassSpecifier(s) => {
+                    if storage_qualifier.is_some() && storage_qualifier != Some(s) {
+                        return Err(CompileError::InvalidStorageClassSpecifier);
+                    }
+                    storage_qualifier = Some(s);
+                }
                 ast::DeclarationSpecifier::TypeQualifier(t) => match t {
                     ast::TypeQualifier::Const => collector.set_const()?,
                     ast::TypeQualifier::Volatile => collector.set_volatile()?,

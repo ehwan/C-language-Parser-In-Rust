@@ -51,7 +51,7 @@ pub use typename::Float;
 pub use typename::FunctionType;
 pub use typename::Integer;
 pub use typename::PrimitiveType;
-pub use typename::StorageQualifier;
+pub use typename::StorageClassSpecifier;
 pub use typename::StructMember;
 pub use typename::StructType;
 

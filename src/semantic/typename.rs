@@ -585,22 +585,4 @@ impl std::ops::Deref for CVType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct StorageQualifier {
-    pub static_: bool,
-    pub register: bool,
-    pub extern_: bool,
-    pub typedef: bool,
-    pub auto: bool,
-}
-impl StorageQualifier {
-    pub fn new() -> Self {
-        Self {
-            static_: false,
-            register: false,
-            extern_: false,
-            typedef: false,
-            auto: false,
-        }
-    }
-}
+pub type StorageClassSpecifier = crate::ast::StorageClassSpecifier;

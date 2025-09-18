@@ -102,4 +102,6 @@ pub enum CompileError {
     DistinctPointer(CVType, CVType),
 
     PointerSubDifferentType,
+
+    InvalidStorageClassSpecifier,
 }

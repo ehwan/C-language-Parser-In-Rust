@@ -70,7 +70,15 @@ impl<'ctx> ContextInternal<'ctx> {
                     .to_llvm_type(&self.context)
                     .into_function_type();
 
-                let function = self.module.add_function(&var_def.name, function_type, None);
+                let linkage =
+                    if var_def.storage == Some(crate::semantic::StorageClassSpecifier::Extern) {
+                        Some(inkwell::module::Linkage::External)
+                    } else {
+                        None
+                    };
+                let function = self
+                    .module
+                    .add_function(&var_def.name, function_type, linkage);
                 self.variable_map
                     .insert(var_def.uid, function.as_any_value_enum());
             } else {
