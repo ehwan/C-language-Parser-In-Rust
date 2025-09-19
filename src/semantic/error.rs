@@ -8,6 +8,7 @@ pub enum CompileError {
     /// switch body must be a compound statement '{' ... '}'.
     /// switch body must start with `case` or `default`.
     InvalidSwitchBody,
+    SwitchConditionNotInt(PrimitiveType),
     InvalidReturn,
     InvalidDefault,
     MultipleDefault,

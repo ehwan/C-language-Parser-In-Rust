@@ -184,6 +184,12 @@ impl PrimitiveType {
             PrimitiveType::Integer(_) | PrimitiveType::Pointer(_) | PrimitiveType::Array(_)
         )
     }
+    pub fn is_int_castable(&self) -> bool {
+        matches!(
+            self,
+            PrimitiveType::Integer(_) | PrimitiveType::Pointer(_) | PrimitiveType::Array(_)
+        )
+    }
     pub fn is_struct(&self) -> bool {
         matches!(self, PrimitiveType::Struct(_))
     }

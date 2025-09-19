@@ -33,7 +33,7 @@ pub type ValueType<'ctx> = AnyValueEnum<'ctx>;
 #[derive(Debug, Clone)]
 pub struct LoopContext<'ctx> {
     pub break_block: inkwell::basic_block::BasicBlock<'ctx>,
-    pub continue_block: inkwell::basic_block::BasicBlock<'ctx>,
+    pub continue_block: Option<inkwell::basic_block::BasicBlock<'ctx>>,
 }
 
 pub struct ContextInternal<'ctx> {
@@ -298,14 +298,99 @@ impl<'ctx> ContextInternal<'ctx> {
     }
 
     fn compile_statement_switch(&mut self, stmt: StmtSwitch) -> Result<(), CompileError> {
-        unimplemented!("switch statement is not supported yet");
+        let value = self.compile_expression_deref(stmt.value)?;
+
+        let mut body_blocks = Vec::new();
+        let mut cond_blocks = Vec::new();
+        for _ in 0..stmt.cases.len() {
+            let block = self
+                .context
+                .append_basic_block(self.current_function.unwrap(), "switch_body");
+            body_blocks.push(block);
+
+            let cond_block = self
+                .context
+                .append_basic_block(self.current_function.unwrap(), "switch_cond");
+            cond_blocks.push(cond_block);
+        }
+        let break_block = self
+            .context
+            .append_basic_block(self.current_function.unwrap(), "switch_break");
+        body_blocks.push(break_block);
+
+        if let Some(default_case) = stmt.default {
+            cond_blocks.push(body_blocks[default_case]);
+        } else {
+            cond_blocks.push(break_block);
+        }
+
+        self.loop_stack.push(LoopContext {
+            break_block,
+            continue_block: None,
+        });
+        if stmt.default == Some(0) {
+            self.builder
+                .build_unconditional_branch(cond_blocks[1])
+                .map_err(CompileError::BuilderError)?;
+        } else {
+            self.builder
+                .build_unconditional_branch(cond_blocks[0])
+                .map_err(CompileError::BuilderError)?;
+        }
+
+        let l = stmt.cases.len();
+        debug_assert!(l > 0);
+        for (i, case) in stmt.cases.into_iter().enumerate() {
+            if let Some(cond) = case.value {
+                self.builder.position_at_end(cond_blocks[i]);
+                let cond_val = self.compile_expression_deref(cond)?;
+
+                // @TODO type match
+                let cond1bit = self
+                    .builder
+                    .build_int_compare(
+                        inkwell::IntPredicate::EQ,
+                        value.into_int_value(),
+                        cond_val.into_int_value(),
+                        "switch_cond",
+                    )
+                    .map_err(CompileError::BuilderError)?;
+
+                let next_block = if Some(i + 1) == stmt.default {
+                    cond_blocks[i + 2]
+                } else {
+                    cond_blocks[i + 1]
+                };
+
+                self.builder
+                    .build_conditional_branch(cond1bit, body_blocks[i], next_block)
+                    .map_err(CompileError::BuilderError)?;
+            }
+
+            self.builder.position_at_end(body_blocks[i]);
+            for stmt in case.statements {
+                self.compile_statement(stmt)?;
+            }
+            if !self.is_block_terminated() {
+                let next_block = body_blocks[i + 1];
+                self.builder
+                    .build_unconditional_branch(next_block)
+                    .map_err(CompileError::BuilderError)?;
+            }
+        }
+        self.builder.position_at_end(break_block);
+        self.loop_stack.pop();
         Ok(())
     }
     fn compile_statement_continue(&mut self) -> Result<(), CompileError> {
-        let last_loop_context = self.loop_stack.last().unwrap();
-        self.builder
-            .build_unconditional_branch(last_loop_context.continue_block)
-            .map_err(CompileError::BuilderError)?;
+        for l in self.loop_stack.iter().rev() {
+            if let Some(continue_block) = l.continue_block {
+                self.builder
+                    .build_unconditional_branch(continue_block)
+                    .map_err(CompileError::BuilderError)?;
+                return Ok(());
+            }
+        }
         Ok(())
     }
     fn compile_statement_break(&mut self) -> Result<(), CompileError> {
@@ -355,7 +440,7 @@ impl<'ctx> ContextInternal<'ctx> {
 
         self.loop_stack.push(LoopContext {
             break_block,
-            continue_block,
+            continue_block: Some(continue_block),
         });
 
         self.builder
@@ -408,7 +493,7 @@ impl<'ctx> ContextInternal<'ctx> {
             .append_basic_block(self.current_function.unwrap(), "break_block");
         self.loop_stack.push(LoopContext {
             break_block,
-            continue_block,
+            continue_block: Some(continue_block),
         });
 
         self.builder
@@ -455,7 +540,7 @@ impl<'ctx> ContextInternal<'ctx> {
             .append_basic_block(self.current_function.unwrap(), "break_block");
         self.loop_stack.push(LoopContext {
             break_block,
-            continue_block,
+            continue_block: Some(continue_block),
         });
 
         self.builder

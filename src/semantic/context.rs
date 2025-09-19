@@ -495,6 +495,44 @@ impl Context {
                 }
             }
         }
+        if cases.len() == 0 {
+            return Err(CompileError::InvalidSwitchBody);
+        }
+
+        // type check
+        let vtype = value.primitive_type()?;
+        if !vtype.is_int_castable() {
+            return Err(CompileError::SwitchConditionNotInt(vtype));
+        }
+        let mut common_type = vtype.clone();
+        for case in &cases {
+            if let Some(v) = &case.value {
+                if v.primitive_type()?.is_int_castable() == false {
+                    return Err(CompileError::SwitchConditionNotInt(v.primitive_type()?));
+                }
+                common_type = common_type.common_type(&v.primitive_type()?).unwrap();
+            }
+        }
+
+        let value = if vtype == common_type {
+            value
+        } else {
+            Expression::Cast(ExprCast {
+                type_: common_type.clone(),
+                expr: Box::new(value),
+            })
+        };
+        for case in &mut cases {
+            if let Some(v) = &case.value {
+                if v.primitive_type()? != common_type {
+                    case.value = Some(Expression::Cast(ExprCast {
+                        type_: common_type.clone(),
+                        expr: Box::new(v.clone()),
+                    }));
+                }
+            }
+        }
+
         Ok(Statement::Switch(statement::StmtSwitch {
             value,
             cases,
