@@ -760,7 +760,8 @@ impl Context {
                                         pairs.push((varinfo, Some(init)));
                                     }
                                 } else {
-                                    pairs.push((varinfo, None));
+                                    let init = Expression::Default(varinfo.cv_type.type_.clone());
+                                    pairs.push((varinfo, Some(init)));
                                     // @TODO
                                     // default value since this variable is in static storage
                                 }

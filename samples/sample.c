@@ -7,6 +7,9 @@ int fibonacci(int);
 
 #if MY_MACRO_FUNC(1, 2) == 3
 
+int global_uninit;
+int global_x = 1000;
+
 // main function
 int main() {
   int var = 10;
@@ -24,6 +27,11 @@ int main() {
     printf("for i = %d, ", i);
     printf("%d\n", fibonacci(i));
   }
+
+  printf("global_uninit = %d\n", global_uninit);
+  printf("global_x = %d\n", global_x);
+  global_x = 2000;
+  printf("global_x = %d\n", global_x);
 
   return 0;
 }

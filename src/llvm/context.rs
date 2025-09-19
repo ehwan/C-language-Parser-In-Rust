@@ -73,7 +73,7 @@ impl<'ctx> ContextInternal<'ctx> {
         }
     }
 
-    fn compile(&mut self, ast: TranslationUnit) -> Result<(), CompileError> {
+    fn compile(&mut self, mut ast: TranslationUnit) -> Result<(), CompileError> {
         for (var_name, var_def) in ast.variables.into_iter() {
             // functions are also in this map, but we skip them here
             if var_def.cv_type.type_.is_function() {
@@ -104,9 +104,6 @@ impl<'ctx> ContextInternal<'ctx> {
                 let global_var =
                     self.module
                         .add_global(basic_type, Some(AddressSpace::default()), &var_name);
-
-                // @TODO handle initializer
-                // global variable should have initializer instead of out-of-function statements
 
                 self.variable_map.insert(
                     var_def.uid,
@@ -159,6 +156,11 @@ impl<'ctx> ContextInternal<'ctx> {
 
                 self.variable_map
                     .insert(arg_info.uid, arg_alloca.as_any_value_enum());
+            }
+            if func_name == "main" {
+                for s in std::mem::take(&mut ast.statements) {
+                    self.compile_statement(s)?;
+                }
             }
             self.compile_statement(*func_def.body)?;
         }
@@ -215,6 +217,7 @@ impl<'ctx> ContextInternal<'ctx> {
             Expression::Unary(expr) => self.compile_expression_unary(expr),
             Expression::Binary(expr) => self.compile_expression_binary(expr),
             Expression::InitializerList(expr) => self.compile_expression_initializerlist(expr),
+            Expression::Default(t) => self.compile_expression_default(t),
         }
     }
 }
@@ -1583,5 +1586,13 @@ impl<'ctx> ContextInternal<'ctx> {
         expr: ExprInitializerList,
     ) -> Result<ValueType<'ctx>, CompileError> {
         unimplemented!("initializer list expression is not supported yet")
+    }
+
+    fn compile_expression_default(
+        &mut self,
+        t: PrimitiveType,
+    ) -> Result<ValueType<'ctx>, CompileError> {
+        let t: BasicTypeEnum = t.to_llvm_type(&self.context).try_into().unwrap();
+        Ok(t.const_zero().as_any_value_enum())
     }
 }

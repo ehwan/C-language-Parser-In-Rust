@@ -25,6 +25,8 @@ pub enum Expression {
     Unary(ExprUnary),
     Binary(ExprBinary),
     InitializerList(ExprInitializerList),
+
+    Default(PrimitiveType),
 }
 impl Expression {
     pub fn is_reference(&self) -> bool {
@@ -91,6 +93,7 @@ impl Expression {
                 ExprBinaryOp::Comma => expr.rhs.is_reference(),
             },
             Expression::InitializerList(_) => false,
+            Expression::Default(_) => false,
         }
     }
 
@@ -288,6 +291,7 @@ impl Expression {
                     ExprBinaryOp::Comma => rhs_type,
                 }
             }
+            Expression::Default(t) => CVType::from_primitive(t.clone()),
         })
     }
     pub fn primitive_type(&self) -> Result<PrimitiveType, CompileError> {
