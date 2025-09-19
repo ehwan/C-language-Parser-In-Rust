@@ -5,7 +5,7 @@ C language lexer & parser & virtual executer from scratch in Rust.
 ## Features
  - Tokenizer (Lexer)
  - Preprocessor
- - Parser ( AST Builder )
+ - Parser ( AST Builder, LR(1) parser using [RustyLR](https://github.com/ehwan/RustyLR) )
  - Virtual Machine ( LLVM via [inkwell](https://github.com/TheDan64/inkwell) )
 
 ## How it works
