@@ -20,7 +20,8 @@ pub enum CompileError {
     MultipleLabelDefinition(String),
 
     GotoOutsideFunction(String),
-    GotoInvalidLabel(String),
+    GotoInvalidLabel(String), // goto a label that variable scope is not matching
+    LabelNotDefined(String),  // goto undefined label
 
     DeclarationWithoutName,
 

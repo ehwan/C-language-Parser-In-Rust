@@ -43,6 +43,7 @@ pub struct ContextInternal<'ctx> {
     pub execution: inkwell::execution_engine::ExecutionEngine<'ctx>,
 
     variable_map: BTreeMap<usize, inkwell::values::AnyValueEnum<'ctx>>,
+    label_map: BTreeMap<usize, inkwell::basic_block::BasicBlock<'ctx>>,
     current_function: Option<inkwell::values::FunctionValue<'ctx>>,
     loop_stack: Vec<LoopContext<'ctx>>,
 }
@@ -60,6 +61,7 @@ impl<'ctx> ContextInternal<'ctx> {
             builder,
             execution,
             variable_map: Default::default(),
+            label_map: Default::default(),
             current_function: None,
             loop_stack: Default::default(),
         }
@@ -177,13 +179,20 @@ impl<'ctx> ContextInternal<'ctx> {
             .is_some()
     }
     fn compile_statement(&mut self, stmt: Statement) -> Result<(), CompileError> {
+        // no termination check for labeled statements
+        if let Statement::Labeled(stmt) = stmt {
+            return self.compile_statement_labeled(stmt);
+        }
+
         if self.is_block_terminated() {
             return Ok(());
         }
         match stmt {
             Statement::None => Ok(()),
             Statement::Expression(stmt) => self.compile_statement_expression(stmt),
-            Statement::Labeled(stmt) => self.compile_statement_labeled(stmt),
+            Statement::Labeled(_) => {
+                unreachable!("labeled statement must be handled separately")
+            }
             Statement::Goto(stmt) => self.compile_statement_goto(stmt),
             Statement::Compound(stmt) => self.compile_statement_compound(stmt),
             Statement::If(stmt) => self.compile_statement_if(stmt),
@@ -229,11 +238,32 @@ impl<'ctx> ContextInternal<'ctx> {
         Ok(())
     }
     fn compile_statement_labeled(&mut self, stmt: StmtLabeled) -> Result<(), CompileError> {
-        unimplemented!("labeled statement is not supported yet");
+        let label_id = stmt.label.borrow().uid;
+        let label_name = stmt.label.borrow().name.clone();
+        let block = *self.label_map.entry(label_id).or_insert_with(|| {
+            self.context
+                .append_basic_block(self.current_function.unwrap(), &label_name)
+        });
+
+        if !self.is_block_terminated() {
+            self.builder
+                .build_unconditional_branch(block)
+                .map_err(CompileError::BuilderError)?;
+        }
+        self.builder.position_at_end(block);
+        self.compile_statement(*stmt.statement)?;
         Ok(())
     }
     fn compile_statement_goto(&mut self, stmt: StmtGoto) -> Result<(), CompileError> {
-        unimplemented!("goto statement is not supported yet");
+        let label_id = stmt.label.borrow().uid;
+        let label_name = stmt.label.borrow().name.clone();
+        let block = *self.label_map.entry(label_id).or_insert_with(|| {
+            self.context
+                .append_basic_block(self.current_function.unwrap(), &label_name)
+        });
+        self.builder
+            .build_unconditional_branch(block)
+            .map_err(CompileError::BuilderError)?;
         Ok(())
     }
     fn compile_statement_compound(&mut self, stmt: StmtCompound) -> Result<(), CompileError> {

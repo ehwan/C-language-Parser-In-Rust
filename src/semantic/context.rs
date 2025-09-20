@@ -40,9 +40,11 @@ use super::LabelInfo;
 
 pub struct Context {
     /// for unique scope id generation
-    pub scope_counter: usize,
+    scope_counter: usize,
     /// for unique variable id generation
-    pub variable_counter: usize,
+    variable_counter: usize,
+    /// for unique label id generation
+    label_counter: usize,
 
     pub global_scope: GlobalScope,
     pub function_scope: Option<FunctionScope>,
@@ -54,6 +56,7 @@ impl Context {
         Context {
             scope_counter: 0,
             variable_counter: 0,
+            label_counter: 0,
             global_scope: GlobalScope::new(),
             function_scope: None,
             scopes: Vec::new(),
@@ -68,6 +71,10 @@ impl Context {
     fn create_variable_id(&mut self) -> usize {
         self.variable_counter += 1;
         self.variable_counter
+    }
+    fn create_label_id(&mut self) -> usize {
+        self.label_counter += 1;
+        self.label_counter
     }
     fn begin_switch_scope(&mut self) -> Result<(), CompileError> {
         let scope = SwitchScope {
@@ -373,24 +380,21 @@ impl Context {
         stmt: ast::StmtLabeled,
     ) -> Result<Statement, CompileError> {
         let path = self.get_current_scope_path();
+        let label_id = self.create_label_id();
         if let Some(function_scope) = &mut self.function_scope {
-            let label_info = LabelInfo {
-                name: stmt.label.clone(),
-                scope_path: path,
-            };
-            let label_info = Rc::new(RefCell::new(label_info));
-            if let Some(old) = function_scope
+            let label = function_scope
                 .labels
-                .insert(stmt.label.clone(), Rc::clone(&label_info))
-            {
-                let label = old.borrow().name.clone();
-                Err(CompileError::MultipleLabelDefinition(label))
-            } else {
-                Ok(Statement::Labeled(statement::StmtLabeled {
-                    label: label_info,
-                    statement: Box::new(self.process_statement(*stmt.statement)?),
-                }))
-            }
+                .entry(stmt.label.clone())
+                .or_insert_with(|| {
+                    let label_info = LabelInfo::new(stmt.label, label_id);
+                    Rc::new(RefCell::new(label_info))
+                });
+            let label = Rc::clone(label);
+            label.borrow_mut().set_label_scope(path)?;
+            Ok(Statement::Labeled(statement::StmtLabeled {
+                label,
+                statement: Box::new(self.process_statement(*stmt.statement)?),
+            }))
         } else {
             Err(CompileError::LabelDefinitionOutsideFunction(stmt.label))
         }
@@ -400,19 +404,18 @@ impl Context {
         stmt: ast::StmtGoto,
     ) -> Result<Statement, CompileError> {
         let path = self.get_current_scope_path();
+        let label_id = self.create_label_id();
         if let Some(function_scope) = &mut self.function_scope {
-            if let Some(label) = function_scope.labels.get(&stmt.label) {
-                // check if `label` is goto-able from current scope
-                let label_path = &label.borrow().scope_path;
-                if !path.starts_with(label_path) {
-                    return Err(CompileError::GotoInvalidLabel(stmt.label));
-                }
-                Ok(Statement::Goto(statement::StmtGoto {
-                    label: Rc::clone(label),
-                }))
-            } else {
-                Err(CompileError::GotoInvalidLabel(stmt.label))
-            }
+            let label = function_scope
+                .labels
+                .entry(stmt.label.clone())
+                .or_insert_with(|| {
+                    let label_info = LabelInfo::new(stmt.label, label_id);
+                    Rc::new(RefCell::new(label_info))
+                });
+            let label = Rc::clone(label);
+            label.borrow_mut().add_from_scope(path)?;
+            Ok(Statement::Goto(statement::StmtGoto { label }))
         } else {
             Err(CompileError::GotoOutsideFunction(stmt.label))
         }
@@ -1252,7 +1255,14 @@ impl Context {
 
                 let body = self.process_statement(*stmt.body)?;
                 self.end_block_scope()?;
-                self.end_function_scope()?;
+                let func_scope = self.end_function_scope()?;
+                // check for label validity
+                for (name, label) in func_scope.labels {
+                    if label.borrow().get_label_scope().is_none() {
+                        return Err(CompileError::LabelNotDefined(name));
+                    }
+                }
+
                 FunctionDefinition {
                     body: Box::new(body),
                     type_: func,
