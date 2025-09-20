@@ -205,7 +205,9 @@ impl PrimitiveType {
             PrimitiveType::Integer(i) => i.sizeof(),
             PrimitiveType::Float(f) => f.sizeof(),
             PrimitiveType::Pointer(_) => 8,
-            PrimitiveType::Array(ArrayType { cv_type, size }) => cv_type.type_.sizeof()? * (*size),
+            PrimitiveType::Array(ArrayType { cv_type, size }) => {
+                cv_type.type_.sizeof()? * size.unwrap()
+            }
             PrimitiveType::Function(_) => return Err(CompileError::SizeofIncompleteType),
             PrimitiveType::Struct(s) | PrimitiveType::Union(s) => match &s.body {
                 Some(s) => s.size,
@@ -336,7 +338,9 @@ impl PrimitiveType {
                     .to_llvm_type(context)
                     .try_into()
                     .unwrap();
-                basic_type.array_type(array.size as u32).as_any_type_enum()
+                basic_type
+                    .array_type(array.size.unwrap() as u32)
+                    .as_any_type_enum()
             }
             PrimitiveType::Struct(s) => {
                 let body = s.body.as_ref().unwrap();
@@ -363,7 +367,7 @@ impl PrimitiveType {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ArrayType {
     pub cv_type: Box<CVType>,
-    pub size: usize,
+    pub size: Option<usize>,
 }
 impl ArrayType {
     pub fn to_pointer(self) -> PrimitiveType {
@@ -570,7 +574,7 @@ impl CVType {
         Self {
             type_: PrimitiveType::Array(ArrayType {
                 cv_type: Box::new(self),
-                size,
+                size: Some(size),
             }),
             const_: false,
             volatile: false,

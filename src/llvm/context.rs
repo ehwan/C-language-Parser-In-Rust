@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use inkwell::{
-    types::BasicTypeEnum,
+    types::{BasicType, BasicTypeEnum},
     values::{AnyValue, AnyValueEnum, BasicValue, BasicValueEnum, IntValue},
     AddressSpace,
 };
@@ -599,7 +599,7 @@ impl<'ctx> ContextInternal<'ctx> {
         &mut self,
         stmt: StmtVariableDeclaration,
     ) -> Result<(), CompileError> {
-        for (var_info, init_value) in stmt.pairs {
+        for (var_info, inits) in stmt.pairs {
             let type_: BasicTypeEnum = var_info
                 .cv_type
                 .type_
@@ -613,12 +613,8 @@ impl<'ctx> ContextInternal<'ctx> {
             self.variable_map
                 .insert(var_info.uid, var.as_any_value_enum());
 
-            if let Some(init_value) = init_value {
-                let init_value: BasicValueEnum =
-                    self.compile_expression(init_value)?.try_into().unwrap();
-                self.builder
-                    .build_store(var, init_value)
-                    .map_err(CompileError::BuilderError)?;
+            for init in inits {
+                self.compile_statement(init)?;
             }
         }
         Ok(())
@@ -930,6 +926,17 @@ impl<'ctx> ContextInternal<'ctx> {
         let src = self
             .compile_expression_deref(*expr.src)?
             .into_pointer_value();
+        let src = if src.get_type().get_element_type().is_array_type() {
+            // src is pointer to array, [T]*, need to cast to T*
+            let arr: BasicTypeEnum = src.get_type().get_element_type().try_into().unwrap();
+            let t = arr.into_array_type().get_element_type();
+            let to = t.ptr_type(Default::default());
+            self.builder
+                .build_pointer_cast(src, to, "array_decay")
+                .map_err(CompileError::BuilderError)?
+        } else {
+            src
+        };
         let index = self.compile_expression(*expr.index)?.into_int_value();
         unsafe {
             self.builder

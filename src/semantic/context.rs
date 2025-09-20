@@ -708,13 +708,39 @@ impl Context {
                 // @TODO
                 // - function declaration
                 // - typedef
-                for init in decl_inits.into_iter() {
-                    let init_type = self.process_declarator(*init.declarator, base_type.clone())?;
-                    let Some(name) = init_type.name.clone() else {
+                for decl in decl_inits.into_iter() {
+                    let mut lhs_type =
+                        self.process_declarator(*decl.declarator, base_type.clone())?;
+                    let Some(name) = lhs_type.name.clone() else {
                         return Err(CompileError::DeclarationWithoutName);
                     };
 
-                    match init_type.primitive_type() {
+                    let initializer = decl
+                        .initializer
+                        .map(|expr| self.process_expression(expr))
+                        .transpose()?;
+
+                    // check for incomplete array size
+                    // and set array size if initializer is an initializer list
+                    if let PrimitiveType::Array(arr_type) = &mut lhs_type.cv_type.type_ {
+                        if let Some(initializer) = &initializer {
+                            if let Expression::InitializerList(list) = initializer {
+                                if arr_type.size.is_none() {
+                                    arr_type.size = Some(list.exprs.len());
+                                }
+                            } else {
+                                return Err(CompileError::ArrayInitializeWithNonInitializerList(
+                                    initializer.primitive_type()?,
+                                ));
+                            }
+                        } else {
+                            if arr_type.size.is_none() {
+                                return Err(CompileError::IncompleteType);
+                            }
+                        }
+                    }
+
+                    match lhs_type.primitive_type() {
                         // this is function declaration without body
                         PrimitiveType::Function(_func) => {
                             if self.function_scope.is_some() {
@@ -726,7 +752,7 @@ impl Context {
                                 name.clone(),
                                 VariableInfo {
                                     name: name.clone(),
-                                    cv_type: init_type.cv_type().clone(),
+                                    cv_type: lhs_type.cv_type().clone(),
                                     uid,
                                     storage: storage_qualifier,
                                 },
@@ -734,38 +760,15 @@ impl Context {
                                 return Err(CompileError::MultipleVariableDefinition(old.name));
                             }
                         }
-                        _ => {
-                            if self.function_scope.is_some() {
-                                let varinfo = self.begin_variable_scope(
+                        PrimitiveType::Array(lhs_array) => {
+                            let lhs_len = lhs_array.size.unwrap();
+                            let mut initialization_statements = Vec::new();
+                            let varinfo = if self.function_scope.is_some() {
+                                self.begin_variable_scope(
                                     name.clone(),
-                                    init_type.cv_type.clone(),
+                                    lhs_type.cv_type.clone(),
                                     storage_qualifier,
-                                )?;
-                                if let Some(init) = init.initializer {
-                                    let init = self.process_expression(init)?;
-                                    let rhs_type = init.primitive_type()?;
-                                    if !rhs_type.is_implicitly_castable(&varinfo.cv_type.type_) {
-                                        return Err(CompileError::InitializeTypeMismatch(
-                                            varinfo.cv_type.type_,
-                                            init.primitive_type()?,
-                                        ));
-                                    }
-                                    if rhs_type != varinfo.cv_type.type_ {
-                                        // implicit cast
-                                        let lhs_type = varinfo.cv_type.type_.clone();
-                                        pairs.push((
-                                            varinfo,
-                                            Some(Expression::Cast(ExprCast {
-                                                type_: lhs_type,
-                                                expr: Box::new(init),
-                                            })),
-                                        ));
-                                    } else {
-                                        pairs.push((varinfo, Some(init)));
-                                    }
-                                } else {
-                                    pairs.push((varinfo, None));
-                                }
+                                )?
                             } else {
                                 if self.global_scope.variables.contains_key(&name) {
                                     return Err(CompileError::MultipleVariableDefinition(name));
@@ -774,39 +777,172 @@ impl Context {
                                 let varinfo = VariableInfo {
                                     name: name.clone(),
                                     uid: self.create_variable_id(),
-                                    cv_type: init_type.cv_type,
+                                    cv_type: lhs_type.cv_type.clone(),
                                     storage: storage_qualifier,
                                 };
                                 self.global_scope.variables.insert(name, varinfo.clone());
-                                if let Some(init) = init.initializer {
-                                    let init = self.process_expression(init)?;
-                                    let rhs_type = init.primitive_type()?;
-                                    if !rhs_type.is_implicitly_castable(&varinfo.cv_type.type_) {
+                                varinfo
+                            };
+                            let lhs_elem_type = lhs_array.cv_type.type_.clone();
+                            if let Some(rhs) = initializer {
+                                let Expression::InitializerList(rhs) = rhs else {
+                                    unreachable!();
+                                };
+                                let rhs_len = rhs.exprs.len();
+                                if rhs_len > lhs_len {
+                                    return Err(CompileError::ArrayInitializerTooManyElements(
+                                        varinfo.name.clone(),
+                                        lhs_len,
+                                        rhs_len,
+                                    ));
+                                }
+                                for (i, rhs) in rhs.exprs.into_iter().enumerate() {
+                                    let lhs_index = Expression::Bracket(expression::ExprBracket {
+                                        src: Box::new(Expression::Variable(varinfo.clone())),
+                                        index: Box::new(Expression::Integer(
+                                            i as i64,
+                                            Integer::UInt32,
+                                        )),
+                                    });
+
+                                    if !rhs.primitive_type()?.is_implicitly_castable(&lhs_elem_type)
+                                    {
                                         return Err(CompileError::InitializeTypeMismatch(
-                                            varinfo.cv_type.type_,
-                                            init.primitive_type()?,
+                                            lhs_elem_type.clone(),
+                                            rhs.primitive_type()?,
                                         ));
                                     }
-                                    if rhs_type != varinfo.cv_type.type_ {
+                                    let rhs = if rhs.primitive_type()? != lhs_elem_type {
                                         // implicit cast
-                                        let lhs_type = varinfo.cv_type.type_.clone();
-                                        pairs.push((
-                                            varinfo,
-                                            Some(Expression::Cast(ExprCast {
-                                                type_: lhs_type,
-                                                expr: Box::new(init),
-                                            })),
-                                        ));
+                                        Expression::Cast(ExprCast {
+                                            type_: lhs_elem_type.clone(),
+                                            expr: Box::new(rhs),
+                                        })
                                     } else {
-                                        pairs.push((varinfo, Some(init)));
+                                        rhs
+                                    };
+                                    let init = Statement::Expression(statement::StmtExpression {
+                                        expression: Expression::Binary(super::ExprBinary {
+                                            op: ExprBinaryOp::Assign(true),
+                                            lhs: Box::new(lhs_index),
+                                            rhs: Box::new(rhs),
+                                        }),
+                                    });
+                                    initialization_statements.push(init);
+                                }
+                                for i in rhs_len..lhs_len {
+                                    // fill the rest with default value
+                                    let rhs = Expression::Default(lhs_elem_type.clone());
+                                    let lhs_index = Expression::Bracket(expression::ExprBracket {
+                                        src: Box::new(Expression::Variable(varinfo.clone())),
+                                        index: Box::new(Expression::Integer(
+                                            i as i64,
+                                            Integer::UInt32,
+                                        )),
+                                    });
+                                    let init = Statement::Expression(statement::StmtExpression {
+                                        expression: Expression::Binary(super::ExprBinary {
+                                            op: ExprBinaryOp::Assign(true),
+                                            lhs: Box::new(lhs_index),
+                                            rhs: Box::new(rhs),
+                                        }),
+                                    });
+                                    initialization_statements.push(init);
+                                }
+                            } else {
+                                if self.function_scope.is_none() {
+                                    // if this is global variable, initialize with default value
+                                    for i in 0..lhs_len {
+                                        let rhs = Expression::Default(lhs_elem_type.clone());
+                                        let lhs_index =
+                                            Expression::Bracket(expression::ExprBracket {
+                                                src: Box::new(Expression::Variable(
+                                                    varinfo.clone(),
+                                                )),
+                                                index: Box::new(Expression::Integer(
+                                                    i as i64,
+                                                    Integer::UInt32,
+                                                )),
+                                            });
+                                        let init =
+                                            Statement::Expression(statement::StmtExpression {
+                                                expression: Expression::Binary(super::ExprBinary {
+                                                    op: ExprBinaryOp::Assign(true),
+                                                    lhs: Box::new(lhs_index),
+                                                    rhs: Box::new(rhs),
+                                                }),
+                                            });
+                                        initialization_statements.push(init);
                                     }
-                                } else {
-                                    let init = Expression::Default(varinfo.cv_type.type_.clone());
-                                    pairs.push((varinfo, Some(init)));
-                                    // @TODO
-                                    // default value since this variable is in static storage
                                 }
                             }
+
+                            pairs.push((varinfo, initialization_statements));
+                        }
+                        _ => {
+                            let mut initialization_statements = Vec::new();
+                            let varinfo = if self.function_scope.is_some() {
+                                self.begin_variable_scope(
+                                    name.clone(),
+                                    lhs_type.cv_type.clone(),
+                                    storage_qualifier,
+                                )?
+                            } else {
+                                if self.global_scope.variables.contains_key(&name) {
+                                    return Err(CompileError::MultipleVariableDefinition(name));
+                                }
+
+                                let varinfo = VariableInfo {
+                                    name: name.clone(),
+                                    uid: self.create_variable_id(),
+                                    cv_type: lhs_type.cv_type.clone(),
+                                    storage: storage_qualifier,
+                                };
+                                self.global_scope.variables.insert(name, varinfo.clone());
+                                varinfo
+                            };
+
+                            if let Some(rhs) = initializer {
+                                let rhs_type = rhs.primitive_type()?;
+                                if !rhs_type.is_implicitly_castable(&varinfo.cv_type.type_) {
+                                    return Err(CompileError::InitializeTypeMismatch(
+                                        varinfo.cv_type.type_,
+                                        rhs.primitive_type()?,
+                                    ));
+                                }
+                                let rhs = if rhs_type != varinfo.cv_type.type_ {
+                                    // implicit cast
+                                    Expression::Cast(ExprCast {
+                                        type_: varinfo.cv_type.type_.clone(),
+                                        expr: Box::new(rhs),
+                                    })
+                                } else {
+                                    rhs
+                                };
+                                let init = Statement::Expression(statement::StmtExpression {
+                                    expression: Expression::Binary(super::ExprBinary {
+                                        op: ExprBinaryOp::Assign(true),
+                                        lhs: Box::new(Expression::Variable(varinfo.clone())),
+                                        rhs: Box::new(rhs),
+                                    }),
+                                });
+                                initialization_statements.push(init);
+                            } else {
+                                if self.function_scope.is_none() {
+                                    // if this is global variable, initialize with default value
+                                    let rhs = Expression::Default(varinfo.cv_type.type_.clone());
+                                    let init = Statement::Expression(statement::StmtExpression {
+                                        expression: Expression::Binary(super::ExprBinary {
+                                            op: ExprBinaryOp::Assign(true),
+                                            lhs: Box::new(Expression::Variable(varinfo.clone())),
+                                            rhs: Box::new(rhs),
+                                        }),
+                                    });
+                                    initialization_statements.push(init);
+                                }
+                            }
+
+                            pairs.push((varinfo, initialization_statements));
                         }
                     }
                 }
@@ -1419,8 +1555,8 @@ impl Context {
         let index = self.process_expression(*expr.index)?;
         let index_type = index.cv_type()?;
         let target_type = PrimitiveType::Integer(Integer::Int64);
-        if index_type.is_implicitly_castable(&target_type) {
-            return Err(CompileError::BracketIndexNotInteger);
+        if !index_type.is_implicitly_castable(&target_type) {
+            return Err(CompileError::BracketIndexNotInteger(index_type.type_));
         }
 
         let index = if index_type.type_ != target_type {
@@ -2778,7 +2914,7 @@ impl Context {
             let mut res = self.process_declarator(*decl, base_type)?;
             res.cv_type = CVType::from_primitive(PrimitiveType::Array(ArrayType {
                 cv_type: Box::new(res.cv_type),
-                size: size,
+                size: Some(size),
             }));
             Ok(res)
         } else {
@@ -2786,7 +2922,7 @@ impl Context {
                 name: None,
                 cv_type: CVType::from_primitive(PrimitiveType::Array(ArrayType {
                     cv_type: Box::new(base_type),
-                    size: size,
+                    size: Some(size),
                 })),
             })
         }
@@ -2796,7 +2932,22 @@ impl Context {
         decl: ast::DeclArrayUnbounded,
         base_type: CVType,
     ) -> Result<CombinedDeclarator, CompileError> {
-        unimplemented!("process_declarator_array_unbounded")
+        if let Some(decl) = decl.declarator {
+            let mut res = self.process_declarator(*decl, base_type)?;
+            res.cv_type = CVType::from_primitive(PrimitiveType::Array(ArrayType {
+                cv_type: Box::new(res.cv_type),
+                size: None,
+            }));
+            Ok(res)
+        } else {
+            Ok(CombinedDeclarator {
+                name: None,
+                cv_type: CVType::from_primitive(PrimitiveType::Array(ArrayType {
+                    cv_type: Box::new(base_type),
+                    size: None,
+                })),
+            })
+        }
     }
     pub(crate) fn process_declarator_function(
         &mut self,

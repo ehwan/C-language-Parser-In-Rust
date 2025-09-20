@@ -111,7 +111,7 @@ impl Expression {
                 };
                 let array_type = PrimitiveType::Array(ArrayType {
                     cv_type: Box::new(ch_type),
-                    size: str.len() + 1,
+                    size: Some(str.len() + 1),
                 });
                 CVType::from_primitive(array_type)
             }

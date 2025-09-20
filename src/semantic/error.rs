@@ -29,7 +29,7 @@ pub enum CompileError {
     MemberRedefined(String),
 
     BracketOnNonArrayOrPointer,
-    BracketIndexNotInteger,
+    BracketIndexNotInteger(PrimitiveType),
 
     /// variable declaration incomplete type
     IncompleteType,
@@ -108,4 +108,7 @@ pub enum CompileError {
     InvalidStorageClassSpecifier,
 
     ReturnTypeMismatch(String),
+
+    ArrayInitializeWithNonInitializerList(PrimitiveType),
+    ArrayInitializerTooManyElements(String, usize, usize),
 }

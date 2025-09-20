@@ -103,8 +103,8 @@ pub struct StmtDoWhile {
 
 #[derive(Debug, Clone)]
 pub struct StmtVariableDeclaration {
-    /// (variable, initial value) pairs
-    pub pairs: Vec<(VariableInfo, Option<Expression>)>,
+    /// (variable, initialization statements) pairs
+    pub pairs: Vec<(VariableInfo, Vec<Statement>)>,
 }
 
 #[derive(Debug, Clone)]
