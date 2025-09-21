@@ -80,8 +80,8 @@ fn main() {
     for token in tokens.into_iter() {
         if !context.can_feed(&parser, &token) {
             println!("Error: Unexpected token: {:?}", token);
-            println!("Backtrace: {:?}", context.backtrace(&parser));
-            println!("State: {}", context.state());
+            // println!("Backtrace: {:?}", context.backtraces(&parser));
+            // println!("State: {}", context.state());
             break;
         }
         match context.feed(&parser, token, &mut ()) {
@@ -92,28 +92,44 @@ fn main() {
             }
         }
     }
-    let ast = match context.accept(&parser, &mut ()) {
-        Ok(tu) => tu,
+    let asts = match context.accept(&parser, &mut ()) {
+        Ok(tu) => tu.collect::<Vec<_>>(),
         Err(err) => {
             println!("Error: {:?}", err);
             return;
         }
     };
-    println!("{:#?}", ast);
+    println!("Number of ASTs: {}", asts.len());
+    println!("{:#?}", asts);
 
     println!("{:=^80}", "");
     println!("{:=^80}", "Phase5: Semantic Analysis");
     println!("{:=^80}", "");
 
-    let mut context = semantic::Context::new();
-    let ast = match context.process(ast) {
-        Ok(ast) => ast,
-        Err(err) => {
-            println!("Error: {:?}", err);
-            return;
+    let mut success_asts = Vec::new();
+    let mut errors = Vec::new();
+
+    for ast in asts {
+        let mut context = semantic::Context::new();
+        let ast = match context.process(ast) {
+            Ok(ast) => ast,
+            Err(err) => {
+                errors.push(err);
+                // println!("Error: {:?}", err);
+                continue;
+            }
+        };
+        println!("{:#?}", ast);
+        success_asts.push(ast);
+    }
+    if success_asts.len() != 1 {
+        println!("No unique ASTs to generate code.: {}", success_asts.len());
+        for e in errors {
+            println!("Error: {:?}", e);
         }
-    };
-    println!("{:#?}", ast);
+        return;
+    }
+    let ast = success_asts.into_iter().next().unwrap();
 
     // generate instructions
     println!("{:=^80}", "");

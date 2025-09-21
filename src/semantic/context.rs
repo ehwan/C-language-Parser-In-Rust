@@ -705,7 +705,6 @@ impl Context {
             Some(decl_inits) => {
                 let mut pairs = Vec::new();
                 // - variable definition
-                // @TODO
                 // - function declaration
                 // - typedef
                 for decl in decl_inits.into_iter() {
@@ -714,6 +713,28 @@ impl Context {
                     let Some(name) = lhs_type.name.clone() else {
                         return Err(CompileError::DeclarationWithoutName);
                     };
+
+                    if storage_qualifier == Some(super::StorageClassSpecifier::Typedef) {
+                        if decl.initializer.is_some() {
+                            return Err(CompileError::TypedefWithInitializer(name));
+                        }
+                        if let Some(scope) = self.nearest_block_scope() {
+                            if let Some(old) = scope.typedefs.insert(name.clone(), lhs_type.cv_type)
+                            {
+                                return Err(CompileError::MultipleTypedefs(name, old));
+                            }
+                        } else {
+                            if let Some(old) = self
+                                .global_scope
+                                .typedefs
+                                .insert(name.clone(), lhs_type.cv_type)
+                            {
+                                return Err(CompileError::MultipleTypedefs(name, old));
+                            }
+                        }
+
+                        continue;
+                    }
 
                     let initializer = decl
                         .initializer
@@ -2052,7 +2073,12 @@ impl Context {
                         rhs: Box::new(rhs),
                     }));
                 }
-                (PrimitiveType::Array(_), PrimitiveType::Integer(_)) => {
+                (PrimitiveType::Array(arr_type), PrimitiveType::Integer(_)) => {
+                    let ptr_type = PrimitiveType::Pointer(arr_type.cv_type.clone());
+                    let lhs = Expression::Cast(expression::ExprCast {
+                        expr: Box::new(lhs),
+                        type_: ptr_type,
+                    });
                     return Ok(Expression::Binary(expression::ExprBinary {
                         op: ExprBinaryOp::Add,
                         lhs: Box::new(lhs),
@@ -2148,7 +2174,12 @@ impl Context {
                         rhs: Box::new(rhs),
                     }));
                 }
-                (PrimitiveType::Array(_), PrimitiveType::Integer(_)) => {
+                (PrimitiveType::Array(arr_type), PrimitiveType::Integer(_)) => {
+                    let ptr_type = PrimitiveType::Pointer(arr_type.cv_type.clone());
+                    let lhs = Expression::Cast(expression::ExprCast {
+                        expr: Box::new(lhs),
+                        type_: ptr_type,
+                    });
                     return Ok(Expression::Binary(expression::ExprBinary {
                         op: ExprBinaryOp::Sub,
                         lhs: Box::new(lhs),

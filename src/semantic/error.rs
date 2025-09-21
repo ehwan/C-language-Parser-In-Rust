@@ -111,4 +111,7 @@ pub enum CompileError {
 
     ArrayInitializeWithNonInitializerList(PrimitiveType),
     ArrayInitializerTooManyElements(String, usize, usize),
+
+    MultipleTypedefs(String, CVType),
+    TypedefWithInitializer(String),
 }

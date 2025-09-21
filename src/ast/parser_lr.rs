@@ -13,6 +13,7 @@ use crate::token::Token;
 // lr1! {
 
 // %lalr;
+%glr;
 
 %tokentype Token;
 
@@ -1036,10 +1037,10 @@ type_specifier( declarator::TypeSpecifier )
     | unsigned {
         declarator::TypeSpecifier::Unsigned
     }
-    // | ident {
-    //     let Token::Identifier(ident) = ident else { unreachable!() };
-    //     declarator::TypeSpecifier::Typename(ident)
-    // }
+    | ident {
+        let Token::Identifier(ident) = ident else { unreachable!() };
+        declarator::TypeSpecifier::Typename(ident)
+    }
     | struct_or_union_specifier {
         declarator::TypeSpecifier::StructOrUnion(struct_or_union_specifier)
     }
