@@ -107,7 +107,6 @@ use crate::token::Token;
 
 %left else_;
 %precedence IFSTMT;
-%nooptim;
 
 %start translation_unit;
 

@@ -24,8 +24,20 @@ int main() {
   printf("%s\n", "Fibonacci sequence:");
   int i = 1;
   for (i = 1; i <= 10; i++) {
+
     printf("for i = %d, ", i);
     printf("%d\n", fibonacci(i));
+
+    if (i == 0) {
+      printf("i is zero\n");
+    } else if (i == 1) {
+      printf("i is one\n");
+      continue;
+      printf("This should not be printed; i is one\n");
+    } else {
+      printf("i is neither zero nor one\n");
+      // do nothing
+    }
   }
 
   printf("global_uninit = %d\n", global_uninit);
