@@ -29,9 +29,9 @@ int main() {
     printf("%d\n", a);
 
     const int *p = &a;
-    p = 9; // valid
+    p = (int *)9; // valid
     // *p = 100; // error
-    printf("%d, %d, %d\n", p, *p, a);
+    printf("%d, %d\n", p, a);
   }
 
   // string
