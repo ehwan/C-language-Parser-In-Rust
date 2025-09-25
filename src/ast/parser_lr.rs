@@ -12,7 +12,7 @@ use crate::token::Token;
 %%
 // lr1! {
 
-// %lalr;
+%lalr;
 %glr;
 
 %tokentype Token;
@@ -105,8 +105,8 @@ use crate::token::Token;
 %token union_ Token::Union;
 %token enum_ Token::Enum;
 
-%left else_;
 %precedence IFSTMT;
+%left else_;
 
 %start translation_unit;
 
