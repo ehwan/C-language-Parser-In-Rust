@@ -75,16 +75,15 @@ fn main() {
 
     // parse the tokens into AST
     println!("ASTs: ");
-    let parser = ast::translation_unitParser::new();
-    let mut context = ast::translation_unitContext::new();
+    let mut context = ast::translation_unitContext::new(());
     for token in tokens.into_iter() {
-        if !context.can_feed(&parser, &token) {
+        if !context.can_feed(&token) {
             println!("Error: Unexpected token: {:?}", token);
             // println!("Backtrace: {:?}", context.backtraces(&parser));
             // println!("State: {}", context.state());
             break;
         }
-        match context.feed(&parser, token, &mut ()) {
+        match context.feed(token) {
             Ok(_) => {}
             Err(err) => {
                 println!("Error: {:?}", err);
@@ -92,8 +91,8 @@ fn main() {
             }
         }
     }
-    let asts = match context.accept(&parser, &mut ()) {
-        Ok(tu) => tu.collect::<Vec<_>>(),
+    let asts = match context.accept_all() {
+        Ok(tu) => tu.map(|(ast, _)| ast).collect::<Vec<_>>(),
         Err(err) => {
             println!("Error: {:?}", err);
             return;

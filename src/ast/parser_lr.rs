@@ -1,4 +1,4 @@
-use rusty_lr::lr1;
+#![allow(non_camel_case_types)]
 
 use super::declarator;
 use super::declarator::Declarator;

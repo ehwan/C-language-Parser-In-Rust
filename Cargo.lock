@@ -12,6 +12,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrayvec"
+version = "0.7.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f02882884d3e1bc524fb12c79f107f6ad0e1cfd498c536ffb494301740995dfe"
+
+[[package]]
 name = "cc"
 version = "1.2.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -159,9 +165,9 @@ checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
 
 [[package]]
 name = "rusty_lr"
-version = "3.33.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0224f19dc2fb0416e8da75176481c3907ac1c2a42981d69664aba5fbde6a3663"
+checksum = "6ff4411daa6d0dc255c5ae05fbd84e3eeb28cad7dda49d5b8067004f151b9269"
 dependencies = [
  "rusty_lr_core",
  "rusty_lr_derive",
@@ -169,19 +175,19 @@ dependencies = [
 
 [[package]]
 name = "rusty_lr_core"
-version = "3.38.0"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "094a104c8b0fd1cba2db8ba39c143c40598ca56136ddc8b9975c76700e7ff7e7"
+checksum = "3e842693b963831be6b40bde446e4df7b9bded561b0b45061a4e09f3f8907eb4"
 dependencies = [
+ "arrayvec",
  "rustc-hash",
- "smallvec",
 ]
 
 [[package]]
 name = "rusty_lr_derive"
-version = "2.41.0"
+version = "2.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59987a3448ea7bcd82582d104467f47158df470a6f03460e2628986487a014ee"
+checksum = "06706ba58ca8ecad20c858b9daf3617aefed080750ee86558a98291bf7658cee"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -190,9 +196,9 @@ dependencies = [
 
 [[package]]
 name = "rusty_lr_parser"
-version = "3.62.0"
+version = "4.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2644e6527bfb402d51c6cef46d5460fb0464872cf0c6d3ef32d9109676711b64"
+checksum = "3ff6e764abaa33beb5ab6bdf40c80c967d4d7322cc798133dc344b92f5931334"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -217,12 +223,6 @@ name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
-
-[[package]]
-name = "smallvec"
-version = "1.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "syn"
