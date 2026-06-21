@@ -95,6 +95,7 @@ pub enum Declarator {
     ArrayFixed(DeclArrayFixed),
     ArrayUnbounded(DeclArrayUnbounded),
     Function(DeclFunction),
+    BitField(DeclBitField),
 }
 
 #[derive(Debug, Clone)]
@@ -136,4 +137,10 @@ pub struct DeclArrayUnbounded {
 pub struct DeclFunction {
     pub declarator: Option<Box<Declarator>>,
     pub params: ParameterList,
+}
+
+#[derive(Debug, Clone)]
+pub struct DeclBitField {
+    pub declarator: Option<Box<Declarator>>,
+    pub width: Expression,
 }

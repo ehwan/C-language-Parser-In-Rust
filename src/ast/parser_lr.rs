@@ -1135,8 +1135,12 @@ struct_or_union( bool )
 
 struct_declarator( Declarator )
     : declarator
-    // @TODO
-    // bit field
+    | declarator? colon! constant_expression {
+        Declarator::BitField(declarator::DeclBitField {
+            declarator: declarator.map(Box::new),
+            width: constant_expression,
+        })
+    }
     ;
 
 struct_declarator_list( Vec<Declarator> )

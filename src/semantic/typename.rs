@@ -161,6 +161,10 @@ impl PrimitiveType {
         }
     }
     pub fn is_implicitly_castable(&self, to: &PrimitiveType) -> bool {
+        if self == to {
+            return true;
+        }
+
         match (self, to) {
             (PrimitiveType::Integer(_), PrimitiveType::Integer(_)) => true,
             (PrimitiveType::Integer(_), PrimitiveType::Float(_)) => true,
