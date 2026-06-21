@@ -339,6 +339,7 @@ impl Context {
             ast::Declarator::Function(decl) => self.process_declarator_function(decl, base_type),
             ast::Declarator::Const(decl) => self.process_declarator_const(decl, base_type),
             ast::Declarator::Volatile(decl) => self.process_declarator_volatile(decl, base_type),
+            ast::Declarator::BitField(_) => Err(CompileError::BitFieldNotSupported),
         }
     }
 }

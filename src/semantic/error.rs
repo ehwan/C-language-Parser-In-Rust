@@ -114,4 +114,6 @@ pub enum CompileError {
 
     MultipleTypedefs(String, CVType),
     TypedefWithInitializer(String),
+
+    BitFieldNotSupported,
 }

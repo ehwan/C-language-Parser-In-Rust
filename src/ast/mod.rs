@@ -12,6 +12,7 @@ pub use parser_lr::translation_unitParser;
 
 pub use declarator::DeclArrayFixed;
 pub use declarator::DeclArrayUnbounded;
+pub use declarator::DeclBitField;
 pub use declarator::DeclConst;
 pub use declarator::DeclFunction;
 pub use declarator::DeclIdentifier;
