@@ -52,7 +52,7 @@ pub struct Defined {
 }
 impl PreprocessorExpression for Defined {
     fn eval(&self, ctx: &mut PreprocessorContext) -> i64 {
-        if ctx.define_map.contains_key(&self.name) {
+        if ctx.macro_environment.contains_key(&self.name) {
             1
         } else {
             0

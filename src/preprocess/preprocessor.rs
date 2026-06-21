@@ -1,5 +1,3 @@
-use rusty_parser as rp;
-
 use std::fmt::Debug;
 use std::vec::Vec;
 
@@ -23,12 +21,14 @@ pub struct Define {
 }
 impl PreprocessedTokenLine for Define {
     fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
-        if ctx.should_emit() == false {
+        if ctx.current_region_is_active() == false {
             return Vec::new();
         }
-        let old = ctx.define_map.insert(
+        let old = ctx.macro_environment.insert(
             self.name.clone(),
-            MacroData::DirectReplace(self.replacement.clone()),
+            MacroDefinition::ObjectLike {
+                replacement_list: self.replacement.clone(),
+            },
         );
         if old.is_some() {
             panic!("Macro {} is already defined", self.name);
@@ -45,13 +45,16 @@ pub struct DefineFunction {
 }
 impl PreprocessedTokenLine for DefineFunction {
     fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
-        if ctx.should_emit() == false {
+        if ctx.current_region_is_active() == false {
             return Vec::new();
         }
 
-        let old = ctx.define_map.insert(
+        let old = ctx.macro_environment.insert(
             self.name.clone(),
-            MacroData::Function(self.param_count, self.replacement.clone()),
+            MacroDefinition::FunctionLike {
+                arity: self.param_count,
+                replacement_list: self.replacement.clone(),
+            },
         );
         if old.is_some() {
             panic!("Macro {} is already defined", self.name);
@@ -66,21 +69,9 @@ pub struct IfDef {
 }
 impl PreprocessedTokenLine for IfDef {
     fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
-        if ctx.should_emit() == false {
-            return Vec::new();
-        }
-
-        if ctx.define_map.contains_key(&self.name) {
-            ctx.if_stack.push(IfStackData {
-                processed: true,
-                current: true,
-            });
-        } else {
-            ctx.if_stack.push(IfStackData {
-                processed: false,
-                current: false,
-            });
-        }
+        let condition_holds =
+            ctx.current_region_is_active() && ctx.macro_environment.contains_key(&self.name);
+        ctx.enter_conditional_inclusion(condition_holds);
         Vec::new()
     }
 }
@@ -90,21 +81,9 @@ pub struct IfNDef {
 }
 impl PreprocessedTokenLine for IfNDef {
     fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
-        if ctx.should_emit() == false {
-            return Vec::new();
-        }
-
-        if ctx.define_map.contains_key(&self.name) {
-            ctx.if_stack.push(IfStackData {
-                processed: false,
-                current: false,
-            });
-        } else {
-            ctx.if_stack.push(IfStackData {
-                processed: true,
-                current: true,
-            });
-        }
+        let condition_holds =
+            ctx.current_region_is_active() && !ctx.macro_environment.contains_key(&self.name);
+        ctx.enter_conditional_inclusion(condition_holds);
         Vec::new()
     }
 }
@@ -112,13 +91,7 @@ impl PreprocessedTokenLine for IfNDef {
 pub struct Else {}
 impl PreprocessedTokenLine for Else {
     fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
-        let branch_data = ctx.if_stack.last_mut().expect("#else without #if");
-        if branch_data.current {
-            branch_data.current = false;
-        } else if branch_data.processed == false {
-            branch_data.processed = true;
-            branch_data.current = true;
-        }
+        ctx.enter_else_group();
         Vec::new()
     }
 }
@@ -126,7 +99,7 @@ impl PreprocessedTokenLine for Else {
 pub struct EndIf {}
 impl PreprocessedTokenLine for EndIf {
     fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
-        ctx.if_stack.pop().expect("#endif without #if");
+        ctx.exit_conditional_inclusion();
         Vec::new()
     }
 }
@@ -137,28 +110,16 @@ pub struct If {
 }
 impl PreprocessedTokenLine for If {
     fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Token> {
-        let tokens = parser.replace_recursive(&self.expression_tokens, ctx);
-        let expression = rp::parse(&parser.expression, tokens.iter().cloned())
-            .output
-            .expect("Failed to parse expression")
-            .0;
-
-        let val = expression.eval(ctx);
-        if ctx.should_emit() == false {
+        if ctx.current_region_is_active() == false {
+            ctx.enter_conditional_inclusion(false);
             return Vec::new();
         }
 
-        if val != 0 {
-            ctx.if_stack.push(IfStackData {
-                processed: true,
-                current: true,
-            });
-        } else {
-            ctx.if_stack.push(IfStackData {
-                processed: false,
-                current: false,
-            });
-        }
+        let tokens = parser.replace_recursive(&self.expression_tokens, ctx);
+        let expression = parser.parse_expression(&tokens);
+
+        let val = expression.eval(ctx);
+        ctx.enter_conditional_inclusion(val != 0);
         Vec::new()
     }
 }
@@ -168,25 +129,22 @@ pub struct ElIf {
 }
 impl PreprocessedTokenLine for ElIf {
     fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Token> {
+        let should_evaluate = ctx
+            .conditional_inclusion_stack
+            .last()
+            .map(|frame| frame.enclosing_region_active && !frame.prior_group_selected)
+            .expect("#elif without #if");
+
+        if should_evaluate == false {
+            ctx.enter_elif_group(false);
+            return Vec::new();
+        }
+
         let tokens = parser.replace_recursive(&self.expression_tokens, ctx);
-        let expression = rp::parse(&parser.expression, tokens.iter().cloned())
-            .output
-            .expect("Failed to parse expression")
-            .0;
+        let expression = parser.parse_expression(&tokens);
 
         let val = expression.eval(ctx);
-        let branch_data = ctx.if_stack.last_mut().expect("#else without #if");
-
-        if val == 0 {
-            branch_data.current = false;
-        } else {
-            if branch_data.current {
-                branch_data.current = false;
-            } else if branch_data.processed == false {
-                branch_data.processed = true;
-                branch_data.current = true;
-            }
-        }
+        ctx.enter_elif_group(val != 0);
 
         Vec::new()
     }
@@ -198,11 +156,11 @@ pub struct Undef {
 }
 impl PreprocessedTokenLine for Undef {
     fn emit(&self, ctx: &mut PreprocessorContext, _parser: &PreprocessorParser) -> Vec<Token> {
-        if ctx.should_emit() == false {
+        if ctx.current_region_is_active() == false {
             return Vec::new();
         }
 
-        let old = ctx.define_map.remove(&self.name);
+        let old = ctx.macro_environment.remove(&self.name);
         if old.is_none() {
             panic!("Macro {} is not defined", self.name);
         }
@@ -216,7 +174,7 @@ pub struct RawTokens {
 }
 impl PreprocessedTokenLine for RawTokens {
     fn emit(&self, ctx: &mut PreprocessorContext, parser: &PreprocessorParser) -> Vec<Token> {
-        if ctx.should_emit() == false {
+        if ctx.current_region_is_active() == false {
             return Vec::new();
         }
 
