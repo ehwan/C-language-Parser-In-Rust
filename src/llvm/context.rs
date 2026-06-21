@@ -886,24 +886,34 @@ impl<'ctx> ContextInternal<'ctx> {
         &mut self,
         expr: ExprMember,
     ) -> Result<ValueType<'ctx>, CompileError> {
-        unimplemented!("member expression is not supported yet");
-        // let src = self.compile_expression(*expr.src)?;
-        // Ok(src
-        //     .get_field_at_index(expr.member_index as u32)
-        //     .unwrap()
-        //     .into())
+        let src = self.compile_expression(*expr.src)?.into_pointer_value();
+        self.builder
+            .build_struct_gep(src, expr.member_index as u32, "member")
+            .map_err(CompileError::BuilderError)
+            .map(|v| v.as_any_value_enum())
     }
     fn compile_expression_arrow(
         &mut self,
         expr: ExprMember,
     ) -> Result<ValueType<'ctx>, CompileError> {
-        unreachable!("arrow expression is not supported yet")
-        // let src = self.compile_expression(*expr.src)?.into_pointer_value();
+        let src = self
+            .compile_expression_deref(*expr.src)?
+            .into_pointer_value();
+        self.builder
+            .build_struct_gep(src, expr.member_index as u32, "member")
+            .map_err(CompileError::BuilderError)
+            .map(|v| v.as_any_value_enum())
     }
     fn compile_expression_paren(
         &mut self,
         expr: ExprParen,
     ) -> Result<ValueType<'ctx>, CompileError> {
+        if let Expression::Variable(info) = expr.src.as_ref() {
+            if info.name == "print" {
+                return self.compile_builtin_print(expr.args);
+            }
+        }
+
         let func = self.compile_expression(*expr.src)?.into_function_value();
         let args = expr
             .args
@@ -916,6 +926,53 @@ impl<'ctx> ContextInternal<'ctx> {
         let res = self
             .builder
             .build_call(func, &args, "function_call")
+            .map_err(CompileError::BuilderError)?;
+        Ok(res.as_any_value_enum())
+    }
+    fn compile_builtin_print(
+        &mut self,
+        args: Vec<Expression>,
+    ) -> Result<ValueType<'ctx>, CompileError> {
+        let printf = self.module.get_function("printf").unwrap_or_else(|| {
+            let i8ptr = self.context.i8_type().ptr_type(AddressSpace::default());
+            let printf_type = self.context.i32_type().fn_type(&[i8ptr.into()], true);
+            self.module.add_function(
+                "printf",
+                printf_type,
+                Some(inkwell::module::Linkage::External),
+            )
+        });
+
+        let Some(arg) = args.into_iter().next() else {
+            let fmt = self
+                .builder
+                .build_global_string_ptr("\n", "print_fmt")
+                .map_err(CompileError::BuilderError)?;
+            let res = self
+                .builder
+                .build_call(printf, &[fmt.as_pointer_value().into()], "print")
+                .map_err(CompileError::BuilderError)?;
+            return Ok(res.as_any_value_enum());
+        };
+
+        let arg = self.compile_expression_deref(arg)?;
+        let (fmt, value): (&str, BasicValueEnum) = match arg {
+            AnyValueEnum::IntValue(value) => ("%d\n", value.as_basic_value_enum()),
+            AnyValueEnum::PointerValue(value) => ("%p\n", value.as_basic_value_enum()),
+            AnyValueEnum::FloatValue(value) => ("%f\n", value.as_basic_value_enum()),
+            _ => unreachable!("print only supports scalar values"),
+        };
+        let fmt = self
+            .builder
+            .build_global_string_ptr(fmt, "print_fmt")
+            .map_err(CompileError::BuilderError)?;
+        let res = self
+            .builder
+            .build_call(
+                printf,
+                &[fmt.as_pointer_value().into(), value.into()],
+                "print",
+            )
             .map_err(CompileError::BuilderError)?;
         Ok(res.as_any_value_enum())
     }
@@ -1705,7 +1762,7 @@ impl<'ctx> ContextInternal<'ctx> {
     }
     fn compile_expression_initializerlist(
         &mut self,
-        expr: ExprInitializerList,
+        _expr: ExprInitializerList,
     ) -> Result<ValueType<'ctx>, CompileError> {
         unimplemented!("initializer list expression is not supported yet")
     }

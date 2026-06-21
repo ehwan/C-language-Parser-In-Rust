@@ -242,6 +242,7 @@ impl Context {
 
     pub fn process(&mut self, tu: ast::TranslationUnit) -> Result<TranslationUnit, CompileError> {
         let mut statements = Vec::new();
+        self.register_builtin_print();
 
         for item in tu.statements.into_iter() {
             let statement = self.process_statement(item)?;
@@ -258,6 +259,28 @@ impl Context {
             variables,
             functions,
         })
+    }
+    fn register_builtin_print(&mut self) {
+        if self.global_scope.variables.contains_key("print") {
+            return;
+        }
+
+        let func_type = FunctionType {
+            return_type: Box::new(CVType::from_primitive(PrimitiveType::Integer(
+                Integer::Int32,
+            ))),
+            args: Vec::new(),
+            variadic: true,
+        };
+        let varinfo = VariableInfo {
+            name: "print".to_string(),
+            cv_type: CVType::from_primitive(PrimitiveType::Function(func_type)),
+            uid: self.create_variable_id(),
+            storage: Some(StorageClassSpecifier::Extern),
+        };
+        self.global_scope
+            .variables
+            .insert("print".to_string(), varinfo);
     }
     pub fn process_statement(
         &mut self,
@@ -925,30 +948,158 @@ impl Context {
                             };
 
                             if let Some(rhs) = initializer {
-                                let rhs_type = rhs.primitive_type()?;
-                                if !rhs_type.is_implicitly_castable(&varinfo.cv_type.type_) {
-                                    return Err(CompileError::InitializeTypeMismatch(
-                                        varinfo.cv_type.type_,
-                                        rhs.primitive_type()?,
-                                    ));
+                                match (&varinfo.cv_type.type_, rhs) {
+                                    (
+                                        PrimitiveType::Struct(struct_definition),
+                                        Expression::InitializerList(rhs),
+                                    ) => {
+                                        let Some(body) = &struct_definition.body else {
+                                            return Err(CompileError::IncompleteType);
+                                        };
+                                        let rhs_len = rhs.exprs.len();
+                                        let lhs_len = body.members.len();
+                                        if rhs_len > lhs_len {
+                                            return Err(
+                                                CompileError::ArrayInitializerTooManyElements(
+                                                    varinfo.name.clone(),
+                                                    lhs_len,
+                                                    rhs_len,
+                                                ),
+                                            );
+                                        }
+
+                                        for (i, rhs) in rhs.exprs.into_iter().enumerate() {
+                                            let member = &body.members[i];
+                                            let member_type = member.cv_type.type_.clone();
+                                            if !rhs
+                                                .primitive_type()?
+                                                .is_implicitly_castable(&member_type)
+                                            {
+                                                return Err(CompileError::InitializeTypeMismatch(
+                                                    member_type,
+                                                    rhs.primitive_type()?,
+                                                ));
+                                            }
+                                            let rhs = if rhs.primitive_type()? != member_type {
+                                                Expression::Cast(ExprCast {
+                                                    type_: member_type,
+                                                    expr: Box::new(rhs),
+                                                })
+                                            } else {
+                                                rhs
+                                            };
+                                            let lhs_member =
+                                                Expression::Member(expression::ExprMember {
+                                                    src: Box::new(Expression::Variable(
+                                                        varinfo.clone(),
+                                                    )),
+                                                    member_index: i,
+                                                    member_type: member.cv_type.clone(),
+                                                });
+                                            let init =
+                                                Statement::Expression(statement::StmtExpression {
+                                                    expression: Expression::Binary(
+                                                        super::ExprBinary {
+                                                            op: ExprBinaryOp::Assign(true),
+                                                            lhs: Box::new(lhs_member),
+                                                            rhs: Box::new(rhs),
+                                                        },
+                                                    ),
+                                                });
+                                            initialization_statements.push(init);
+                                        }
+
+                                        for i in rhs_len..lhs_len {
+                                            let member = &body.members[i];
+                                            let lhs_member =
+                                                Expression::Member(expression::ExprMember {
+                                                    src: Box::new(Expression::Variable(
+                                                        varinfo.clone(),
+                                                    )),
+                                                    member_index: i,
+                                                    member_type: member.cv_type.clone(),
+                                                });
+                                            let rhs =
+                                                Expression::Default(member.cv_type.type_.clone());
+                                            let init =
+                                                Statement::Expression(statement::StmtExpression {
+                                                    expression: Expression::Binary(
+                                                        super::ExprBinary {
+                                                            op: ExprBinaryOp::Assign(true),
+                                                            lhs: Box::new(lhs_member),
+                                                            rhs: Box::new(rhs),
+                                                        },
+                                                    ),
+                                                });
+                                            initialization_statements.push(init);
+                                        }
+                                    }
+                                    (_, Expression::InitializerList(rhs)) => {
+                                        if rhs.exprs.len() != 1 {
+                                            return Err(
+                                                CompileError::InitializerListForNonAggregate,
+                                            );
+                                        }
+                                        let rhs = rhs.exprs.into_iter().next().unwrap();
+                                        let rhs_type = rhs.primitive_type()?;
+                                        if !rhs_type.is_implicitly_castable(&varinfo.cv_type.type_)
+                                        {
+                                            return Err(CompileError::InitializeTypeMismatch(
+                                                varinfo.cv_type.type_,
+                                                rhs.primitive_type()?,
+                                            ));
+                                        }
+                                        let rhs = if rhs_type != varinfo.cv_type.type_ {
+                                            Expression::Cast(ExprCast {
+                                                type_: varinfo.cv_type.type_.clone(),
+                                                expr: Box::new(rhs),
+                                            })
+                                        } else {
+                                            rhs
+                                        };
+                                        let init =
+                                            Statement::Expression(statement::StmtExpression {
+                                                expression: Expression::Binary(super::ExprBinary {
+                                                    op: ExprBinaryOp::Assign(true),
+                                                    lhs: Box::new(Expression::Variable(
+                                                        varinfo.clone(),
+                                                    )),
+                                                    rhs: Box::new(rhs),
+                                                }),
+                                            });
+                                        initialization_statements.push(init);
+                                    }
+                                    (_, rhs) => {
+                                        let rhs_type = rhs.primitive_type()?;
+                                        if !rhs_type.is_implicitly_castable(&varinfo.cv_type.type_)
+                                        {
+                                            return Err(CompileError::InitializeTypeMismatch(
+                                                varinfo.cv_type.type_,
+                                                rhs.primitive_type()?,
+                                            ));
+                                        }
+                                        let rhs = if rhs_type != varinfo.cv_type.type_ {
+                                            // implicit cast
+                                            Expression::Cast(ExprCast {
+                                                type_: varinfo.cv_type.type_.clone(),
+                                                expr: Box::new(rhs),
+                                            })
+                                        } else {
+                                            rhs
+                                        };
+                                        let init =
+                                            Statement::Expression(statement::StmtExpression {
+                                                expression: Expression::Binary(super::ExprBinary {
+                                                    op: ExprBinaryOp::Assign(true),
+                                                    lhs: Box::new(Expression::Variable(
+                                                        varinfo.clone(),
+                                                    )),
+                                                    rhs: Box::new(rhs),
+                                                }),
+                                            });
+                                        initialization_statements.push(init);
+                                    }
                                 }
-                                let rhs = if rhs_type != varinfo.cv_type.type_ {
-                                    // implicit cast
-                                    Expression::Cast(ExprCast {
-                                        type_: varinfo.cv_type.type_.clone(),
-                                        expr: Box::new(rhs),
-                                    })
-                                } else {
-                                    rhs
-                                };
-                                let init = Statement::Expression(statement::StmtExpression {
-                                    expression: Expression::Binary(super::ExprBinary {
-                                        op: ExprBinaryOp::Assign(true),
-                                        lhs: Box::new(Expression::Variable(varinfo.clone())),
-                                        rhs: Box::new(rhs),
-                                    }),
-                                });
-                                initialization_statements.push(init);
                             } else {
                                 if self.function_scope.is_none() {
                                     // if this is global variable, initialize with default value

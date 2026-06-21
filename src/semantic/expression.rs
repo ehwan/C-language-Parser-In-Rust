@@ -130,7 +130,9 @@ impl Expression {
             ),
             Expression::Member(expr) => expr.member_type.clone(),
             Expression::Arrow(expr) => expr.member_type.clone(),
-            Expression::InitializerList(expr) => unimplemented!("expression_type InitializerList"),
+            Expression::InitializerList(_) => {
+                return Err(CompileError::InitializerListForNonAggregate)
+            }
             Expression::Paren(expr) => match expr.src.cv_type()?.type_ {
                 PrimitiveType::Function(func) => *func.return_type,
                 _ => unreachable!("Paren expression type"),
