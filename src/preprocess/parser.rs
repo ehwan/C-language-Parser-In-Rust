@@ -4,7 +4,7 @@ use super::parser_lr_expression_expanded as expression_parser;
 use super::parser_lr_file_expanded as file_parser;
 use super::parser_lr_macro_expanded as macro_parser;
 use super::preprocessor::*;
-use crate::token::trie::ident_to_keyword_map;
+use crate::token::vocabulary::ident_to_keyword_map;
 use crate::token::Token;
 
 pub struct PreprocessorParser {}

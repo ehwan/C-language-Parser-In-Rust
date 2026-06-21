@@ -113,7 +113,3 @@ impl std::hash::Hash for Token {
         std::mem::discriminant(self).hash(state);
     }
 }
-
-use rusty_parser as rp;
-
-pub type DynParser = rp::DynBoxChars<(Token,)>;
