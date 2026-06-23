@@ -1,8 +1,6 @@
 use super::context::*;
 use super::expression::PreprocessorExpression;
-use super::parser_lr_expression_expanded as expression_parser;
-use super::parser_lr_file_expanded as file_parser;
-use super::parser_lr_macro_expanded as macro_parser;
+use super::parser_lr_expanded as preprocessor_parser;
 use super::preprocessor::*;
 use crate::token::vocabulary::ident_to_keyword_map;
 use crate::token::Token;
@@ -19,7 +17,7 @@ impl PreprocessorParser {
     }
 
     pub fn parse_lines(&self, tokens: &[Token]) -> Vec<Box<dyn PreprocessedTokenLine>> {
-        let mut parser_context = file_parser::PreprocessingFileContext::new(());
+        let mut parser_context = preprocessor_parser::PreprocessingFileContext::new(());
         for token in tokens.iter().cloned() {
             parser_context
                 .feed(token)
@@ -33,7 +31,7 @@ impl PreprocessorParser {
     }
 
     pub fn parse_expression(&self, tokens: &[Token]) -> Box<dyn PreprocessorExpression> {
-        let mut parser_context = expression_parser::PreprocessingExpressionContext::new(());
+        let mut parser_context = preprocessor_parser::PreprocessingExpressionContext::new(());
         for token in tokens
             .iter()
             .filter(|token| token != &&Token::Whitespace)
@@ -162,7 +160,7 @@ impl PreprocessorParser {
     }
 
     fn parse_macro_invocation_tail(&self, tokens: &[Token]) -> (Vec<Vec<Token>>, Vec<Token>) {
-        let mut parser_context = macro_parser::MacroInvocationTailContext::new(());
+        let mut parser_context = preprocessor_parser::MacroInvocationTailContext::new(());
         for token in tokens.iter().cloned() {
             parser_context
                 .feed(token)

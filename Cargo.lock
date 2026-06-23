@@ -164,9 +164,9 @@ checksum = "357703d41365b4b27c590e3ed91eabb1b663f07c4c084095e60cbed4362dff0d"
 
 [[package]]
 name = "rusty_lr"
-version = "4.2.0"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ff4411daa6d0dc255c5ae05fbd84e3eeb28cad7dda49d5b8067004f151b9269"
+checksum = "f4e76c673a201bf7b7784dcb3b7e8163b607ef5aaafeb0de0a9d98b68adc78bf"
 dependencies = [
  "rusty_lr_core",
  "rusty_lr_derive",
@@ -174,9 +174,9 @@ dependencies = [
 
 [[package]]
 name = "rusty_lr_core"
-version = "4.2.0"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e842693b963831be6b40bde446e4df7b9bded561b0b45061a4e09f3f8907eb4"
+checksum = "a81ceaee0c07fdeec867236c653e07e9c5c339bddf3cb56e70624cfd0f9c41b4"
 dependencies = [
  "arrayvec",
  "rustc-hash",
@@ -184,9 +184,9 @@ dependencies = [
 
 [[package]]
 name = "rusty_lr_derive"
-version = "2.48.0"
+version = "2.49.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06706ba58ca8ecad20c858b9daf3617aefed080750ee86558a98291bf7658cee"
+checksum = "57dfd9fe3b6bd14030ff2a972a0c621fc033da37df24d57475cc8ad354fb6897"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -195,9 +195,9 @@ dependencies = [
 
 [[package]]
 name = "rusty_lr_parser"
-version = "4.2.1"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ff6e764abaa33beb5ab6bdf40c80c967d4d7322cc798133dc344b92f5931334"
+checksum = "4af3bfdb080a7ef66172b7ee676ba305e18eb3bc19212ee1cd6939cfc2f4fc6f"
 dependencies = [
  "proc-macro2",
  "quote",
