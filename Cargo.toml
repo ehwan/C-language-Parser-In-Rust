@@ -10,5 +10,5 @@ keywords = ["parser", "lexer", "c", "interpreter", "compiler"]
 categories = ["parser-implementations", "compilers"]
 
 [dependencies]
-rusty_lr = { version = "4.2.0", features = [] }
+rusty_lr = { version = "4.3.0", features = [] }
 inkwell = { version = "0.6.0", features = ["llvm14-0"] }
