@@ -7,8 +7,8 @@ mod statement;
 use parser_lr_expanded as parser_lr;
 
 pub use parser_lr::translation_unitContext;
-pub use parser_lr::translation_unitParseError;
-pub use parser_lr::translation_unitParser;
+pub use parser_lr::ParseError as translation_unitParseError;
+pub use parser_lr::Parser as translation_unitParser;
 
 pub use declarator::DeclArrayFixed;
 pub use declarator::DeclArrayUnbounded;
